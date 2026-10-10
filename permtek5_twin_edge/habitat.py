@@ -296,15 +296,17 @@ WORMBED5 = {"worm_bin_cm": 40, "tank_pipes": 8, "tank_pipe_mm": 110}
 
 def as_wormbed5(h: Habitat, bed: Bed) -> List[str]:
     """Give the bed the parts a WormBed5 guild always has, where the map lacks them. Changes `bed` in
-    place and returns what was assumed, in plain words. A worm box is not assumed over planted cells."""
+    place and returns what was assumed, in plain words. Cells the map plants where the box goes are left
+    out of the simulation (in this copy of the habitat only; the map is not touched) and named."""
     assumed: List[str] = []
     if not bed.worm_bin_cm:
         cols = -(-WORMBED5["worm_bin_cm"] // bed.cell_cm)
-        if any(c.bed_id == bed.id and c.col >= bed.cols - cols for c in h.cells):
-            assumed.append(f"no worm box: the last {WORMBED5['worm_bin_cm']} cm of the bed are planted on your map")
-        else:
-            bed.worm_bin_cm = WORMBED5["worm_bin_cm"]
-            assumed.append(f"a worm box of {bed.worm_bin_cm} cm at the bed's far end")
+        under = [c for c in h.cells if c.bed_id == bed.id and c.col >= bed.cols - cols]
+        bed.worm_bin_cm = WORMBED5["worm_bin_cm"]
+        assumed.append(f"a worm box of {bed.worm_bin_cm} cm at the bed's far end")
+        if under:
+            h.cells[:] = [c for c in h.cells if c not in under]
+            assumed.append(f"{len(under)} planted cell(s) lie where the box stands and are left out here: move them on your map")
     if not bed.tank_pipes:
         bed.tank_pipes, bed.tank_pipe_mm = WORMBED5["tank_pipes"], WORMBED5["tank_pipe_mm"]
         assumed.append(f"{bed.tank_pipes} tank pipes of {bed.tank_pipe_mm} mm under the bed ({bed.tank_litres} l)")

@@ -126,13 +126,15 @@ def test_a_bed_drawn_without_box_and_tank_gets_the_wormbed5_parts_and_says_so(de
     assert json.loads(open(full["config"]).read())["assumed"] == [], "a complete map is taken as it is"
 
 
-def test_a_worm_box_is_not_assumed_over_planted_cells(demo, tmp_path):
+def test_cells_planted_where_the_box_goes_are_left_out_and_named(demo, tmp_path):
     h, lib = demo
     planted = hb.load_citydemo()
     planted.beds[0].worm_bin_cm = 0
     planted.cells[0].col = 28
+    n = len(planted.cells)
     cfg = json.loads(open(world.generate(planted, lib, tmp_path)["config"]).read())
-    assert cfg["wormBin"]["cols"] == 0 and "planted on your map" in cfg["assumed"][0]
+    assert cfg["wormBin"]["cols"] == 4 and len(cfg["cells"]) == n - 1
+    assert "1 planted cell(s) lie where the box stands" in cfg["assumed"][1]
 
 
 def test_citydemo_roof_is_a_wormbed5_guild_and_a_guild_is_picked_by_name(demo, tmp_path):
