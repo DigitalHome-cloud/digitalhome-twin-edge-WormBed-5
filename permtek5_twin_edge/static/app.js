@@ -170,6 +170,7 @@ function draw(t) {
   drawEnv(t);
   drawBox(t, ready);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
+  $("#btn-hopper-empty").disabled = $("#btn-hopper-mix").disabled = $("#btn-hopper").disabled;
   $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
   $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
   $("#btn-stop").disabled = !t.running;
@@ -213,7 +214,26 @@ $("#btn-start").addEventListener("click", async () => {
 });
 try { $("#chk-window").checked = localStorage.getItem("permtek5-twin-edge-window") === "1"; } catch (_) { /* private window */ }
 $("#btn-stop").addEventListener("click", async () => { views(false); await post("/api/twin/stop"); refresh(); });
-$("#btn-hopper").addEventListener("click", async () => { if (await post("/api/twin/hopper", { grams: 1000 })) core.toast("Hopper: 1 kg of scraps"); refresh(); });
+const fillHopper = async (mix, said) => { if (await post("/api/twin/hopper", mix ? { mix } : { grams: 0 })) core.toast(said); refresh(); };
+$("#btn-hopper").addEventListener("click", () => fillHopper({ vegetable: 600, fruit: 300, coffee: 100 }, "Hopper: 1 kg, the usual mix"));
+$("#btn-hopper-empty").addEventListener("click", () => fillHopper(null, "Hopper emptied"));
+$("#btn-hopper-mix").addEventListener("click", () => {
+  const mix = {};
+  $("#hopper-kinds").querySelectorAll("input").forEach((i) => { if (Number(i.value) > 0) mix[i.dataset.kind] = Number(i.value); });
+  fillHopper(mix, "Hopper filled");
+});
+
+// The feeding guide's kinds, for saying what went into the hopper. An older server without it keeps the form hidden.
+(async function loadGuide() {
+  let g;
+  try { g = await core.api("GET", "/api/twin/guide"); } catch (_) { return; }
+  $("#hopper-form").hidden = false;
+  $("#guide-about").textContent = g.about;
+  $("#hopper-kinds").innerHTML = g.kinds.map((k) => `
+    <label class="kind kind--${core.esc(k.class)}"><span>${core.esc(k.label)} <em>${core.esc(g.classes[k.class])}${k.weeklySharePct ? `, ≤ ${k.weeklySharePct} %` : ""}</em></span>
+      <input type="number" min="0" step="50" value="0" data-kind="${core.esc(k.id)}" aria-label="${core.esc(k.label)}, grams"> g</label>`).join("");
+  $("#guide-rules").innerHTML = [...g.rules, ...g.preparation].map((r) => `<li>${core.esc(r)}</li>`).join("");
+})();
 $("#btn-tank").addEventListener("click", async () => { if (await post("/api/twin/tank", {})) core.toast("Tank refilled"); refresh(); });
 $("#btn-estop").addEventListener("click", async () => {
   await post("/api/twin/estop", { on: $("#btn-estop").textContent === "E-stop" });
@@ -321,11 +341,22 @@ function drawBox(t, ready) {
   if (panel.hidden) return;
   const r = (v, unit, digits) => typeof v === "number" ? `${v.toFixed(digits || 0)}${unit}` : "no reading";
   const rows = [[r(box.tempC, " °C", 1), "core"], [r(box.edgeC, " °C", 1), "edge"], [r(box.moisture, " %"), "moisture"],
-    [r(box.weightKg, " kg", 2), "weight"], [r(box.gas, ""), "gas, 0 fresh to 100"], [box.lidOpen ? "open" : "closed", "lid"],
+    [r(box.weightKg, " kg", 2), "weight"], [r(box.gas, ""), "gas, 0 fresh to 100"],
+    [r(box.pH, "", 1), "acidity, pH"],
+    [typeof box.sumpL === "number" ? `${box.sumpL.toFixed(1)} / ${box.sumpCapacity} l` : "no reading", "sump"], [box.lidOpen ? "open" : "closed", "lid"],
     [box.insulated ? "wrapped" : "bare", "insulation"], [`${box.fedGrams} g`, `fed in ${box.feedings} portion(s)`]];
   $("#box-readings").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
   const f = t.feeder;
   $("#box-feeder").textContent = !f ? "" : `Feeder: ${f.why}.` + (f.state === "known" ? ` It would feed ${f.grams} g now.` : "");
+  // the feeding guide: why the next feeding waits, and the week on record
+  const guide = t.guide, week = guide && guide.week;
+  $("#box-guide").textContent = !guide ? "" : "Feeding guide: "
+    + (!guide.load.ok ? `${guide.load.text} ` : "")
+    + (!guide.feed.ok ? `no feeding now. ${guide.feed.text}${guide.feed.againInMin ? ` (${Math.ceil(guide.feed.againInMin / 60)} h to go)` : ""} `
+      : guide.load.ok ? "the next feeding is in order. " : "")
+    + `This week: ${week.scrapsG} g of scraps in ${week.feedings} feeding(s), ${week.brownsG} g of dry bedding`
+    + (week.refusedLoads ? `, ${week.refusedLoads} hopper load(s) refused` : "") + "."
+    + (guide.brownsDue ? ` Dry bedding due with the next feeding: ${guide.brownsDue} g.` : "");
   const sim = box.sim;
   $("#box-sim").textContent = !sim ? "" : `Simulation only: worms ${sim.wormsG} g, health ${Math.round(sim.health * 100)} %, `
     + `working at ${Math.round(sim.activity * 100)} %, eat ${sim.eatsPerDay} g a day, ${sim.foodG} g uneaten, ${sim.castingsG} g castings`
@@ -335,12 +366,13 @@ function drawBox(t, ready) {
   $("#btn-insulate").dataset.on = box.insulated ? "" : "1";
   $("#btn-lid").textContent = box.lidOpen ? "Lid closed" : "Lid left open";
   $("#btn-lid").dataset.open = box.lidOpen ? "" : "1";
-  for (const id of ["#btn-insulate", "#btn-bedding", "#btn-moisten", "#btn-lid"]) $(id).disabled = !ready;
+  for (const id of ["#btn-insulate", "#btn-bedding", "#btn-moisten", "#btn-lid", "#btn-tap"]) $(id).disabled = !ready;
 }
 const boxDo = async (body, said) => { if (await post("/api/twin/box", body)) core.toast(said); refresh(); };
 $("#btn-insulate").addEventListener("click", (e) => boxDo({ do: "insulate", on: !!e.target.dataset.on }, "Noted"));
 $("#btn-bedding").addEventListener("click", () => boxDo({ do: "bedding", grams: 500 }, "500 g of dry bedding"));
 $("#btn-moisten").addEventListener("click", () => boxDo({ do: "moisten", ml: 500 }, "Half a litre sprinkled"));
+$("#btn-tap").addEventListener("click", () => boxDo({ do: "tap" }, "The sump ran into the tank"));
 $("#btn-lid").addEventListener("click", (e) => boxDo({ do: "lid", open: !!e.target.dataset.open }, "Noted"));
 
 /* ---------------------------------------------------------------- chaos -- */

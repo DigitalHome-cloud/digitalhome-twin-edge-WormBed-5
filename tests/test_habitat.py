@@ -104,6 +104,9 @@ def test_the_worm_box_takes_the_last_columns_and_the_world_shows_the_system(demo
     assert wbt.count("# tank pipe") == 8 and "# worm box" in wbt and "# hopper" in wbt and "# fill pipe" in wbt
     assert "DEF WORM_LID Pose" in wbt and "DEF WORM_WRAP Pose" in wbt, "the lid opens and the wrapping goes on in the world"
     assert cfg["world"]["lidOpenRad"] > 1 and cfg["world"]["wrapOffZ"] < 0 < cfg["world"]["wrapZ"]
+    # two bins: the sump as high as the soil, the working bin above it, and the parked tool clears the lid
+    assert cfg["wormBin"]["sumpLitres"] == pytest.approx(14.4) and cfg["wormBin"]["areaM2"] == pytest.approx(0.48)
+    assert cfg["world"]["boxTopZ"] < cfg["world"]["tipHome"] and cfg["world"]["boxTopZ"] > cfg["world"]["soilZ"] + 0.3
     bad = hb.load_citydemo()
     bad.cells[0].col = 27
     assert any("worm box" in p for p in hb.problems(bad, lib))

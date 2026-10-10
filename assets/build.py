@@ -16,7 +16,7 @@ Every mesh is modelled at a unit size and scaled by the world:
     bed_soil.obj                          a 1 x 1 m surface with small bumps, z about 0
     gantry_bridge.obj                     an aluminium profile 1 m long along y, centred
     tree_trunk.obj, tree_canopy.obj       a tree 1 m tall, standing on z = 0
-    worm_box.obj, worm_box_lid.obj        a slatted box in a unit cube, standing on z = 0; its lid, hinged at its origin
+    worm_box*.obj                         the two-bin worm box in a unit cube; its lid, feed hatch and drilled holes
 
 The same script and parameters give the same files; a hash of this file in
 the output folder lets a second run skip the work.
@@ -175,25 +175,62 @@ def _blocks(name, blocks):
 
 
 def worm_box():
-    """A slatted box, open at the top, in a unit cube: x and y 0..1, standing on z = 0. Its lid is worm_box_lid."""
-    blocks = [(0.04, 0.96, 0.02, 0.98, 0.0, 0.80)]                 # what is in it: bedding and castings
-    for x0, x1 in ((0.03, 0.06), (0.94, 0.97)):                    # the insulated walls, up to the rim
-        blocks.append((x0, x1, 0.02, 0.98, 0.0, 0.88))
+    """The worm box's two bins in a unit cube (x and y 0..1, standing on z = 0): the lower half is the
+    sump with a solid bottom, the upper half the slatted working bin, open at the top."""
+    blocks = [(0.02, 0.98, 0.02, 0.98, 0.0, 0.47),                 # bin 2, the sump: plain walls
+              (0.0, 1.0, 0.0, 1.0, 0.47, 0.50),                    # the rim bin 1 sits on
+              (0.05, 0.95, 0.03, 0.97, 0.50, 0.88)]                # what is in bin 1: bedding and castings
+    for x0, x1 in ((0.03, 0.06), (0.94, 0.97)):                    # bin 1's insulated walls, up to its rim
+        blocks.append((x0, x1, 0.02, 0.98, 0.50, 0.95))
     for y0, y1 in ((0.02, 0.05), (0.95, 0.98)):
-        blocks.append((0.03, 0.97, y0, y1, 0.0, 0.88))
-    for i in range(5):                                             # slats on the two long faces, with air gaps
-        z0 = 0.03 + i * 0.17
-        blocks += [(0.0, 0.04, 0.0, 1.0, z0, z0 + 0.13), (0.96, 1.0, 0.0, 1.0, z0, z0 + 0.13)]
+        blocks.append((0.03, 0.97, y0, y1, 0.50, 0.95))
+    for i in range(4):                                             # slats on its two long faces, with air gaps
+        z0 = 0.52 + i * 0.11
+        blocks += [(0.0, 0.04, 0.0, 1.0, z0, z0 + 0.085), (0.96, 1.0, 0.0, 1.0, z0, z0 + 0.085)]
     return _blocks("worm_box", blocks)
 
 
 def worm_box_lid():
-    """The box's lid, overhanging against rain, with a handle. Its hinge is the y axis at x = 0, z = 0:
-    the lid lies from x = -1.06 to 0, so turning it about y opens it."""
-    return _blocks("worm_box_lid", [(-1.06, 0.0, -0.02, 1.02, 0.0, 0.08), (-0.61, -0.45, 0.35, 0.65, 0.08, 0.12)])
+    """The lid in two parts, either side of the feed hatch, overhanging against rain. Its hinge is the y
+    axis at x = 0, z = 0: it lies from x = -1.06 to 0, so turning it about y opens it."""
+    return _blocks("worm_box_lid", [(-1.06, -0.65, -0.02, 1.02, 0.0, 0.05), (-0.41, 0.0, -0.02, 1.02, 0.0, 0.05),
+                                    (-0.25, -0.15, 0.40, 0.60, 0.05, 0.08)])       # and its handle
 
 
-BUILDERS = (plant_grown, plant_seedling, bed_soil, gantry_bridge, tree_trunk, tree_canopy, worm_box, worm_box_lid)
+def worm_box_hatch():
+    """The feed hatch in the lid: a flap across the box that the robot's tool opens. Hinged like the
+    lid, about the y axis at x = 0, z = 0; it lies from x = -0.24 to 0."""
+    return _blocks("worm_box_hatch", [(-0.24, 0.0, 0.0, 1.0, 0.005, 0.045)])
+
+
+def _dot(bm, x, y, z, axis, r=0.012):
+    turn = {"z": Matrix.Identity(4), "y": Matrix.Rotation(math.pi / 2, 4, "X")}[axis]
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=6, radius1=r, radius2=r, depth=0.012, matrix=Matrix.Translation((x, y, z)) @ turn)
+
+
+def worm_box_lid_holes():
+    """The vent holes drilled in the lid, as dark dots to lay over it. Same coordinates as worm_box_lid,
+    so they turn with it."""
+    bm = bmesh.new()
+    for x in (-0.98, -0.86, -0.74, -0.34, -0.22, -0.10):           # either side of the hatch
+        for j in range(8):
+            _dot(bm, x, 0.08 + j * 0.12, 0.051, "z")
+    return new_object("worm_box_lid_holes", bm)
+
+
+def worm_box_holes():
+    """What is drilled into the bins, as dark dots to lay over them: air holes high on bin 1's two short
+    sides, and the tap low on the sump. Same unit cube as worm_box."""
+    bm = bmesh.new()
+    for y in (0.0, 1.0):                                           # bin 1: air holes under its rim
+        for i in range(7):
+            _dot(bm, 0.14 + i * 0.12, y, 0.90, "y")
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=10, radius1=0.02, radius2=0.02, depth=0.10,      # the tap
+                          matrix=Matrix.Translation((0.5, -0.04, 0.06)) @ Matrix.Rotation(math.pi / 2, 4, "X"))
+    return new_object("worm_box_holes", bm)
+
+
+BUILDERS = (plant_grown, plant_seedling, bed_soil, gantry_bridge, tree_trunk, tree_canopy, worm_box, worm_box_lid, worm_box_hatch, worm_box_holes, worm_box_lid_holes)
 
 
 def export(obj, out: Path):

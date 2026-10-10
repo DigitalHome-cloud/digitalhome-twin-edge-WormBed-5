@@ -25,7 +25,8 @@ Readings: bed.<path> (the twin's /bed/state), job.state, last.<kind>.state
 notices (how many), keeper.<rule> (true while that reaction is in force),
 holds.<kind> (true while jobs of that kind are on hold), lockout (true while
 the gantry is locked out), feeder.<key> (the feeder's advice: state, grams,
-eatsPerDay, uneatenG, offPct). A step marked "scored": true counts towards the
+eatsPerDay, uneatenG, offPct). A scenario marked "fresh": true starts from a settled worm box, calm weather
+and the normal clock. A step marked "scored": true counts towards the
 run's score: how many scored steps came out as expected.
 
 Starting a scenario is the person's choice; doing a step is a click (or, with
@@ -148,7 +149,7 @@ def checks(step: Dict[str, Any], twin, proposals, notices, since: float, kept=No
 
 # ------------------------------------------------------------------- the run --
 
-def start(scenario_id: str, cfg: Optional[Dict[str, Any]]) -> None:
+def start(scenario_id: str, cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     s = load_all().get(scenario_id)
     if s is None:
         raise ValueError("no such scenario")
@@ -158,6 +159,7 @@ def start(scenario_id: str, cfg: Optional[Dict[str, Any]]) -> None:
     _run.clear()
     _run.update(id=scenario_id, index=0, did=False, since=time.time(), results=[])
     _score.clear()
+    return s
 
 
 def stop() -> None:

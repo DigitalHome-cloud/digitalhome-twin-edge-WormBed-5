@@ -43,7 +43,7 @@
           },
           {
             "op": "dry",
-            "percent": 25
+            "to": 20
           }
         ],
         "label": "Empty the tank and dry the soil"

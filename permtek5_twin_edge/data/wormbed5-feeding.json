@@ -1,0 +1,254 @@
+{
+  "id": "wormbed5-feeding",
+  "version": 1,
+  "guildType": "WormBed5",
+  "about": {
+    "en": "What a WormBed5's worms are fed, how much, where and when. The robot follows it and refuses what breaks it. Rules of thumb from composting practice; correct them against your own box.",
+    "de": "Was die Würmer einer WormBed5 bekommen, wie viel, wo und wann. Der Roboter hält sich daran und lehnt ab, was dagegen verstößt. Faustregeln aus der Kompostpraxis; an der eigenen Kiste zu prüfen.",
+    "fr": "Ce que mangent les vers d'une WormBed5, combien, où et quand. Le robot s'y tient et refuse ce qui l'enfreint. Des règles empiriques du compostage, à corriger d'après votre propre bac."
+  },
+  "classes": {
+    "yes": {
+      "en": "yes",
+      "de": "ja",
+      "fr": "oui"
+    },
+    "limited": {
+      "en": "a little",
+      "de": "wenig",
+      "fr": "un peu"
+    },
+    "never": {
+      "en": "never",
+      "de": "nie",
+      "fr": "jamais"
+    },
+    "browns": {
+      "en": "browns (dry, carbon)",
+      "de": "Braunes (trocken, Kohlenstoff)",
+      "fr": "bruns (secs, carbone)"
+    }
+  },
+  "kinds": {
+    "vegetable": {
+      "class": "yes",
+      "label": {
+        "en": "vegetable scraps",
+        "de": "Gemüsereste",
+        "fr": "épluchures de légumes"
+      },
+      "wet": 1.0,
+      "heat": 1.0,
+      "acid": 0.0
+    },
+    "fruit": {
+      "class": "yes",
+      "label": {
+        "en": "fruit scraps",
+        "de": "Obstreste",
+        "fr": "restes de fruits"
+      },
+      "wet": 1.2,
+      "heat": 1.2,
+      "acid": 0.3
+    },
+    "coffee": {
+      "class": "yes",
+      "label": {
+        "en": "coffee grounds",
+        "de": "Kaffeesatz",
+        "fr": "marc de café"
+      },
+      "wet": 0.8,
+      "heat": 1.3,
+      "acid": 0.3
+    },
+    "tea": {
+      "class": "yes",
+      "label": {
+        "en": "tea leaves",
+        "de": "Teeblätter",
+        "fr": "feuilles de thé"
+      },
+      "wet": 0.9,
+      "heat": 0.8,
+      "acid": 0.1
+    },
+    "eggshell": {
+      "class": "yes",
+      "label": {
+        "en": "crushed eggshell",
+        "de": "zerdrückte Eierschalen",
+        "fr": "coquilles d'œuf broyées"
+      },
+      "wet": 0.0,
+      "heat": 0.0,
+      "acid": -2.0
+    },
+    "citrus": {
+      "class": "limited",
+      "label": {
+        "en": "citrus",
+        "de": "Zitrusfrüchte",
+        "fr": "agrumes"
+      },
+      "wet": 1.2,
+      "heat": 1.0,
+      "acid": 3.0,
+      "weeklySharePct": 10
+    },
+    "onion": {
+      "class": "limited",
+      "label": {
+        "en": "onion and garlic",
+        "de": "Zwiebeln und Knoblauch",
+        "fr": "oignon et ail"
+      },
+      "wet": 1.0,
+      "heat": 1.0,
+      "acid": 1.5,
+      "weeklySharePct": 5
+    },
+    "bread": {
+      "class": "limited",
+      "label": {
+        "en": "bread and grains",
+        "de": "Brot und Getreide",
+        "fr": "pain et céréales"
+      },
+      "wet": 0.5,
+      "heat": 2.0,
+      "acid": 1.0,
+      "weeklySharePct": 10
+    },
+    "meat": {
+      "class": "never",
+      "label": {
+        "en": "meat and fish",
+        "de": "Fleisch und Fisch",
+        "fr": "viande et poisson"
+      },
+      "wet": 1.0,
+      "heat": 3.0,
+      "acid": 1.0
+    },
+    "dairy": {
+      "class": "never",
+      "label": {
+        "en": "dairy",
+        "de": "Milchprodukte",
+        "fr": "produits laitiers"
+      },
+      "wet": 1.2,
+      "heat": 2.5,
+      "acid": 2.0
+    },
+    "oil": {
+      "class": "never",
+      "label": {
+        "en": "oil and fat",
+        "de": "Öl und Fett",
+        "fr": "huile et graisse"
+      },
+      "wet": 0.3,
+      "heat": 2.0,
+      "acid": 0.5
+    },
+    "cooked": {
+      "class": "never",
+      "label": {
+        "en": "cooked or salted food",
+        "de": "Gekochtes oder Gesalzenes",
+        "fr": "aliments cuits ou salés"
+      },
+      "wet": 1.0,
+      "heat": 2.0,
+      "acid": 1.0
+    },
+    "paper": {
+      "class": "browns",
+      "label": {
+        "en": "shredded paper or cardboard",
+        "de": "zerrissenes Papier oder Karton",
+        "fr": "papier ou carton déchiré"
+      },
+      "wet": -1.0,
+      "heat": 0.0,
+      "acid": -0.3
+    },
+    "leaves": {
+      "class": "browns",
+      "label": {
+        "en": "dry leaves",
+        "de": "trockenes Laub",
+        "fr": "feuilles sèches"
+      },
+      "wet": -0.8,
+      "heat": 0.0,
+      "acid": -0.2
+    }
+  },
+  "rules": {
+    "brownsPerScraps": 0.33,
+    "maxDaysOfFoodInBox": 2,
+    "maxGramsPerSpot": 500,
+    "minHoursBetweenFeedings": 12,
+    "minCoreC": 10,
+    "noSameSpotTwice": true,
+    "windowDays": 7
+  },
+  "ruleTexts": {
+    "never": {
+      "en": "Never in the box: {kinds}. Empty the hopper.",
+      "de": "Nie in die Kiste: {kinds}. Den Trichter leeren.",
+      "fr": "Jamais dans le bac : {kinds}. Videz la trémie."
+    },
+    "limited": {
+      "en": "Too much {kind}: at most {pct} % of a week's food.",
+      "de": "Zu viel {kind}: höchstens {pct} % des Futters einer Woche.",
+      "fr": "Trop de {kind} : au plus {pct} % de la nourriture d'une semaine."
+    },
+    "browns": {
+      "en": "Not enough browns: one part of paper or dry leaves to three parts of scraps, over a week.",
+      "de": "Zu wenig Braunes: ein Teil Papier oder trockenes Laub auf drei Teile Reste, über eine Woche.",
+      "fr": "Pas assez de bruns : une part de papier ou de feuilles sèches pour trois parts de restes, sur une semaine."
+    },
+    "amount": {
+      "en": "Not more than two days' eating in the box.",
+      "de": "Nicht mehr als das Futter von zwei Tagen in der Kiste.",
+      "fr": "Pas plus de deux jours de nourriture dans le bac."
+    },
+    "spot": {
+      "en": "At most {g} g on one spot, and never the same spot twice running.",
+      "de": "Höchstens {g} g an einer Stelle, und nie zweimal hintereinander dieselbe Stelle.",
+      "fr": "Au plus {g} g au même endroit, et jamais deux fois de suite au même endroit."
+    },
+    "rest": {
+      "en": "At least {h} hours between feedings.",
+      "de": "Mindestens {h} Stunden zwischen zwei Fütterungen.",
+      "fr": "Au moins {h} heures entre deux repas."
+    },
+    "cold": {
+      "en": "Not below {c} °C in the box's core: cold worms do not eat.",
+      "de": "Nicht unter {c} °C im Kern der Kiste: kalte Würmer fressen nicht.",
+      "fr": "Pas en dessous de {c} °C au cœur du bac : des vers froids ne mangent pas."
+    }
+  },
+  "preparation": [
+    {
+      "en": "Chop scraps small: a thumb's width or less.",
+      "de": "Reste klein schneiden: daumenbreit oder kleiner.",
+      "fr": "Coupez les restes petit : la largeur d'un pouce ou moins."
+    },
+    {
+      "en": "Nothing mouldy, nothing treated with pesticide (wash or leave out citrus peel).",
+      "de": "Nichts Schimmliges, nichts Gespritztes (Zitrusschalen waschen oder weglassen).",
+      "fr": "Rien de moisi, rien de traité (lavez ou écartez les écorces d'agrumes)."
+    },
+    {
+      "en": "Tear paper and cardboard into strips; no glossy print.",
+      "de": "Papier und Karton in Streifen reißen; kein Hochglanzdruck.",
+      "fr": "Déchirez papier et carton en bandes ; pas d'imprimé glacé."
+    }
+  ]
+}

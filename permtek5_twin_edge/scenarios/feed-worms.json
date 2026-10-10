@@ -1,6 +1,7 @@
 {
   "title": "Feed the worms with kitchen waste",
   "about": "A worm box is a slow converter. In: kitchen scraps, paper bedding, air and moisture. Out: worm castings (a stable compost roots can feed on), a nutrient-carrying liquid, more worms, and a little heat. Here you fill the hopper, the gantry carries portions to the box, and the liquid drains into the tank under the bed and reaches the roots from below.",
+  "fresh": true,
   "needs": [
     "wormBin"
   ],
@@ -49,10 +50,12 @@
       ]
     },
     {
-      "title": "What changed in the worm box",
-      "why": "Fresh food makes the box wetter and heavier; the box's own sensors show it (see the Worm box panel). The box also follows the air's temperature, slowly. As the worms eat, about a third of the food drains down into the tank pipes as liquid.",
+      "title": "Half a day later",
+      "why": "Fresh food makes the box wetter and heavier; its own sensors show it (see the Worm box panel). The feeding guide wants at least 12 hours between feedings, so the next portion is not proposed yet. The clock runs at an hour a second until it is.",
       "do": {
-        "type": "none"
+        "type": "time",
+        "factor": 60,
+        "label": "Run the clock: an hour a second"
       },
       "expect": [
         {
@@ -62,22 +65,16 @@
           "say": "fed so far: {v} g"
         },
         {
-          "read": "bed.wormBin.moisture",
-          "is": ">",
-          "value": 55,
-          "say": "worm box moisture: {v} %"
-        },
-        {
-          "read": "bed.tank.litres",
-          "is": ">",
+          "read": "proposals.feed",
+          "is": ">=",
           "value": 1,
-          "say": "tank: {v} l"
+          "say": "the next feeding is proposed: {v}"
         }
       ]
     },
     {
       "title": "Robot: the next portion goes to the next spot",
-      "why": "Portions are spread in rotation across the box, so no corner is overloaded and the worms always have a quiet place. The proposal now names the next spot.",
+      "why": "Portions are spread in rotation across the box, so no corner is overloaded and the worms always have somewhere to go. The guide forbids the same spot twice running.",
       "do": {
         "type": "proposal",
         "id": "feed",
@@ -95,6 +92,23 @@
           "is": "<=",
           "value": 800,
           "say": "hopper: {v} g left"
+        }
+      ]
+    },
+    {
+      "title": "Back to the usual pace",
+      "why": "The clock runs normally again.",
+      "do": {
+        "type": "time",
+        "factor": 1,
+        "label": "Clock back to normal"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
         }
       ]
     }

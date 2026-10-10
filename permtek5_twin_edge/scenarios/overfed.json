@@ -1,6 +1,7 @@
 {
   "title": "Overfed: too much food at once",
   "about": "More food than the worms can eat does not wait for them: it composts. The core heats up, the air in the box is used up, and it starts to smell. Here somebody tips a whole bucket in, the sensors show it, the keeper stops further feeding, and you put it right.",
+  "fresh": true,
   "needs": [
     "wormBin"
   ],
@@ -24,7 +25,7 @@
     },
     {
       "title": "Somebody tips a bucket in",
-      "why": "4 kg of scraps straight into the box, past the hopper and the robot: about ten days' food for these worms. The load cells see it at once.",
+      "why": "4 kg of scraps straight into the box, past the hopper and the robot: about ten days' food for these worms. The load cells see the jump at once (the Worm box panel shows the weight).",
       "do": {
         "type": "event",
         "event": {
@@ -36,10 +37,10 @@
       },
       "expect": [
         {
-          "read": "bed.wormBin.weightKg",
+          "read": "bed.wormBin.sim.foodG",
           "is": ">",
-          "value": 9.5,
-          "say": "box weight: {v} kg"
+          "value": 3500,
+          "say": "uneaten food in the box (simulation only): {v} g"
         }
       ]
     },
@@ -91,10 +92,10 @@
       },
       "expect": [
         {
-          "read": "bed.wormBin.weightKg",
+          "read": "bed.wormBin.sim.foodG",
           "is": "<",
-          "value": 8.5,
-          "say": "box weight: {v} kg"
+          "value": 1500,
+          "say": "uneaten food in the box (simulation only): {v} g"
         }
       ]
     },

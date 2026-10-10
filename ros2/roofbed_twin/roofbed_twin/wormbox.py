@@ -13,13 +13,22 @@ EACH SIMULATED MINUTE
              65-85 % moisture; nothing under 4 °C or over 32 °C; less without air.
   eating     worms eat up to half their own weight a day, times activity and
              health. Of what is eaten, 40 % stays as castings, 30 % drains
-             as liquid (to the tank), 30 % leaves as gas and vapour. So the
+             as liquid into the SUMP (the lower bin), 30 % leaves as gas and
+             vapour. So the
              box LOSES 0.6 g for every gram eaten: that is what load cells see.
   heat       food that lies uneaten composts and warms the core (about
              2.5 °C per kg). The edge follows the air, slowly; wrapped in
              insulation, five times more slowly.
   air        much uneaten food, or a soaked box, uses the air up. An airless
              box smells (the gas sensor) and harms the worms.
+  kinds      food differs (the feeding guide's numbers): how wet it is, how
+             much it heats when it lies uneaten, how sour it makes the box.
+             Acid builds up from citrus and the like and is buffered away
+             over days, faster with eggshell and bedding. A sour box (the pH
+             probe) harms the worms.
+  sump       the lower bin catches the liquid, and rain that falls through
+             an open lid. Full, it backs up and soaks the working bin. A tap
+             lets it on to the tank (`drain`).
   health     0..1. Frost, heat, drought, a soaked or airless box wear it
              down. When worms may leave into the soil (the guild's setting)
              they dodge half the harm and come back when it is good again; in
@@ -48,6 +57,9 @@ DRIES_PER_MIN, DRIES_OPEN_PER_MIN = 0.002, 0.01
 FOOD_AIRLESS_G = (1500.0, 4000.0)              # uneaten food: air starts to run short, is gone
 WET_AIRLESS_PCT = (85.0, 95.0)
 FULL_G = 20000.0
+ACID_BUFFER_MIN = 5 * 1440.0                   # acid fades over about five days
+BEDDING_BUFFERS_PER_KG = 0.3
+BACKS_UP_PCT_PER_L = 4.0                       # percent of moisture a litre the sump cannot take adds to the bin
 MINUTES_PER_DAY = 1440.0
 
 
@@ -66,9 +78,12 @@ def moisture_factor(pct):
 
 
 class WormBox:
-    def __init__(self, may_leave=True, air_c=16.0, worms_g=800.0, food_g=400.0, bedding_g=4000.0, castings_g=1000.0):
+    def __init__(self, may_leave=True, air_c=16.0, worms_g=800.0, food_g=400.0, bedding_g=4000.0, castings_g=1000.0,
+                 sump_cap_l=14.0, area_m2=0.48):
         self.may_leave = may_leave
+        self.sump_l, self.sump_cap_l, self.area_m2 = 0.0, sump_cap_l, area_m2
         self.worms_g, self.food_g, self.bedding_g, self.castings_g = worms_g, food_g, bedding_g, castings_g
+        self.heat_g = food_g             # the uneaten food, weighted by how strongly its kinds heat
         self.moisture = 70.0
         self.edge_c = air_c + EDGE_ABOVE_AIR_C
         self.core_c = self.edge_c + self.heat_c()
@@ -76,16 +91,20 @@ class WormBox:
         self.health = 1.0
         self.insulated = False
         self.lid_open = False
+        self.acid = 0.3                  # 0: neutral (pH 7); 3: sour (pH 5.5)
         self.fed_g = 0.0                 # what the robot dropped in, in all
         self.feedings = 0
         self.eaten_g = 0.0
 
     # -- what a robot or a person does ---------------------------------------------
 
-    def feed(self, grams, by_robot=True):
+    def feed(self, grams, by_robot=True, wet=1.0, heat=1.0, acid=0.0):
+        """Food goes in. `wet`, `heat` and `acid` are the feeding guide's numbers for what it is (1, 1, 0: plain vegetable scraps)."""
         grams = max(0.0, min(grams, FULL_G - self.weight_g()))
         self.food_g += grams
-        self.moisture = min(98.0, self.moisture + grams * FOOD_WETS_PER_G)
+        self.heat_g += grams * heat
+        self.acid = max(0.0, self.acid + grams / 1000.0 * acid)
+        self.moisture = min(98.0, self.moisture + grams * FOOD_WETS_PER_G * wet)
         if by_robot:
             self.fed_g += grams
             self.feedings += 1
@@ -97,13 +116,23 @@ class WormBox:
         self.bedding_g += grams
         self.moisture = max(40.0, self.moisture - grams * BEDDING_DRIES_PER_G)
         self.air = min(1.0, self.air + grams / 1000.0)
+        self.acid = max(0.0, self.acid - grams / 1000.0 * BEDDING_BUFFERS_PER_KG)
 
     def moisten(self, ml):
         self.moisture = min(98.0, self.moisture + max(0.0, ml) / 100.0)
 
+    def drain(self, room_l=1e9):
+        """Open the tap: the sump's liquid runs on (to the tank), as far as there is room. Returns the litres."""
+        out = max(0.0, min(self.sump_l, room_l))
+        self.sump_l -= out
+        return out
+
     def take_out(self, grams):
         """A person takes uneaten food out again."""
-        self.food_g -= max(0.0, min(grams, self.food_g))
+        out = max(0.0, min(grams, self.food_g))
+        if self.food_g > 0:
+            self.heat_g *= (self.food_g - out) / self.food_g
+        self.food_g -= out
 
     # -- readings of the truth -------------------------------------------------------
 
@@ -111,7 +140,7 @@ class WormBox:
         return self.worms_g + self.food_g + self.bedding_g + self.castings_g
 
     def heat_c(self):
-        return HEAT_C_PER_KG_FOOD * self.food_g / 1000.0
+        return HEAT_C_PER_KG_FOOD * self.heat_g / 1000.0
 
     def activity(self):
         return temp_factor(self.core_c) * moisture_factor(self.moisture) * (0.3 + 0.7 * self.air)
@@ -123,7 +152,11 @@ class WormBox:
     def stress(self):
         """0: fine. 1: conditions that kill within about a day."""
         c, m = self.core_c, self.moisture
-        return max(ramp(c, 5.0, 0.0), ramp(c, 30.0, 35.0), ramp(m, 45.0, 35.0), ramp(m, 92.0, 98.0), ramp(self.air, 0.4, 0.0))
+        return max(ramp(c, 5.0, 0.0), ramp(c, 30.0, 35.0), ramp(m, 45.0, 35.0), ramp(m, 92.0, 98.0), ramp(self.air, 0.4, 0.0),
+                   ramp(self.acid, 2.5, 5.5))
+
+    def ph(self):
+        return 7.0 - 0.5 * self.acid
 
     def gas(self):
         """The smell a gas sensor reads, 0..100: 0 fresh, 100 airless and rotting."""
@@ -140,13 +173,18 @@ class WormBox:
         self.core_c += (self.edge_c + self.heat_c() - self.core_c) * (1.0 - math.exp(-minutes / CORE_LAG_MIN))
 
         self.moisture = max(30.0, self.moisture - (DRIES_OPEN_PER_MIN if self.lid_open else DRIES_PER_MIN) * minutes)
-        if self.lid_open and rain_mm_h > 0:
+        rain_l = 0.0
+        if self.lid_open and rain_mm_h > 0:                        # rain through an open lid wets the bin and runs through it
             self.moisture = min(98.0, self.moisture + rain_mm_h * minutes / 60.0)
+            rain_l = rain_mm_h * minutes / 60.0 * self.area_m2     # 1 mm on 1 m² is a litre
 
         wants = 1.0 - max(ramp(self.food_g, *FOOD_AIRLESS_G), ramp(self.moisture, *WET_AIRLESS_PCT))
         self.air += (wants - self.air) * (1.0 - math.exp(-minutes / 240.0))
 
         eaten = min(self.food_g, self.eats_per_day() * minutes / MINUTES_PER_DAY)
+        if self.food_g > 0:
+            self.heat_g *= (self.food_g - eaten) / self.food_g
+        self.acid *= math.exp(-minutes / ACID_BUFFER_MIN)          # castings and bedding buffer it away
         self.food_g -= eaten
         self.castings_g += eaten * TO_CASTINGS
         self.eaten_g += eaten
@@ -159,22 +197,27 @@ class WormBox:
             self.health = min(1.0, self.health + 0.2 * days)       # they come back from the soil
         if eaten > 0:
             self.worms_g *= 1.0 + 0.008 * days * self.activity()   # a well-fed population doubles in about three months
-        return {"liquidL": eaten * TO_LIQUID / 1000.0, "eatenG": eaten}
+        liquid = eaten * TO_LIQUID / 1000.0
+        self.sump_l += liquid + rain_l
+        if self.sump_l > self.sump_cap_l:                          # a full sump backs up into the working bin
+            self.moisture = min(98.0, self.moisture + (self.sump_l - self.sump_cap_l) * BACKS_UP_PCT_PER_L)
+            self.sump_l = self.sump_cap_l
+        return {"liquidL": liquid, "eatenG": eaten}
 
     def truth(self):
         """What is really going on: only a simulation can show this, a real box cannot."""
         return {"activity": round(self.activity(), 2), "health": round(self.health, 2), "wormsG": round(self.worms_g),
                 "foodG": round(self.food_g), "castingsG": round(self.castings_g), "eatsPerDay": round(self.eats_per_day()),
-                "eatenG": round(self.eaten_g), "air": round(self.air, 2)}
+                "eatenG": round(self.eaten_g), "air": round(self.air, 2), "acid": round(self.acid, 2)}
 
 
-NOISE = {"wormBin.tempC": 0.1, "wormBin.edgeC": 0.1, "wormBin.moisture": 0.3, "wormBin.weightKg": 0.015, "wormBin.gas": 1.0}
-DIGITS = {"wormBin.weightKg": 3}
-FLOOR = {"wormBin.gas": 0.0}
+NOISE = {"wormBin.pH": 0.03, "wormBin.sumpL": 0.03, "wormBin.tempC": 0.1, "wormBin.edgeC": 0.1, "wormBin.moisture": 0.3, "wormBin.weightKg": 0.015, "wormBin.gas": 1.0}
+DIGITS = {"wormBin.weightKg": 3, "wormBin.sumpL": 2, "wormBin.pH": 2}
+FLOOR = {"wormBin.gas": 0.0, "wormBin.sumpL": 0.0}
 
 
 class Sensors:
-    """The box's fixed sensors: two temperature probes (core, edge), moisture, load cells, gas, a lid switch."""
+    """The box's fixed sensors: two temperature probes (core, edge), moisture, load cells, gas, the sump's level, acidity (pH), a lid switch."""
 
     def __init__(self, seed=5):
         self.rng = random.Random(seed * 7919 + 1)
@@ -196,5 +239,5 @@ class Sensors:
         """`mode_of(path)` -> None | "dead" | "stuck" (environment.Environment.sensor)."""
         s = lambda key, v: self.one(f"wormBin.{key}", v, mode_of(f"wormBin.{key}"))   # noqa: E731
         return {"tempC": s("tempC", box.core_c), "edgeC": s("edgeC", box.edge_c), "moisture": s("moisture", box.moisture),
-                "weightKg": s("weightKg", box.weight_g() / 1000.0), "gas": s("gas", max(0.0, box.gas())),
+                "weightKg": s("weightKg", box.weight_g() / 1000.0), "gas": s("gas", max(0.0, box.gas())), "sumpL": s("sumpL", box.sump_l), "pH": s("pH", box.ph()),
                 "lidOpen": box.lid_open}

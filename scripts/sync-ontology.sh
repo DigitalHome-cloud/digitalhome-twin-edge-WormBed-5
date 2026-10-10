@@ -6,7 +6,7 @@
 #   scripts/sync-ontology.sh [path to the PermTek-5 checkout]
 #
 # T-Boxes, concepts and shapes go to edge/ontology/; the crop library and the
-# invented CityDemo habitat go to the package's data/ (the twin reads sowing
+# invented CityDemo habitat and the WormBed5 feeding guide go to the package's data/ (the twin reads sowing
 # depth, seeds and spacing from the library, and runs CityDemo unlinked). The
 # data-model drawing behind the rail's link is copied too.
 set -euo pipefail
@@ -20,6 +20,8 @@ cp "$SRC"/tbox/*.ttl "$PKG/edge/ontology/tbox/"
 cp "$SRC"/shapes/*.ttl "$PKG/edge/ontology/shapes/"
 cp "$SRC/abox/library/crops.ttl" "$PKG/data/crops.ttl"
 cp "$SRC/abox/examples/citydemo-habitat.ttl" "$PKG/data/citydemo-habitat.ttl"
+# the feeding guide is the cloud's too; this edge enforces it (feeding_guide.py)
+cp "$SRC/guides/wormbed5-feeding.json" "$PKG/data/wormbed5-feeding.json"
 # the data-model drawing is the cloud's (docs/data-model.architecture.json there): one source
 MODEL="${1:-../digitalhome-cloud-PermTek-5}/packages/site/static/model/index.html"
 [ -f "$MODEL" ] && cp "$MODEL" "$PKG/static/model.html"

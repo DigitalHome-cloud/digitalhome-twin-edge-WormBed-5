@@ -1,0 +1,184 @@
+{
+  "title": "Rain in the box: the sump fills",
+  "about": "The worm box is two bins. The upper one holds the worms; its liquid drips through a drilled bottom into the lower one, the sump. Normally that is a glass a day. Here the lid is left open in a cloudburst, the rain runs straight through, and the sump is full within the hour. A full sump backs up and soaks the worms.",
+  "fresh": true,
+  "needs": [
+    "wormBin",
+    "tank"
+  ],
+  "steps": [
+    {
+      "title": "Speed the clock up",
+      "why": "Ten simulated minutes pass every second.",
+      "do": {
+        "type": "time",
+        "factor": 10,
+        "label": "Run the clock 10 times faster"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": ">=",
+          "value": 10,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Somebody leaves the lid open",
+      "why": "The lid switch reports it and the keeper tells you at once. Look at the overview camera: the lid stands up.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "box",
+          "do": "lid",
+          "open": true
+        },
+        "label": "Leave the lid open"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.lidOpen",
+          "is": "==",
+          "value": true,
+          "say": "lid open: {v}"
+        },
+        {
+          "read": "keeper.lid",
+          "is": "==",
+          "value": true,
+          "say": "the keeper says so: {v}"
+        }
+      ]
+    },
+    {
+      "title": "A cloudburst",
+      "why": "60 mm of rain an hour on half a square metre of open box is about 30 litres an hour. The sump holds 14. Its level probe shows it filling; at nine tenths the keeper holds feeding and asks for the tap.",
+      "do": {
+        "type": "disturb",
+        "id": "cloudburst",
+        "label": "Send a cloudburst"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.sumpL",
+          "is": ">",
+          "value": 12,
+          "say": "sump: {v} l"
+        },
+        {
+          "read": "keeper.sump-full",
+          "is": "==",
+          "value": true,
+          "say": "sump full: {v}"
+        },
+        {
+          "read": "holds.feed",
+          "is": "==",
+          "value": true,
+          "say": "feeding on hold: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: shut the lid",
+      "why": "First stop the water coming in. The rain goes on; the box is closed.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "box",
+          "do": "lid",
+          "open": false
+        },
+        "label": "Shut the lid"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.lidOpen",
+          "is": "==",
+          "value": false,
+          "say": "lid open: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Open the tap",
+      "why": "The sump runs on into the tank pipes under the bed, as far as they have room; in a cloudburst the tank is filling too. What does not fit stays in the sump for later.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "calm"
+          },
+          {
+            "op": "tank",
+            "litres": 100
+          },
+          {
+            "op": "box",
+            "do": "tap"
+          }
+        ],
+        "label": "Rain over: open the tap"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.sumpL",
+          "is": "<",
+          "value": 2,
+          "say": "sump: {v} l"
+        },
+        {
+          "read": "bed.tank.litres",
+          "is": ">",
+          "value": 110,
+          "say": "tank: {v} l"
+        },
+        {
+          "read": "keeper.sump-full",
+          "is": "==",
+          "value": false,
+          "say": "sump full: {v}"
+        }
+      ]
+    },
+    {
+      "title": "A soaked box",
+      "why": "The rain also soaked the working bin. The keeper holds feeding until it has dried or you add dry bedding: here, 800 g of shredded cardboard.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "bedding",
+            "grams": 800
+          },
+          {
+            "op": "box",
+            "do": "bedding",
+            "grams": 800
+          },
+          {
+            "op": "time",
+            "factor": 1
+          }
+        ],
+        "label": "Add dry bedding"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.moisture",
+          "is": "<",
+          "value": 85,
+          "say": "moisture: {v} %"
+        },
+        {
+          "read": "keeper.box-wet",
+          "is": "==",
+          "value": false,
+          "say": "soaked: {v}"
+        }
+      ]
+    }
+  ]
+}

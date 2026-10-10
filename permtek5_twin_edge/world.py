@@ -28,13 +28,14 @@ import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from . import feeding_guide
 from . import habitat as hb
 
 SOIL_Z = 0.30            # substrate surface above the roof
 FRAME_T = 0.03           # bed frame boards
 RAIL_Z = 0.95            # gantry rails above the roof
 RAIL_OUT = 0.10          # rails outside the bed's long sides
-TIP_HOME = SOIL_Z + 0.25  # tool tip at z joint = 0
+TIP_HOME = SOIL_Z + 0.42  # tool tip at z joint = 0: it clears the worm box's lid when it travels over it
 CAM_Z = SOIL_Z + 0.50     # tool camera above the soil (on the carriage, so the view does not bob)
 AXIS_SPEED = 0.25        # m/s
 PARK = 0.12              # the head parks this far outside the bed along x
@@ -181,7 +182,9 @@ def _gantry(length: float, width: float, zmax: float, assets: Optional[Path]) ->
 }}"""
 
 
-BIN_ABOVE = 0.12         # the worm box stands this far above the soil
+BIN_ABOVE = 0.30         # the worm box's working bin (bin 1) stands this high above the soil; its sump is beside the soil
+SUMP_DEPTH = 0.03        # the sump holds liquid this deep: the same rule as sumpLitres() in PermTek-5's packages/core
+HATCH_OPEN_RAD = 1.3     # how far the feed hatch stands up while the tool is over the box
 WRAP_OFF_Z = -5.0        # where the box's wrapping waits while it is not on (under the ground)
 LID_OPEN_RAD = 1.2       # how far an open lid stands up
 PIPE_STUB = 0.06         # the tank pipes' capped ends stick out of the bed's near end
@@ -206,28 +209,40 @@ def _system(bed: hb.Bed, length: float, width: float, planted: float, hopper_y: 
         bin_m = length - planted
         box_h = SOIL_Z + BIN_ABOVE
         mesh, lid_mesh = _mesh(assets, "worm_box"), _mesh(assets, "worm_box_lid")
+        hatch_mesh, holes_mesh = _mesh(assets, "worm_box_hatch"), _mesh(assets, "worm_box_holes")
+        lid_holes = _mesh(assets, "worm_box_lid_holes")
         dark = "PBRAppearance { baseColor 0.30 0.21 0.13 roughness 0.9 metalness 0 }"
         pale = "PBRAppearance { baseColor 0.62 0.60 0.52 roughness 0.9 metalness 0 }"
+        hole = "PBRAppearance { baseColor 0.05 0.04 0.03 roughness 1 metalness 0 }"
         straw = "PBRAppearance { baseColor 0.80 0.68 0.36 roughness 1 metalness 0 }"
-        # The lid turns about a hinge at the box's far edge and the wrapping is a jacket around the box:
-        # the driver opens the one (WORM_LID) and puts the other on (WORM_WRAP) when a person, or trouble, does.
-        if mesh and lid_mesh:                    # modelled 1 x 1 x 1, standing on z = 0
-            out.append(f'Pose {{ translation {_f(planted)} 0 0 children [ Transform {{ scale {_f(bin_m)} {_f(width)} {_f(box_h)} children [ '
+        vents = f'Shape {{ appearance {hole} geometry Mesh {{ url [ "{lid_holes}" ] }} }} ' if lid_holes else ""
+        scale = f"scale {_f(bin_m)} {_f(width)} {_f(box_h)}"
+        # Two bins, one on the other: the sump as high as the soil, the working bin above it. The lid turns
+        # about a hinge at the box's far edge and carries the feed hatch; the wrapping is a jacket around the
+        # working bin. The driver moves them (WORM_LID, WORM_HATCH, WORM_WRAP) when a person, the tool or trouble does.
+        if mesh and lid_mesh and hatch_mesh:     # modelled 1 x 1 x 1, standing on z = 0
+            out.append(f'Pose {{ translation {_f(planted)} 0 0 children [ Transform {{ {scale} children [ '
                        f'Shape {{ appearance {dark} geometry Mesh {{ url [ "{mesh}" ] }} }} ] }} ] }}  # worm box')
-            out.append(f'DEF WORM_LID Pose {{ translation {_f(planted + 1.03 * bin_m)} 0 {_f(0.88 * box_h)} rotation 0 1 0 0 children [ '
-                       f'Transform {{ scale {_f(bin_m)} {_f(width)} {_f(box_h)} children [ '
-                       f'Shape {{ appearance {pale} geometry Mesh {{ url [ "{lid_mesh}" ] }} }} ] }} ] }}  # worm box lid')
+            if holes_mesh:
+                out.append(f'Pose {{ translation {_f(planted)} 0 0 children [ Transform {{ {scale} children [ '
+                           f'Shape {{ appearance {hole} geometry Mesh {{ url [ "{holes_mesh}" ] }} }} ] }} ] }}  # drilled holes and the tap')
+            out.append(f'DEF WORM_LID Pose {{ translation {_f(planted + 1.03 * bin_m)} 0 {_f(0.95 * box_h)} rotation 0 1 0 0 children [ '
+                       f'Transform {{ {scale} children [ Shape {{ appearance {pale} geometry Mesh {{ url [ "{lid_mesh}" ] }} }} {vents}] }} '
+                       f'DEF WORM_HATCH Pose {{ translation {_f(-0.41 * bin_m)} 0 0 rotation 0 1 0 0 children [ '
+                       f'Transform {{ {scale} children [ Shape {{ appearance {dark} geometry Mesh {{ url [ "{hatch_mesh}" ] }} }} ] }} ] }} '
+                       f'] }}  # worm box lid, with its feed hatch')
         else:
             out.append(_box("worm box", (planted + bin_m / 2, width / 2, box_h / 2), (bin_m, width, box_h), (0.30, 0.21, 0.13)))
             out.append(f'DEF WORM_LID Pose {{ translation {_f(planted + bin_m + 0.01)} 0 {_f(box_h)} rotation 0 1 0 0 children [ '
                        f'Pose {{ translation {_f(-(bin_m + 0.02) / 2)} {_f(width / 2)} 0.012 children [ Shape {{ appearance {pale} '
                        f'geometry Box {{ size {_f(bin_m + 0.02)} {_f(width + 0.02)} 0.024 }} }} ] }} ] }}  # worm box lid')
         out.append(f'DEF WORM_WRAP Pose {{ translation {_f(planted + bin_m / 2)} {_f(width / 2)} {_f(WRAP_OFF_Z)} children [ '
-                   f'Shape {{ appearance {straw} geometry Box {{ size {_f(bin_m + 0.10)} {_f(width + 0.10)} {_f(box_h * 0.84)} }} }} ] }}'
-                   f'  # the box\'s winter wrapping, out of sight until it is put on')
-    # the hopper a person fills, on a stand at the near end where the head parks
-    out.append(_box("hopper stand", (-PARK, hopper_y, 0.16), (0.05, 0.05, 0.32), (0.72, 0.74, 0.76), 0.35, 0.8))
-    out.append(_box("hopper", (-PARK, hopper_y, 0.37), (0.16, 0.22, 0.10), (0.20, 0.36, 0.24)))
+                   f'Shape {{ appearance {straw} geometry Box {{ size {_f(bin_m + 0.10)} {_f(width + 0.10)} {_f(BIN_ABOVE * 0.9)} }} }} ] }}'
+                   f'  # the working bin\'s winter wrapping, out of sight until it is put on')
+    # the hopper a person fills, on a stand at the near end where the head parks: its rim just under the parked tool
+    top = TIP_HOME - 0.13
+    out.append(_box("hopper stand", (-PARK, hopper_y, (top - 0.10) / 2), (0.05, 0.05, top - 0.10), (0.72, 0.74, 0.76), 0.35, 0.8))
+    out.append(_box("hopper", (-PARK, hopper_y, top - 0.05), (0.16, 0.22, 0.10), (0.20, 0.36, 0.24)))
     return out
 
 
@@ -266,13 +281,15 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
     assumed = hb.as_wormbed5(h, bed)                        # a WormBed5 guild always has its box and its tank
     cfg = hb.bed_config(h, bed, library)
     cfg["assumed"] = assumed
+    cfg["feedingKinds"] = feeding_guide.kinds_for_twin(feeding_guide.load())    # how wet, heating and sour each kind of food is
     length, width, cell_m = bed.length_cm / 100.0, bed.width_cm / 100.0, bed.cell_cm / 100.0
     depth = min((bed.depth_cm or 25) / 100.0, SOIL_Z - 0.02)
     zmax = (TIP_HOME - SOIL_Z) + min(0.15, depth)
     cfg["world"] = {"soilZ": SOIL_Z, "tipHome": TIP_HOME, "zMax": zmax, "park": PARK, "cellM": cell_m,
                     "x": [-PARK, length + 0.05], "y": [0.0, width], "camOffsetX": CAM_DX, "meshes": bool(assets and _mesh(assets, "plant_grown")),
                     "seedlingMesh": _mesh(assets, "plant_seedling"),
-                    "lidOpenRad": LID_OPEN_RAD, "wrapZ": (SOIL_Z + BIN_ABOVE) * 0.42, "wrapOffZ": WRAP_OFF_Z}
+                    "lidOpenRad": LID_OPEN_RAD, "hatchOpenRad": HATCH_OPEN_RAD,
+                    "wrapZ": SOIL_Z + BIN_ABOVE * 0.5, "wrapOffZ": WRAP_OFF_Z, "boxTopZ": SOIL_Z + BIN_ABOVE + 0.05}
 
     # the garden's plants, for scenery here and for the rendered film (assets/demo.py)
     trees = [p for p in h.plants if p.x_m is not None and p.y_m is not None and p.crop_id in library]
@@ -285,7 +302,9 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
     bin_m = bed.worm_bin_cm / 100.0
     planted = length - bin_m                                 # the substrate ends where the worm box begins
     hopper_y = min(width - 0.15, max(0.15, width * 0.5))
-    cfg["wormBin"].update({"x": [planted, length], "dropX": planted + bin_m / 2, "spots": max(1, min(4, bed.rows // 3))} if bin_m else {})
+    # the tool drops through the feed hatch, which lies a little towards the bed from the box's middle
+    cfg["wormBin"].update({"x": [planted, length], "dropX": planted + bin_m * 0.5, "spots": max(1, min(4, bed.rows // 3)),
+                           "areaM2": round(bin_m * width, 3), "sumpLitres": round(bin_m * width * SUMP_DEPTH * 1000, 1)} if bin_m else {})
     cfg["hopper"] = {"x": -PARK, "y": hopper_y}
 
     wood, soil = (0.45, 0.33, 0.22), (0.20, 0.15, 0.11)

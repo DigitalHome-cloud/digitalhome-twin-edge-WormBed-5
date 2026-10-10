@@ -17,6 +17,8 @@ REACTION with an id:
     sensor        a reading is missing or frozen  distrust it; hold feeding (the safe side)
     overfed       the core runs far hotter than the edge   hold feeding; the person takes food out, adds bedding
     airless       the gas sensor smells rot     hold feeding; the person adds dry bedding
+    sump-full     the lower bin is full of liquid  hold feeding; the tap is opened
+    sour          the pH probe reads acid       hold feeding; the person adds eggshell and bedding
     box-wet       the box is soaked             hold feeding; the person adds dry bedding
     box-dry       the box is drying out         the person sprinkles water
     lid           the lid stands open           the person closes it
@@ -52,11 +54,14 @@ TANK_DEAD_L = 1.0                        # under a litre the wick does not reach
 TANK_FALL_L, TANK_FALL_MIN = 5.0, 60.0   # this much lost within this many simulated minutes, with nothing drawing on it
 STUCK_MIN, STUCK_AIR_C = 120.0, 3.0      # a box temperature unchanged this long while the air moved this much
 BOX_FULL_PCT = 90.0
-OVERFED_ON, OVERFED_OFF = 6.0, 3.0       # °C the core is above the edge: uneaten food is composting
+OVERFED_ON, OVERFED_OFF = 6.0, 4.5       # °C the core is above the edge: uneaten food is composting (at dusk the core lags a cooling edge by a degree or two)
 GAS_ON, GAS_OFF = 60.0, 30.0             # the gas sensor's 0..100
 WET_ON, WET_OFF = 90.0, 85.0             # % moisture
 DRY_ON, DRY_OFF = 50.0, 55.0
-BOX_SENSORS = {"tempC": "core temperature", "edgeC": "edge temperature", "moisture": "moisture", "weightKg": "weight", "gas": "gas"}
+SOUR_ON, SOUR_OFF = 5.6, 6.2             # pH
+SUMP_ON, SUMP_OFF = 0.9, 0.5             # of the sump's capacity
+BOX_SENSORS = {"tempC": "core temperature", "edgeC": "edge temperature", "moisture": "moisture", "weightKg": "weight", "gas": "gas",
+               "sumpL": "sump level", "pH": "acidity"}
 
 TEXT = {
     "frost": "Frost: feeding and watering are on hold. Insulate the worm box; in a hard frost take the worms indoors.",
@@ -69,6 +74,8 @@ TEXT = {
     "sensor": "A worm box sensor gives no trustworthy reading: feeding is on hold until it does.",
     "overfed": "The worm box's core runs much hotter than its edge: too much food is composting. Feeding is on hold; take some out and add dry bedding.",
     "airless": "The worm box smells: it is short of air. Feeding is on hold; mix in dry bedding.",
+    "sump-full": "The worm box's sump is full and backs up into the bin. Feeding is on hold; open the tap to let it into the tank.",
+    "sour": "The worm box is turning sour. Feeding is on hold; mix in crushed eggshell and dry bedding, and no citrus for a while.",
     "box-wet": "The worm box is soaked. Feeding is on hold; add dry bedding and check that it drains.",
     "box-dry": "The worm box is drying out: sprinkle water over it.",
     "lid": "The worm box's lid stands open: close it.",
@@ -77,9 +84,16 @@ TEXT = {
     "box-full": "The worm box is nearly full: harvest the finished compost.",
 }
 HOLDS = {"frost": ["feed", "water"], "heat": ["feed"], "overflow": ["water"], "sensor": ["feed"], "hopper-jam": ["feed"],
-         "overfed": ["feed"], "airless": ["feed"], "box-wet": ["feed"]}
+         "overfed": ["feed"], "airless": ["feed"], "box-wet": ["feed"], "sump-full": ["feed"], "sour": ["feed"]}
 LOCKS = {"storm"}
-ALERTS = {"frost", "heat", "storm", "tank-empty", "tank-falling", "sensor", "overfed", "airless"}
+ALERTS = {"frost", "heat", "storm", "tank-empty", "tank-falling", "sensor", "overfed", "airless", "sour"}
+
+
+def add(result: Dict[str, Any], rule: str, text: str, holds: Optional[List[str]] = None, level: str = "note") -> None:
+    """A reaction from a higher rung (the feeding guide): put it beside the keeper's own."""
+    result["active"].append(rule)
+    result["holds"] = sorted(set(result["holds"]) | set(holds or []))
+    result["notices"].append({"id": rule, "text": text, "level": level, "holds": holds or []})
 
 
 def _switch(memory: Dict[str, Any], key: str, on: bool, off: bool) -> bool:
@@ -152,6 +166,12 @@ def evaluate(bed: Optional[Dict[str, Any]], memory: Dict[str, Any], offline: boo
                     active.append("box-wet")
                 if _switch(memory, "box-dry", wet <= DRY_ON, wet >= DRY_OFF):
                     active.append("box-dry")
+            sump, cap = box.get("sumpL"), box.get("sumpCapacity")
+            if sump is not None and cap and _switch(memory, "sump-full", sump >= SUMP_ON * cap, sump <= SUMP_OFF * cap):
+                active.append("sump-full")
+            ph = box.get("pH")
+            if ph is not None and _switch(memory, "sour", ph <= SOUR_ON, ph >= SOUR_OFF):
+                active.append("sour")
             if box.get("lidOpen"):
                 active.append("lid")
             if (box.get("fillPct") or 0) >= BOX_FULL_PCT:
@@ -172,8 +192,9 @@ def refuses(result: Dict[str, Any], kind: str) -> Optional[str]:
     if result.get("lockout"):
         return result["lockout"]
     if kind in result.get("holds", []):
-        rule = next(r for r in result["active"] if kind in HOLDS.get(r, []))
-        return TEXT[rule]
+        rule = next((r for r in result["active"] if kind in HOLDS.get(r, [])), None)
+        return TEXT[rule] if rule else next((n["text"] for n in result["notices"] if kind in n.get("holds", [])),
+                                            f"Jobs of the kind '{kind}' are on hold.")
     return None
 
 

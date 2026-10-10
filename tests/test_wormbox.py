@@ -91,3 +91,36 @@ def test_sensors_add_a_little_noise_repeat_themselves_and_fail_as_told():
     stuck = [s.read(box, lambda p: "stuck" if p == "wormBin.tempC" else None)["tempC"] for _ in range(4)]
     assert len(set(stuck)) == 1
     assert len({s.read(box)["tempC"] for _ in range(8)}) > 1, "and moves again once it is free"
+
+
+def test_the_sump_catches_the_liquid_fills_in_rain_backs_up_and_drains_by_the_tap():
+    box = WormBox(sump_cap_l=14.0, area_m2=0.48)
+    box.feed(1000)
+    out = run(box, 24)
+    assert box.sump_l == pytest.approx(out["liquidL"]) and 0.08 < box.sump_l < 0.15, "a glass a day"
+    box.lid_open = True
+    wet = box.moisture
+    run(box, 1, rain_mm_h=60.0)
+    assert box.sump_l == 14.0 and box.moisture > wet + 20, "full, and it backed up into the bin"
+    assert Sensors(seed=1).read(box)["sumpL"] == pytest.approx(14.0, abs=0.15)
+    assert box.drain(room_l=10.0) == 10.0 and box.sump_l == pytest.approx(4.0), "only as far as the tank has room"
+    assert box.drain() == pytest.approx(4.0) and box.sump_l == 0.0
+
+
+def test_kinds_of_food_differ_citrus_sours_the_box_and_eggshell_and_bedding_bring_it_back():
+    plain, sour = WormBox(), WormBox()
+    plain.feed(1000)
+    sour.feed(1000, wet=1.2, heat=1.0, acid=3.0)                  # a kilo of citrus
+    assert plain.ph() > 6.5 and sour.ph() < 5.6
+    assert sour.moisture > plain.moisture, "it is wetter too"
+    assert sour.stress() > 0.0 == plain.stress(), "a sour box wears the worms down"
+    run(sour, 24)
+    low = sour.ph()
+    sour.feed(100, wet=0.0, heat=0.0, acid=-2.0)                  # crushed eggshell
+    sour.add_bedding(1000)
+    assert sour.ph() > low + 0.2
+    run(sour, 24 * 10)
+    assert sour.ph() > 6.4, "and it fades over days"
+    hot = WormBox()
+    hot.feed(1000, heat=3.0)                                      # meat heats three times as much
+    assert hot.heat_c() > 2.5 * plain.heat_c() - 1.0 and hot.heat_c() > plain.heat_c() + 4.0

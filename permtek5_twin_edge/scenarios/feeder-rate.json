@@ -1,6 +1,7 @@
 {
   "title": "The feeder finds its rate",
   "about": "How much should the worms get? Too little and they starve, too much and the box turns (see \"Overfed\"). Worms do not say, but the box gets lighter as they eat: about 0.6 g for every gram eaten. The feeder reads the load cells, fits a line through a day of weights, and proposes one day's eating. You still fill the hopper and confirm.",
+  "fresh": true,
   "needs": [
     "wormBin"
   ],

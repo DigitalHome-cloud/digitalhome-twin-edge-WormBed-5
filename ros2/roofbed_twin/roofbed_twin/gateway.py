@@ -238,7 +238,7 @@ def handler_for(gw: Gateway):
                 if data.get("op") not in ("hopper", "tank", "dry", "disturb", "calm", "time", "chaos", "box"):
                     return self.send_json(400, {"error": "op must be hopper, tank, dry, disturb, calm, time, chaos or box"})
                 keys = ("op", "grams", "litres", "percent", "id", "title", "effect", "minutes", "factor", "rate", "pool",
-                        "do", "on", "ml", "open")
+                        "do", "on", "ml", "open", "mix", "to")
                 gw.pub_event.publish(String(data=json.dumps({k: data[k] for k in keys if k in data})))
                 return self.send_json(200, {"ok": True})
             if self.path == "/cancel":

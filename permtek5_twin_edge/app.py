@@ -16,6 +16,8 @@ browser, engine and the simulation's gateway.
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 import sys
 import threading
 import time
@@ -28,6 +30,7 @@ from . import engine as engine
 from . import cloudsite
 from . import disturbances
 from . import feeder
+from . import feeding_guide
 from . import film
 from . import habitat_store as store
 from . import instance
@@ -90,6 +93,9 @@ def favicon():
 
 _keeper_memory: dict = {}
 _feeder_memory: dict = {}
+_guide = feeding_guide.load()       # the WormBed5 feeding guide: PermTek-5's data, enforced here
+_diary: list = []                   # what was loaded, fed and given as bedding in this simulation (simulated minutes)
+_guide_seen = {"now": 0.0, "feedN": 0, "load": None}
 _keeper_lock = threading.Lock()     # the page and a scenario ask at the same moment: one of them writes the log
 _offline = {"until": 0.0, "queued": 0}
 
@@ -110,7 +116,68 @@ def _keep(cfg, bed, out, offline: bool) -> dict:
         if advice.get("eatsPerDay") and truth:    # only a simulation can say how far off the feeder is
             advice["offPct"] = round(100.0 * abs(advice["eatsPerDay"] - truth) / truth)
         kept["feeder"] = advice
+    if bed and cfg and (cfg.get("wormBin") or {}).get("cols") and "lastFeed" in (bed.get("wormBin") or {}):
+        _follow_guide(cfg, bed, out, kept)
     return kept
+
+
+def _note(out, entry: dict) -> None:
+    """One line in the feeding diary: in memory for the guide's week, and in diary.jsonl for the record."""
+    _diary.append(entry)
+    try:
+        with open(Path(out) / "diary.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({**entry, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def _follow_guide(cfg, bed, out, kept: dict) -> None:
+    """Hold what is in the hopper and the next feeding against the feeding guide (feeding_guide.py)."""
+    env, box, hopper = bed.get("env") or {}, bed["wormBin"], bed.get("hopper") or {}
+    now = (env.get("day", 1) - 1) * 1440.0 + env.get("hour", 0.0) * 60.0
+    if now + 1.0 < _guide_seen["now"]:              # the simulation started again: a new diary
+        _diary.clear()
+        _guide_seen.update(feedN=0, load=None)
+    _guide_seen["now"] = now
+    last = box.get("lastFeed")
+    if last and last["n"] != _guide_seen["feedN"]:  # the robot fed: into the diary
+        _guide_seen["feedN"] = last["n"]
+        _note(out, {"t": last.get("atMin", now), "what": "feed", "grams": last["grams"], "spot": last["spot"], "mix": last.get("mix") or {}})
+    elif not last:
+        _guide_seen["feedN"] = 0
+    mix = hopper.get("mix") or {}
+    load = feeding_guide.check_load(_guide, mix, _diary, now)
+    sig = json.dumps(mix, sort_keys=True) if mix else None
+    if sig is None:
+        _guide_seen["load"] = None
+    elif _guide_seen["load"] is None:               # a fresh load: its verdict goes into the diary once
+        _guide_seen["load"] = "seen"
+        _note(out, {"t": now, "what": "load", "mix": mix, "verdict": "ok" if load["ok"] else load["rule"]})
+    advice = kept.get("feeder") or {}
+    spots = int(cfg["wormBin"].get("spots", 1))
+    spot = int(box.get("feedings", 0)) % spots
+    grams = advice.get("grams") if advice else engine.PORTION_G
+    feed = feeding_guide.check_feed(_guide, float(grams or 0), spot, _diary, now, core_c=box.get("tempC"),
+                                    eats_per_day=advice.get("eatsPerDay"), uneaten_g=advice.get("uneatenG"), spots=spots)
+    if advice and advice.get("grams"):
+        advice["grams"] = min(int(advice["grams"]), int(feed.get("maxGrams", advice["grams"])))
+    kept["guide"] = {"load": load, "feed": feed, "week": feeding_guide.week_line(_guide, _diary, now),
+                     "brownsDue": feeding_guide.browns_due(_guide, float(grams or 0), _diary, now)}
+    if not load["ok"]:
+        keeper.add(kept, "guide-load", f'Feeding guide: {load["text"]} Feeding is on hold until the hopper is emptied.', ["feed"], "alert")
+    if not feed["ok"]:
+        if feed["rule"] == "browns":                # the person can do something about this one
+            keeper.add(kept, "guide-browns", f'Feeding guide: {feed["text"]} Feeding is on hold; add dry bedding.', ["feed"])
+        else:                                       # rest, spot, cold, amount: nothing to do but wait; no notice
+            kept["holds"] = sorted(set(kept["holds"]) | {"feed"})
+
+
+def _event(event: dict) -> dict:
+    """Send what a person did to the twin; dry bedding given by hand also goes into the feeding diary."""
+    out = sim.gateway("/event", event)
+    if event.get("op") == "box" and event.get("do") == "bedding":
+        _note(engine.workspace(), {"t": _guide_seen["now"], "what": "bedding", "grams": float(event.get("grams", 500))})
+    return out
 
 
 def _twin_state() -> dict:
@@ -138,7 +205,7 @@ def _twin_state() -> dict:
     return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
             "instance": instance.describe(),
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
-            "feeder": kept.get("feeder"),
+            "feeder": kept.get("feeder"), "guide": kept.get("guide"),
             "env": (bed or {}).get("env"),
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": engine.proposals(cfg, bed, kept["holds"], kept.get("feeder")) if not kept["lockout"] else []}
@@ -194,7 +261,11 @@ def twin_job():
             return jsonify({"errors": ["that proposal is no longer current"]}), 409
     if not isinstance(spec, dict):
         return jsonify({"errors": ["name a proposal or give a job spec"]}), 400
-    why_not = keeper.refuses(_twin_state()["keeper"], str(spec.get("kind")))
+    kept = _twin_state()["keeper"]
+    guide = (kept.get("guide") or {}).get("feed") or {}
+    if spec.get("kind") == "feed" and guide.get("ok") is False:
+        return jsonify({"errors": [f'Feeding guide: {guide["text"]}']}), 409
+    why_not = keeper.refuses(kept, str(spec.get("kind")))
     if why_not:                                   # a hold or a lockout: the keeper's word stands over a click
         return jsonify({"errors": [why_not]}), 409
     try:
@@ -205,12 +276,17 @@ def twin_job():
 
 @app.post("/api/twin/hopper")
 def twin_hopper():
-    """A person filled the hopper with kitchen scraps (grams)."""
+    """A person filled the hopper, and says with what: {"mix": {kind: grams}} (the feeding guide's kinds),
+    or just {"grams"} of vegetable scraps. {"grams": 0} empties it. The guide's verdict comes with the twin's state."""
     try:
+        mix = body().get("mix")
+        if isinstance(mix, dict):
+            mix = {str(k): max(0.0, float(g)) for k, g in mix.items() if float(g) > 0}
+            return jsonify(sim.gateway("/event", {"op": "hopper", "mix": mix, "grams": min(sum(mix.values()), 5000.0)}))
         grams = max(0.0, min(float(body().get("grams", 1000)), 5000.0))
         return jsonify(sim.gateway("/event", {"op": "hopper", "grams": grams}))
     except (TypeError, ValueError):
-        return jsonify({"errors": ["grams is a number"]}), 400
+        return jsonify({"errors": ["grams are numbers"]}), 400
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
 
@@ -229,20 +305,38 @@ def twin_tank():
         return jsonify({"errors": [str(exc)]}), 409
 
 
+@app.get("/api/twin/guide")
+def twin_guide():
+    """The feeding guide for the page: the kinds a hopper load is made of, and the rules in words."""
+    g, r, x = _guide, _guide["rules"], _guide["ruleTexts"]
+
+    def fill(text, **values):
+        for key, value in values.items():
+            text = text.replace("{" + key + "}", str(value))
+        return text
+
+    return jsonify({"about": g["about"]["en"], "classes": {k: v["en"] for k, v in g["classes"].items()},
+                    "kinds": [{"id": k, "label": v["label"]["en"], "class": v["class"], "weeklySharePct": v.get("weeklySharePct")}
+                              for k, v in g["kinds"].items()],
+                    "rules": [x["browns"]["en"], x["amount"]["en"], fill(x["spot"]["en"], g=r["maxGramsPerSpot"]),
+                              fill(x["rest"]["en"], h=r["minHoursBetweenFeedings"]), fill(x["cold"]["en"], c=r["minCoreC"])],
+                    "preparation": [p["en"] for p in g["preparation"]]})
+
+
 BOX_DOES = {"insulate": ("on", bool, True), "bedding": ("grams", float, 500.0), "moisten": ("ml", float, 500.0),
-            "takeout": ("grams", float, 1000.0), "dump": ("grams", float, 1000.0), "lid": ("open", bool, True)}
+            "takeout": ("grams", float, 1000.0), "dump": ("grams", float, 1000.0), "lid": ("open", bool, True), "tap": ("on", bool, True)}
 
 
 @app.post("/api/twin/box")
 def twin_box():
     """What a person did at the worm box: {"do": "insulate", "on"} | {"do": "bedding", "grams"} |
-    {"do": "moisten", "ml"} | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}."""
+    {"do": "moisten", "ml"} | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"} | {"do": "tap"} (drain the sump)."""
     do = str(body().get("do") or "")
     if do not in BOX_DOES:
         return jsonify({"errors": ["do is one of " + ", ".join(BOX_DOES)]}), 400
     key, kind, default = BOX_DOES[do]
     try:
-        return jsonify(sim.gateway("/event", {"op": "box", "do": do, key: kind(body().get(key, default))}))
+        return jsonify(_event({"op": "box", "do": do, key: kind(body().get(key, default))}))
     except (TypeError, ValueError):
         return jsonify({"errors": [f"{key} is a number"]}), 400
     except RuntimeError as exc:
@@ -269,6 +363,9 @@ def _disturb(key: str, minutes=None) -> None:
     d = disturbances.get(key)
     if d.get("app"):                              # network loss is this app's, not the simulation's
         _offline["until"] = time.time() + float(minutes or d["minutes"]) / max(_factor(), 0.1)   # simulated minutes
+        return
+    if d.get("event"):                            # something a person did wrong, not weather
+        sim.gateway("/event", d["event"])
         return
     sim.gateway("/event", disturbances.event(key, minutes))
 
@@ -363,9 +460,16 @@ def scenario_start():
     if not sim.running():
         return jsonify({"errors": ["start the simulation first"]}), 409
     try:
-        scenarios.start(str(body().get("id") or ""), engine.config())
+        fresh = scenarios.start(str(body().get("id") or ""), engine.config()).get("fresh")
     except ValueError as exc:
         return jsonify({"errors": [str(exc)]}), 400
+    if fresh:                                     # a scenario about the worm box starts from a settled box and calm weather
+        for event in ({"op": "calm"}, {"op": "time", "factor": 1}, {"op": "box", "do": "reset"}):
+            sim.gateway("/event", event)
+        _feeder_memory.clear()
+        _diary.clear()
+        _guide_seen.update(feedN=0, load=None)
+        _offline["until"] = 0.0
     return jsonify(_scenario_view())
 
 
@@ -384,7 +488,7 @@ def scenario_do():
         for event in act.get("events", []):
             if event.get("op") == "tank" and "litres" not in event:           # "refill": to the brim
                 event = {**event, "litres": float(((t.get("config") or {}).get("tank") or {}).get("litres") or 0)}
-            sim.gateway("/event", event)
+            _event(event)
         if "estop" in act:
             sim.gateway("/estop", {"on": act["estop"]})
         if "job" in act:

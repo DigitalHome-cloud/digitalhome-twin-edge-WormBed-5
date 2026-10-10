@@ -131,3 +131,11 @@ def test_a_smelling_or_soaked_box_is_not_fed_and_a_dry_one_is_only_reported():
 def test_any_dead_box_sensor_is_distrusted():
     assert keeper.evaluate(box(weightKg=None), {})["active"] == ["sensor"]
     assert keeper.evaluate(box(gas=None), {})["holds"] == ["feed"]
+
+
+def test_a_full_sump_holds_feeding_until_it_is_well_drained():
+    m = {}
+    r = keeper.evaluate(box(sumpL=13.2, sumpCapacity=14.4), m)
+    assert r["active"] == ["sump-full"] and r["holds"] == ["feed"]
+    assert keeper.evaluate(box(sumpL=9.0, sumpCapacity=14.4), m)["active"] == ["sump-full"], "not yet"
+    assert keeper.evaluate(box(sumpL=3.0, sumpCapacity=14.4), m)["active"] == []

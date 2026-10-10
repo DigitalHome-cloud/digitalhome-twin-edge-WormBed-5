@@ -1,0 +1,126 @@
+{
+  "title": "The wrong things in the hopper",
+  "about": "The feeding guide says what the worms get: vegetable and fruit scraps, coffee grounds, tea, eggshell; a little citrus, onion and bread; never meat, dairy, oil or cooked food. The robot cannot taste. You say what you put in the hopper, and it refuses a load that breaks the guide instead of carrying it to the worms.",
+  "fresh": true,
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "You: a plate's leftovers go in",
+      "why": "1 kg in the hopper: half of it vegetable scraps, but also 200 g of cooked leftovers and 300 g of orange peel. Two rules are broken: cooked food never, and citrus at most a tenth of a week's food.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "hopper",
+          "mix": {
+            "vegetable": 500,
+            "cooked": 200,
+            "citrus": 300
+          }
+        },
+        "label": "Fill the hopper with leftovers"
+      },
+      "expect": [
+        {
+          "read": "bed.hopper.grams",
+          "is": ">=",
+          "value": 1000,
+          "say": "hopper: {v} g"
+        },
+        {
+          "read": "keeper.guide-load",
+          "is": "==",
+          "value": true,
+          "say": "the guide refuses the load: {v}"
+        },
+        {
+          "read": "proposals.feed",
+          "is": "==",
+          "value": 0,
+          "say": "feedings proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: empty the hopper",
+      "why": "The notice at the top names what must not go in. The load goes to the ordinary bin or the municipal compost, not to the worms.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "hopper",
+          "grams": 0
+        },
+        "label": "Empty the hopper"
+      },
+      "expect": [
+        {
+          "read": "bed.hopper.grams",
+          "is": "<=",
+          "value": 0,
+          "say": "hopper: {v} g"
+        },
+        {
+          "read": "keeper.guide-load",
+          "is": "==",
+          "value": false,
+          "say": "the guide refuses the load: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: a load by the guide",
+      "why": "600 g vegetable scraps, 250 g fruit, 100 g coffee grounds, 50 g crushed eggshell (it keeps the box from turning sour).",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "hopper",
+          "mix": {
+            "vegetable": 600,
+            "fruit": 250,
+            "coffee": 100,
+            "eggshell": 50
+          }
+        },
+        "label": "Fill the hopper by the guide"
+      },
+      "expect": [
+        {
+          "read": "keeper.guide-load",
+          "is": "==",
+          "value": false,
+          "say": "the guide refuses the load: {v}"
+        },
+        {
+          "read": "proposals.feed",
+          "is": "==",
+          "value": 1,
+          "say": "feedings proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: feed",
+      "why": "The scoop takes a share of everything in the hopper. The feeding goes into the diary with what it was made of; the Worm box panel shows the week.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "label": "Confirm: feed the worms"
+      },
+      "expect": [
+        {
+          "read": "last.feed.state",
+          "is": "==",
+          "value": "done",
+          "say": "feed job: {v}"
+        },
+        {
+          "read": "bed.wormBin.pH",
+          "is": ">",
+          "value": 6.2,
+          "say": "box acidity: pH {v}"
+        }
+      ]
+    }
+  ]
+}

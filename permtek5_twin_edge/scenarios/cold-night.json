@@ -1,6 +1,7 @@
 {
   "title": "A cold night: keeping the worms alive",
   "about": "Compost worms stop working below about 5 °C and die in a frozen box. The box follows the air slowly, so there are hours to act. Here a cold snap comes, the keeper puts feeding on hold and asks you to insulate, and the box's own probes show whether that was enough.",
+  "fresh": true,
   "needs": [
     "wormBin"
   ],

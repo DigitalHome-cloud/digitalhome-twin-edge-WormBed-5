@@ -285,3 +285,60 @@ def test_a_job_is_refused_while_the_wind_locks_the_gantry_out(client, twin):
     assert client.get("/api/twin").get_json()["proposals"] == []
     state["twin"]["bed"]["env"]["windMs"] = 2.0
     assert client.post("/api/twin/job", json={"spec": {"kind": "photo"}}).status_code == 200
+
+
+def _box_twin(state, **hopper):
+    """Give the stand-in twin a worm box with sensors, as the simulation reports it."""
+    state["twin"]["bed"].update({
+        "env": {"day": 1, "hour": 10.0, "airC": 16.0, "windMs": 2.0, "rainMmH": 0.0, "clock": "day 1 · 10:00", "disturbances": []},
+        "tank": {"litres": 120.0, "capacity": 202.0},
+        "wormBin": {"tempC": 18.0, "edgeC": 17.0, "moisture": 70.0, "weightKg": 6.2, "gas": 0.0, "pH": 6.9, "sumpL": 0.1,
+                    "sumpCapacity": 14.4, "lidOpen": False, "fillPct": 31.0, "fedGrams": 0, "feedings": 0, "lastFeed": None},
+        "hopper": {"grams": 1000, "jammed": False, **hopper}})
+
+
+def test_the_feeding_guide_refuses_a_load_with_cooked_food_and_lets_a_good_one_through(client, twin):
+    state, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    web._diary.clear()
+    web._guide_seen.update(now=0.0, feedN=0, load=None)
+    _box_twin(state, mix={"vegetable": 500, "cooked": 200, "citrus": 300})
+    t = client.get("/api/twin").get_json()
+    assert "guide-load" in t["keeper"]["active"] and "feed" in t["keeper"]["holds"]
+    assert any("cooked or salted food" in n for n in t["notices"])
+    assert "feed" not in {p["kind"] for p in t["proposals"]}
+    r = client.post("/api/twin/job", json={"spec": {"kind": "feed", "grams": 300, "spot": 0}})
+    assert r.status_code == 409 and "cooked" in r.get_json()["errors"][0], "a feed job sent anyway is refused"
+    assert t["guide"]["week"]["refusedLoads"] == 1
+    _box_twin(state, mix={"vegetable": 600, "fruit": 300, "coffee": 100})
+    t = client.get("/api/twin").get_json()
+    assert "guide-load" not in t["keeper"]["active"] and "feed" in {p["kind"] for p in t["proposals"]}
+
+
+def test_a_feeding_goes_into_the_diary_and_the_next_one_waits_half_a_day(client, twin):
+    state, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    web._diary.clear()
+    web._guide_seen.update(now=0.0, feedN=0, load=None)
+    _box_twin(state, mix={"vegetable": 850})
+    box = state["twin"]["bed"]["wormBin"]
+    box.update(feedings=1, fedGrams=150, lastFeed={"n": 1, "grams": 150, "spot": 0, "mix": {"vegetable": 150}, "atMin": 600.0})
+    t = client.get("/api/twin").get_json()
+    assert t["guide"]["feed"]["rule"] == "rest" and t["guide"]["week"]["scrapsG"] == 150
+    assert "feed" not in {p["kind"] for p in t["proposals"]} and t["notices"] == [], "it waits, without nagging"
+    assert client.post("/api/twin/job", json={"spec": {"kind": "feed", "grams": 150, "spot": 1}}).status_code == 409
+    state["twin"]["bed"]["env"].update(day=2, hour=0.0)                       # fourteen hours later
+    t = client.get("/api/twin").get_json()
+    assert t["guide"]["feed"]["ok"] and "feed" in {p["kind"] for p in t["proposals"]}
+
+
+def test_the_page_can_say_what_went_into_the_hopper(client, twin):
+    _, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    assert client.post("/api/twin/hopper", json={"mix": {"vegetable": 600, "fruit": 300}}).status_code == 200
+    assert calls[-1] == ("/event", {"op": "hopper", "mix": {"vegetable": 600.0, "fruit": 300.0}, "grams": 900.0})
+    g = client.get("/api/twin/guide").get_json()
+    assert {"vegetable", "citrus", "meat", "paper"} <= {k["id"] for k in g["kinds"]} and any("12 hours" in r for r in g["rules"])

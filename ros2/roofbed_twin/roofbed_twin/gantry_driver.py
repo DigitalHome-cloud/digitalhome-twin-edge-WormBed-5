@@ -16,11 +16,12 @@ and the bed itself, which the simulation has to play (a real bed just is):
   in   /bed/event   std_msgs/String  JSON {"op": "sow", "row", "col", "crop"} | {"op": "water", "row", "col", "ml"}
 
                                      {"op": "feed", "grams", "spot"} the worm box gets a portion from the hopper
-                                     {"op": "hopper", "grams"} a person filled the hopper
+                                     {"op": "hopper", "grams" | "mix": {kind: grams}} a person filled the hopper, and with what
                                      {"op": "tank", "litres"}  a person refilled (or emptied) the tank
-                                     {"op": "dry", "percent"}  hot, dry days in one go (scenarios)
+                                     {"op": "dry", "percent" | "to"}  hot, dry days in one go (scenarios)
                                      {"op": "box", "do": "insulate", "on"} | {"do": "bedding", "grams"} | {"do": "moisten", "ml"}
                                        | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}
+                                       | {"do": "tap"} (the sump runs on into the tank) | {"do": "reset"} (a settled box again)
                                        what a person did at the worm box
 
 A sown cell gets a seedling in the world. Soil moisture is a simple number per
@@ -30,7 +31,7 @@ weather, and disturbances laid over it). With tank pipes under the
 bed and water in them, the soil is kept moist from below and the tank slowly
 empties (a wicking bed). The worm box is a small living model of its own
 (wormbox.py): worms eat what is fed, the box gets lighter, liquid drains to
-the tank, uneaten food heats the core. Its sensors read with noise and can
+its sump (a tap lets it on to the tank), uneaten food heats the core. Its sensors read with noise and can
 fail. Rain fills the tank up to its overflow. /bed/state carries "env",
 "tank", "wormBin" (sensor readings, and under "sim" what only a simulation
 can know) and "hopper"
@@ -100,9 +101,8 @@ class GantryDriver:
         self.hopper_g = 0.0
         seed = int(os.environ.get("PERMTEK5_TWIN_SEED", "5"))
         self.env = Environment(seed=seed)
-        self.box = WormBox(may_leave=bool((self.cfg.get("guild") or {}).get("wormsMayLeave", True)), air_c=self.env.air_c())
-        self.probes = Sensors(seed=seed)
-        self.lid_left_open = False       # by a person; a disturbance can open it too
+        self.seed = seed
+        self.new_box()
         self.overflowing = False
         self.shown = {}                  # what the world shows of the box: lid open, wrapping on
         b = self.cfg["bed"]
@@ -153,8 +153,13 @@ class GantryDriver:
             return
         op = e.get("op")
         try:
-            if op == "hopper":
-                self.hopper_g = max(0.0, min(float(e.get("grams", 0)), 5000.0))
+            if op == "hopper":                                # a person filled it, and says with what: {"mix": {kind: grams}}
+                mix = {str(k): max(0.0, float(g)) for k, g in (e.get("mix") or {}).items()}
+                if not mix:
+                    mix = {"vegetable": max(0.0, float(e.get("grams", 0)))}
+                over = max(1.0, sum(mix.values()) / 5000.0)
+                self.hopper_mix = {k: g / over for k, g in mix.items() if g > 0}
+                self.hopper_g = sum(self.hopper_mix.values())
                 return
             if op == "disturb":                               # a chaos monkey: an effect over the weather, for a while
                 self.env.apply(str(e["id"]), dict(e.get("effect") or {}), float(e.get("minutes", 60)), e.get("title"))
@@ -171,8 +176,10 @@ class GantryDriver:
                                        for p in e.get("pool") or []]
                 return
             if op == "dry":                                   # a scenario's hot, dry days in one go
-                for c in self.cells.values():
+                for c in self.cells.values():             # by so many percent, or down to a level whatever it was
                     c["moisture"] = max(5.0, c["moisture"] - float(e.get("percent", 0)))
+                    if "to" in e:
+                        c["moisture"] = min(c["moisture"], max(5.0, float(e["to"])))
                 return
             if op == "tank":
                 self.tank_l = max(0.0, min(float(e.get("litres", self.tank_cap)), self.tank_cap))
@@ -183,13 +190,33 @@ class GantryDriver:
                 if self.env.flag("hopperJam"):
                     return                                    # the scoop came back empty
                 grams = max(0.0, min(float(e.get("grams", 0)), self.hopper_g))
-                self.hopper_g -= self.box.feed(grams)
+                if grams <= 0:
+                    return
+                # the scoop takes a share of everything that is in the hopper; what the food is like is the guide's numbers
+                share = grams / self.hopper_g
+                part = {k: g * share for k, g in self.hopper_mix.items()}
+                self.hopper_mix = {k: g - part[k] for k, g in self.hopper_mix.items()}
+                self.hopper_g -= grams
+                kinds = self.cfg.get("feedingKinds") or {}
+                num = lambda k: kinds.get(k) or {"wet": 1.0, "heat": 1.0, "acid": 0.0}      # noqa: E731
+                browns = sum(g for k, g in part.items() if num(k)["wet"] < 0)
+                food = {k: g for k, g in part.items() if num(k)["wet"] >= 0}
+                total = sum(food.values())
+                if browns:
+                    self.box.add_bedding(browns)
+                if total:
+                    avg = lambda key: sum(g * num(k)[key] for k, g in food.items()) / total   # noqa: E731
+                    self.box.feed(total, wet=avg("wet"), heat=avg("heat"), acid=avg("acid"))
+                self.last_feed = {"n": self.box.feedings, "grams": round(grams), "spot": int(e.get("spot", 0)),
+                                  "mix": {k: round(g) for k, g in part.items() if g >= 0.5}, "atMin": round(self.env.minutes, 1)}
                 return
             if op == "box":                                   # what a person did at the worm box
                 if not self.has_bin:
                     return
                 do = e.get("do")
-                if do == "insulate":
+                if do == "reset":                             # a scenario starts from a settled box
+                    self.new_box()
+                elif do == "insulate":
                     self.box.insulated = bool(e.get("on", True))
                 elif do == "bedding":
                     self.box.add_bedding(min(float(e.get("grams", 500)), 5000.0))
@@ -201,6 +228,8 @@ class GantryDriver:
                     self.box.feed(min(float(e.get("grams", 0)), 10000.0), by_robot=False)
                 elif do == "lid":
                     self.lid_left_open = bool(e.get("open", True))
+                elif do == "tap":                             # the sump runs on into the tank, as far as there is room
+                    self.tank_l += self.box.drain(self.tank_cap - self.tank_l)
                 return
             row, col = int(e["row"]), int(e["col"])
         except (ValueError, KeyError, TypeError):
@@ -234,18 +263,30 @@ class GantryDriver:
         self.robot.getRoot().getField("children").importMFNodeFromString(
             -1, f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {z:.4f} children [ {shape} ] }}")
 
-    def show_box(self):
-        """Open or shut the lid and put the wrapping on or off in the world, when that changed."""
+    def new_box(self):
+        """A settled worm box with nothing wrong, as at the start (also a scenario's fresh start)."""
+        bin_cfg = self.cfg.get("wormBin") or {}
+        self.box = WormBox(may_leave=bool((self.cfg.get("guild") or {}).get("wormsMayLeave", True)), air_c=self.env.air_c(),
+                           sump_cap_l=float(bin_cfg.get("sumpLitres") or 14.0), area_m2=float(bin_cfg.get("areaM2") or 0.48))
+        self.probes = Sensors(seed=self.seed)
+        self.lid_left_open = False       # by a person; a disturbance can open it too
+        self.hopper_g, self.hopper_mix, self.last_feed = 0.0, {}, None
+
+    def show_box(self, x):
+        """Open or shut the lid and put the wrapping on or off in the world, when that changed. The feed
+        hatch stands open while the tool head (at `x`) is over the box."""
         w = self.cfg["world"]
-        for key, now, name in (("lid", self.box.lid_open, "WORM_LID"), ("wrap", self.box.insulated, "WORM_WRAP")):
+        over = bool(self.cfg["wormBin"].get("cols")) and x >= self.cfg["wormBin"]["x"][0] - 0.02
+        for key, now, name in (("lid", self.box.lid_open, "WORM_LID"), ("wrap", self.box.insulated, "WORM_WRAP"),
+                               ("hatch", over and not self.box.lid_open, "WORM_HATCH")):
             if self.shown.get(key) == now:
                 continue
             self.shown[key] = now
             node = self.robot.getFromDef(name)
             if node is None:
                 continue
-            if key == "lid":
-                node.getField("rotation").setSFRotation([0, 1, 0, w.get("lidOpenRad", 1.2) if now else 0.0])
+            if key in ("lid", "hatch"):
+                node.getField("rotation").setSFRotation([0, 1, 0, w.get(f"{key}OpenRad", 1.2) if now else 0.0])
             else:
                 at = node.getField("translation").getSFVec3f()
                 node.getField("translation").setSFVec3f([at[0], at[1], w.get("wrapZ", 0.1) if now else w.get("wrapOffZ", -5.0)])
@@ -302,18 +343,18 @@ class GantryDriver:
             box = self.box
             box.lid_open = self.lid_left_open or env.flag("lidOpen")
             if self.has_bin:
-                self.show_box()
-                made = box.step(dmin, env.air_c(), env.rain_mm_h())
-                self.tank_l = min(self.tank_cap, self.tank_l + made["liquidL"])
+                self.show_box(now["x"])
+                box.step(dmin, env.air_c(), env.rain_mm_h())      # its liquid collects in the sump; the tap lets it on
             self.pub_bed.publish(String(data=json.dumps({
                 "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
                 "env": env.snapshot(),
                 "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1), "overflowing": self.overflowing},
                 "wormBin": ({**self.probes.read(box, env.sensor),
                              "fillPct": round(100.0 * box.weight_g() / FULL_G, 1), "fedGrams": round(box.fed_g),
-                             "feedings": box.feedings, "wormsMayLeave": box.may_leave, "insulated": box.insulated,
+                             "feedings": box.feedings, "wormsMayLeave": box.may_leave, "insulated": box.insulated, "sumpCapacity": round(box.sump_cap_l, 1), "lastFeed": self.last_feed,
                              "sim": box.truth()}
                             if self.has_bin else None),
-                "hopper": {"grams": round(self.hopper_g), "jammed": env.flag("hopperJam")},
+                "hopper": {"grams": round(self.hopper_g), "jammed": env.flag("hopperJam"),
+                           "mix": {k: round(g) for k, g in self.hopper_mix.items() if g >= 0.5}},
                 "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1)}
                           for k, c in self.cells.items()}})))
