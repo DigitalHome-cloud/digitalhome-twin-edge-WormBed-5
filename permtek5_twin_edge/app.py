@@ -36,6 +36,11 @@ from .edge import routes as edge_routes  # edge layer
 from .edge import cloud as edge_cloud
 edge_routes.install(app)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+# The page and its script change together. Flask caches a template for the
+# life of the process but serves static files from disk, so an edited checkout
+# would pair an old page with a new script (the page then stops at "loading").
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 
 
 def body() -> dict:
@@ -263,6 +268,7 @@ def main(argv: list | None = None) -> int:
     ws.configure(user_dir=args.dir)
     lines = [f"  {f['label'].lower():<13} {f['path']}" for f in ws.folders()]
     edge_routes.start_background()  # edge layer
+    sim.stop_leftover(engine.workspace())      # a simulation an earlier run of this app left behind
     try:
         return server.serve(app, args, lines=lines)
     finally:

@@ -85,6 +85,40 @@ def running() -> bool:
     return p is not None and p.poll() is None
 
 
+def _alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+def stop_leftover(out_dir: Path, timeout: float = 15.0) -> bool:
+    """Stop a simulation an earlier run of this app started and did not stop (a
+    restart, a crash). Its process group is remembered in sim.pid beside the
+    world. True when one was stopped."""
+    pidfile = Path(out_dir) / "sim.pid"
+    try:
+        pgid = int(pidfile.read_text().strip())
+    except (OSError, ValueError):
+        return False
+    stopped = False
+    if _child.get("proc") is None or _child["proc"].pid != pgid:
+        for sig, wait in ((signal.SIGINT, timeout), (signal.SIGTERM, 5.0), (signal.SIGKILL, 2.0)):
+            if not _alive(pgid):
+                break
+            stopped = True
+            try:
+                os.killpg(pgid, sig)
+            except (ProcessLookupError, PermissionError):
+                break
+            end = time.time() + wait
+            while time.time() < end and _alive(pgid):
+                time.sleep(0.2)
+        pidfile.unlink(missing_ok=True)
+    return stopped
+
+
 def start(out_dir: Path, gui: bool = False, port: int = GATEWAY_PORT) -> Dict[str, Any]:
     """Start the launch on the world in out_dir. Already running: says so, starts nothing."""
     if running():
@@ -93,11 +127,13 @@ def start(out_dir: Path, gui: bool = False, port: int = GATEWAY_PORT) -> Dict[st
     if bad:
         raise RuntimeError("; ".join(bad))
     out_dir = Path(out_dir).resolve()
+    stop_leftover(out_dir)
     log = out_dir / "sim.log"
     fh = open(log, "wb")
     proc = subprocess.Popen(launch_command(out_dir, gui, port), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT,
                             stdin=subprocess.DEVNULL, env=_env(), start_new_session=True)
     _child.update(proc=proc, log=log, fh=fh, port=port, out=out_dir, started=time.time(), gui=gui)
+    (out_dir / "sim.pid").write_text(str(proc.pid))      # its process group, for stop_leftover()
     return status()
 
 
@@ -119,6 +155,8 @@ def stop(timeout: float = 15.0) -> Dict[str, Any]:
     if fh:
         fh.close()
     _child.pop("proc", None)
+    if _child.get("out"):
+        (Path(_child["out"]) / "sim.pid").unlink(missing_ok=True)
     return status()
 
 

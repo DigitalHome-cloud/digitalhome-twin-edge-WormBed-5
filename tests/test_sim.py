@@ -41,3 +41,14 @@ def test_status_when_nothing_runs():
 def test_the_child_keeps_ros_out_of_this_python(monkeypatch):
     monkeypatch.setenv("PYTHONPATH", "/opt/ros/x/lib")
     assert "PYTHONPATH" not in sim._env()
+
+
+def test_a_leftover_simulation_is_stopped_by_its_remembered_group(tmp_path):
+    import subprocess, sys, time
+    old = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True)
+    (tmp_path / "sim.pid").write_text(str(old.pid))
+    assert sim.stop_leftover(tmp_path, timeout=3.0) is True
+    assert old.wait(5) is not None and not (tmp_path / "sim.pid").exists()
+    assert sim.stop_leftover(tmp_path) is False                      # nothing left, nothing to do
+    (tmp_path / "sim.pid").write_text("not a number")
+    assert sim.stop_leftover(tmp_path) is False
