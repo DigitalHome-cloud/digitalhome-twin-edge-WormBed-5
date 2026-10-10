@@ -45,6 +45,10 @@ def discover(site: str, opener=urllib.request.urlopen) -> Dict[str, Any]:
     try:
         with opener(req, timeout=8) as r:
             data = json.loads(r.read(20_000))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:               # a site built before /edge.json existed
+            raise NotFound(f"{base} does not publish its edge address yet (no /edge.json); {by_hand}") from None
+        raise NotFound(f"{base} answered {exc.code}; {by_hand}") from None
     except (urllib.error.URLError, OSError) as exc:
         raise NotFound(f"{base} does not answer ({getattr(exc, 'reason', exc)}); {by_hand}") from None
     except ValueError:
