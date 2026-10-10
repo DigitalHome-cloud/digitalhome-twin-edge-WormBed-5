@@ -139,7 +139,7 @@ perma:tankPipeMm a owl:DatatypeProperty ;
 perma:wormBinCm a owl:DatatypeProperty ;
     rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
     rdfs:label "worm box (cm)"@en , "Wurmkiste (cm)"@de , "lombricomposteur (cm)"@fr ;
-    rdfs:comment "Length of the bed's far end (the highest columns) taken by a worm compost box. Its liquid drains into the tank pipes. No cells are planted there."@en .
+    rdfs:comment "Length of the bed's far end (the highest columns) taken by a worm compost box: two bins, the upper one above the soil for the worms, the lower one a sump for the liquid, which a tap lets on to the tank pipes. No cells are planted there."@en .
 
 perma:inBed a owl:ObjectProperty ;
     rdfs:domain perma:PlantingCell ; rdfs:range perma:GrowingBed ;

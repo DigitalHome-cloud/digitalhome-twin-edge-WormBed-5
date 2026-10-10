@@ -47,7 +47,20 @@ permash:CropShape a sh:NodeShape ;
     sh:property [ sh:path perma:waterMmPerWeek ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 100 ] ;
     sh:property [ sh:path perma:growthForm ; sh:maxCount 1 ; sh:in ( perma:Tree perma:Shrub ) ;
                   sh:message "A crop's growth form is perma:Tree or perma:Shrub (or none, for herbaceous crops)."@en ] ;
-    sh:property [ sh:path perma:typicalWindow ; sh:node permash:TypicalWindowShape ] .
+    sh:property [ sh:path perma:typicalWindow ; sh:node permash:TypicalWindowShape ] ;
+    sh:property [ sh:path perma:feeding ; sh:maxCount 1 ; sh:node permash:InFeedingLevels ;
+                  sh:message "A crop's feeding is one of perma:FeedingLevels."@en ] ;
+    sh:property [ sh:path perma:rootDepth ; sh:maxCount 1 ; sh:node permash:InRootDepths ;
+                  sh:message "A crop's root depth is one of perma:RootDepths."@en ] ;
+    sh:property [ sh:path perma:heightCm ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 4000 ] ;
+    sh:property [ sh:path perma:gives ; sh:node permash:InSoilGifts ; sh:message "What a crop gives is from perma:SoilGifts."@en ] ;
+    sh:property [ sh:path dwc:family ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path perma:goodNeighbour ; sh:class perma:Crop ] ;
+    sh:property [ sh:path perma:badNeighbour ; sh:class perma:Crop ] .
+
+permash:InFeedingLevels a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:FeedingLevels ] .
+permash:InRootDepths a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:RootDepths ] .
+permash:InSoilGifts a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:SoilGifts ] .
 
 permash:TypicalWindowShape a sh:NodeShape ;
     sh:property [ sh:path perma:activity ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InGardenActivities ;

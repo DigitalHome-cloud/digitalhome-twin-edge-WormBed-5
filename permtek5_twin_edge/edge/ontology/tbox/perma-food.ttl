@@ -264,3 +264,42 @@ perma:waterMmPerWeek a owl:DatatypeProperty ;
     rdfs:domain perma:Crop ; rdfs:range xsd:decimal ;
     rdfs:label "water (mm per week)"@en , "Wasser (mm pro Woche)"@de , "eau (mm par semaine)"@fr ;
     rdfs:comment "Rain plus watering the crop wants in its growing season; 1 mm is 1 litre per m². Shallow roof beds dry faster."@en .
+
+# ------------------------------------------------------------ what a crop takes from the bed and gives to it (mixed planting)
+#
+# In permaculture a bed is planted mixed, not in blocks: neighbours that take
+# different things from the soil, root at different depths, and help each
+# other. These properties say what a crop takes and gives; from them
+# packages/core/src/planting.ts suggests where each plant goes. They are
+# traditional companion-planting guidance. Evidence for single pairings is
+# mixed; every statement is "to confirm" by what the bed itself shows.
+
+perma:feeding a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ; rdfs:range skos:Concept ;
+    rdfs:label "feeding"@en , "Nährstoffbedarf"@de , "besoin en nutriments"@fr ;
+    rdfs:comment "How much the crop takes from the soil (perma:FeedingLevels): heavy, medium or light feeder, or a soil builder that leaves it richer."@en .
+
+perma:rootDepth a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ; rdfs:range skos:Concept ;
+    rdfs:label "root depth"@en , "Wurzeltiefe"@de , "profondeur d'enracinement"@fr ;
+    rdfs:comment "Where the crop takes water and nutrients (perma:RootDepths). Neighbours at different depths compete less."@en .
+
+perma:heightCm a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:integer ;
+    rdfs:label "height (cm)"@en , "Höhe (cm)"@de , "hauteur (cm)"@fr ;
+    rdfs:comment "Usual height when grown; tall crops go where they do not shade low ones."@en .
+
+perma:gives a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ; rdfs:range skos:Concept ;
+    rdfs:label "gives"@en , "gibt"@de , "apporte"@fr ;
+    rdfs:comment "What the crop gives its neighbours or the soil (perma:SoilGifts): nitrogen, confusion for pests, soil cover, food for pollinators, loosened soil."@en .
+
+perma:goodNeighbour a owl:ObjectProperty , owl:SymmetricProperty ;
+    rdfs:domain perma:Crop ; rdfs:range perma:Crop ;
+    rdfs:label "good neighbour of"@en , "guter Nachbar von"@de , "bon voisin de"@fr ;
+    rdfs:comment "Traditionally planted side by side. Stated once; it holds both ways."@en .
+
+perma:badNeighbour a owl:ObjectProperty , owl:SymmetricProperty ;
+    rdfs:domain perma:Crop ; rdfs:range perma:Crop ;
+    rdfs:label "bad neighbour of"@en , "schlechter Nachbar von"@de , "mauvais voisin de"@fr ;
+    rdfs:comment "Traditionally kept apart. Stated once; it holds both ways."@en .

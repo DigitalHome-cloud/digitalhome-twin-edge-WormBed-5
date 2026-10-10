@@ -109,3 +109,44 @@ perma:WinterPrune a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:t
 perma:SummerPrune a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
     skos:prefLabel "Summer pruning"@en , "Sommerschnitt"@de , "Taille d'été"@fr ;
     skos:definition "Stone fruit (plum, cherry) is pruned in summer only: winter cuts let in silver leaf and canker."@en .
+
+# ------------------------------------------------------------ mixed planting: what a crop takes and gives
+
+perma:FeedingLevels a skos:ConceptScheme ;
+    skos:prefLabel "Feeding levels"@en , "Nährstoffbedarf"@de , "Besoins en nutriments"@fr ;
+    skos:hasTopConcept perma:HeavyFeeder , perma:MediumFeeder , perma:LightFeeder , perma:SoilBuilder .
+perma:HeavyFeeder a skos:Concept ; skos:inScheme perma:FeedingLevels ; skos:topConceptOf perma:FeedingLevels ;
+    skos:prefLabel "Heavy feeder"@en , "Starkzehrer"@de , "Gourmand"@fr ;
+    skos:definition "Takes much from the soil (tomato, cabbage, courgette): gets the compost."@en .
+perma:MediumFeeder a skos:Concept ; skos:inScheme perma:FeedingLevels ; skos:topConceptOf perma:FeedingLevels ;
+    skos:prefLabel "Medium feeder"@en , "Mittelzehrer"@de , "Moyennement exigeant"@fr .
+perma:LightFeeder a skos:Concept ; skos:inScheme perma:FeedingLevels ; skos:topConceptOf perma:FeedingLevels ;
+    skos:prefLabel "Light feeder"@en , "Schwachzehrer"@de , "Peu exigeant"@fr .
+perma:SoilBuilder a skos:Concept ; skos:inScheme perma:FeedingLevels ; skos:topConceptOf perma:FeedingLevels ;
+    skos:prefLabel "Soil builder"@en , "Bodenverbesserer"@de , "Améliorant"@fr ;
+    skos:definition "Leaves the soil richer than it found it: legumes, with the bacteria on their roots, bring in nitrogen."@en .
+
+perma:RootDepths a skos:ConceptScheme ;
+    skos:prefLabel "Root depths"@en , "Wurzeltiefen"@de , "Profondeurs d'enracinement"@fr ;
+    skos:hasTopConcept perma:ShallowRoot , perma:MediumRoot , perma:DeepRoot .
+perma:ShallowRoot a skos:Concept ; skos:inScheme perma:RootDepths ; skos:topConceptOf perma:RootDepths ;
+    skos:prefLabel "Shallow"@en , "Flach"@de , "Superficiel"@fr .
+perma:MediumRoot a skos:Concept ; skos:inScheme perma:RootDepths ; skos:topConceptOf perma:RootDepths ;
+    skos:prefLabel "Medium"@en , "Mittel"@de , "Moyen"@fr .
+perma:DeepRoot a skos:Concept ; skos:inScheme perma:RootDepths ; skos:topConceptOf perma:RootDepths ;
+    skos:prefLabel "Deep"@en , "Tief"@de , "Profond"@fr .
+
+perma:SoilGifts a skos:ConceptScheme ;
+    skos:prefLabel "What a crop gives"@en , "Was eine Kultur gibt"@de , "Ce qu'une culture apporte"@fr ;
+    skos:hasTopConcept perma:FixesNitrogen , perma:ConfusesPests , perma:CoversSoil , perma:FeedsPollinators , perma:LoosensSoil .
+perma:FixesNitrogen a skos:Concept ; skos:inScheme perma:SoilGifts ; skos:topConceptOf perma:SoilGifts ;
+    skos:prefLabel "Fixes nitrogen"@en , "Bindet Stickstoff"@de , "Fixe l'azote"@fr .
+perma:ConfusesPests a skos:Concept ; skos:inScheme perma:SoilGifts ; skos:topConceptOf perma:SoilGifts ;
+    skos:prefLabel "Confuses pests"@en , "Verwirrt Schädlinge"@de , "Déroute les ravageurs"@fr ;
+    skos:definition "A strong scent that hides its neighbours from the insects looking for them."@en .
+perma:CoversSoil a skos:Concept ; skos:inScheme perma:SoilGifts ; skos:topConceptOf perma:SoilGifts ;
+    skos:prefLabel "Covers the soil"@en , "Bedeckt den Boden"@de , "Couvre le sol"@fr .
+perma:FeedsPollinators a skos:Concept ; skos:inScheme perma:SoilGifts ; skos:topConceptOf perma:SoilGifts ;
+    skos:prefLabel "Feeds pollinators"@en , "Nährt Bestäuber"@de , "Nourrit les pollinisateurs"@fr .
+perma:LoosensSoil a skos:Concept ; skos:inScheme perma:SoilGifts ; skos:topConceptOf perma:SoilGifts ;
+    skos:prefLabel "Loosens the soil"@en , "Lockert den Boden"@de , "Ameublit le sol"@fr .
