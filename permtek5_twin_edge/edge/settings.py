@@ -61,6 +61,7 @@ CHAT_ALLOWED: List[Tuple[str, str]] = [
     ("POST", r"/api/knowledge/sync"),
     ("POST", r"/api/ros2/publish"),
     ("POST", r"/api/twin/(prepare|start|stop|job|cancel|film|hopper|tank)"),
+    ("POST", r"/api/twin/scenario(/do|/next|/stop)?"),
 ]
 
 CHAT_SYSTEM = """You are the chat of {title}, an edge of {cloud}: a local

@@ -299,6 +299,72 @@ async function pollShell() {
   } catch (_) { $("#badge-agent").hidden = true; }
 }
 
+/* ------------------------------------------------------------ scenarios -- */
+// A guided walk: pick one, then do its steps. Each step has at most one action
+// (your click, or "run every step for me" as one confirmation for all of it)
+// and the readings to watch. An older server without scenarios hides the panel.
+
+const SC = { acting: false };
+
+async function refreshScenarios() {
+  let v;
+  try { v = await core.api("GET", "/api/twin/scenarios"); }
+  catch (_) { $("#scenario-panel").hidden = true; return; }
+  $("#scenario-panel").hidden = false;
+  const run = v.run;
+  $("#scenario-pick").hidden = !!run;
+  $("#scenario-run").hidden = !run;
+  if (!run) {
+    $("#scenario-list").innerHTML = v.scenarios.map((s) => `
+      <button class="scenario-item" data-id="${core.esc(s.id)}" ${v.running && !s.unavailable ? "" : "disabled"}>
+        <strong>${core.esc(s.title)}</strong>
+        <span class="note">${s.steps} steps${s.unavailable ? " · " + core.esc(s.unavailable) : v.running ? "" : " · start the simulation first"}</span>
+      </button>`).join("");
+    $("#scenario-list").querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
+      $("#chk-scenario-auto").checked = false;
+      await post("/api/twin/scenario", { id: b.dataset.id });
+      refreshScenarios();
+    }));
+    return;
+  }
+  $("#scenario-title").textContent = run.title;
+  $("#scenario-count").textContent = `step ${run.index + 1} of ${run.total}`;
+  $("#scenario-step").textContent = run.step.title;
+  $("#scenario-why").textContent = run.index === 0 ? `${run.about} ${run.step.why}` : run.step.why;
+  $("#scenario-checks").innerHTML = run.checks.map((c) => `<li class="${c.ok ? "ok" : ""}">${core.esc(c.say)}</li>`).join("");
+  const doBtn = $("#btn-scenario-do"), nextBtn = $("#btn-scenario-next");
+  doBtn.hidden = run.step.type === "none";
+  doBtn.textContent = run.step.label || "";
+  doBtn.disabled = run.did || SC.acting;
+  nextBtn.textContent = run.last ? "Finish" : "Next step";
+  nextBtn.disabled = !run.ready || SC.acting;
+  if ($("#chk-scenario-auto").checked && !SC.acting) {             // your one confirmation for the whole scenario
+    if (!run.did && run.step.type !== "none") scenarioDo();
+    else if (run.ready) scenarioNext();
+  }
+}
+
+async function scenarioDo() {
+  SC.acting = true;
+  await post("/api/twin/scenario/do");
+  SC.acting = false;
+  refreshScenarios();
+}
+
+async function scenarioNext() {
+  SC.acting = true;
+  const r = await post("/api/twin/scenario/next");
+  SC.acting = false;
+  if (r && r.finished) core.toast("Scenario finished");
+  refreshScenarios();
+}
+
+$("#btn-scenario-do").addEventListener("click", scenarioDo);
+$("#btn-scenario-next").addEventListener("click", scenarioNext);
+$("#btn-scenario-stop").addEventListener("click", async () => { await post("/api/twin/scenario/stop"); refreshScenarios(); });
+refreshScenarios();
+setInterval(refreshScenarios, 1000);
+
 /* ----------------------------------------------------------------- film -- */
 
 const F = { shown: "", job: null };

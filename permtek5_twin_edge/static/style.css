@@ -284,3 +284,12 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
 .link-code { font-family: var(--app-font-mono); font-size: 1.75rem; font-weight: 700; letter-spacing: 0.12em; color: var(--app-accent); }
 .cell.bin { background: repeating-linear-gradient(90deg, var(--app-surface-raised) 0 4px, var(--app-border-strong) 4px 5px); }
 #twin-notices { border-left-color: var(--app-cat-1); }
+
+/* scenarios: a guided walk, one step at a time */
+.scenario-progress { margin: 0; font-weight: 600; }
+.scenario-why { margin: 0; font-size: 0.875rem; color: var(--app-text-muted); line-height: 1.55; }
+.scenario-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.scenario-checks li::before { content: "○ "; color: var(--app-text-muted); }
+.scenario-checks li.ok::before { content: "● "; color: var(--app-success); }
+.scenario-item { display: grid; gap: 2px; text-align: left; width: 100%; padding: var(--app-space-2) var(--app-space-3); }
+.scenario-item .note { font-size: 0.75rem; }

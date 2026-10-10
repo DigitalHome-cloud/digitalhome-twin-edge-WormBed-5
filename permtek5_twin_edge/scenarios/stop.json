@@ -1,0 +1,65 @@
+{
+  "title": "Stop! The e-stop",
+  "about": "The gantry shares the bed with you. See how it is stopped in the middle of a job, and what happens to the job.",
+  "needs": [],
+  "steps": [
+    {
+      "title": "Robot: start a long job",
+      "why": "Probing every planted cell takes a while: a good job to interrupt.",
+      "do": {
+        "type": "proposal",
+        "id": "probe",
+        "label": "Confirm: probe the soil"
+      },
+      "expect": [
+        {
+          "read": "job.state",
+          "is": "==",
+          "value": "running",
+          "say": "job: {v}"
+        }
+      ],
+      "noWait": true
+    },
+    {
+      "title": "You: press the e-stop",
+      "why": "The gantry holds where it is at once and ignores every target. The running job is aborted, never resumed by itself.",
+      "do": {
+        "type": "estop",
+        "on": true,
+        "label": "E-stop"
+      },
+      "expect": [
+        {
+          "read": "bed.stopped",
+          "is": "==",
+          "value": true,
+          "say": "e-stop on: {v}"
+        },
+        {
+          "read": "last.probe.state",
+          "is": "==",
+          "value": "failed",
+          "say": "the job: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: release it",
+      "why": "Only a person releases the e-stop. The gantry waits for a new job you confirm; it does not pick the old one up again.",
+      "do": {
+        "type": "estop",
+        "on": false,
+        "label": "Release the e-stop"
+      },
+      "expect": [
+        {
+          "read": "bed.stopped",
+          "is": "==",
+          "value": false,
+          "say": "e-stop on: {v}"
+        }
+      ]
+    }
+  ]
+}

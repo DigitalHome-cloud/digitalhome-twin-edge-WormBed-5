@@ -128,6 +128,26 @@
             </div>
 
             <aside class="twin-main">
+              <div class="app-panel" id="scenario-panel" hidden>
+                <h2 class="app-panel__title">Scenarios</h2>
+                <div id="scenario-pick">
+                  <p class="app-panel__hint">A guided walk through one thing the bed does: each step says what happens and why, and shows the readings to watch.</p>
+                  <div id="scenario-list" class="proposals"></div>
+                </div>
+                <div id="scenario-run" hidden>
+                  <p class="scenario-progress"><span id="scenario-title"></span> <span class="tag" id="scenario-count"></span></p>
+                  <h3 id="scenario-step"></h3>
+                  <p class="scenario-why" id="scenario-why"></p>
+                  <ul class="scenario-checks" id="scenario-checks"></ul>
+                  <div class="hero-controls">
+                    <button id="btn-scenario-do" class="primary"></button>
+                    <button id="btn-scenario-next">Next step</button>
+                    <button id="btn-scenario-stop" class="ghost">End</button>
+                  </div>
+                  <label class="hero-check" title="Your one confirmation for the whole scenario: every step's action is done for you, one after the other">
+                    <input type="checkbox" id="chk-scenario-auto"> Run every step for me</label>
+                </div>
+              </div>
               <div class="app-panel">
                 <h2 class="app-panel__title">Job</h2>
                 <div id="job" class="job">none</div>

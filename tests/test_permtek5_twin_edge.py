@@ -132,7 +132,8 @@ def test_nothing_is_sent_without_a_proposal_or_a_spec(client, twin):
     assert client.post("/api/twin/job", json={}).status_code == 400 and calls == []
 
 
-def test_only_the_two_cameras_exist(client):
+def test_only_the_two_cameras_exist(client, monkeypatch):
+    monkeypatch.setattr(sim, "GATEWAY_PORT", 9)          # never a twin that happens to run on this machine
     assert client.get("/api/twin/camera/other.jpg").status_code == 404
     assert client.get("/api/twin/camera/tool.png").status_code == 404
     assert client.get("/api/twin/camera/tool.jpg").status_code == 503      # no simulation: no pictures

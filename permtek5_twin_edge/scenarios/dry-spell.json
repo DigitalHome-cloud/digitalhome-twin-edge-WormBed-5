@@ -1,0 +1,110 @@
+{
+  "title": "A dry spell: the tank runs empty",
+  "about": "The tank pipes under the bed keep the soil moist from below. See what happens when they are empty, what the page tells you, and how the bed recovers.",
+  "needs": [
+    "tank"
+  ],
+  "steps": [
+    {
+      "title": "While the tank has water",
+      "why": "Soil over a filled tank draws water up by itself: grown plants need no watering from above. The driest planted cell stays near 45 %.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "tank",
+          "litres": 100
+        },
+        "label": "Set the tank to 100 l"
+      },
+      "expect": [
+        {
+          "read": "bed.tank.litres",
+          "is": ">",
+          "value": 50,
+          "say": "tank: {v} l"
+        }
+      ]
+    },
+    {
+      "title": "The tank is empty and the sun is out",
+      "why": "A hot week with nobody refilling: the tank is drawn empty and the soil dries. In the twin this takes one click instead of a week.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "tank",
+            "litres": 0
+          },
+          {
+            "op": "dry",
+            "percent": 25
+          }
+        ],
+        "label": "Empty the tank and dry the soil"
+      },
+      "expect": [
+        {
+          "read": "bed.tank.litres",
+          "is": "<=",
+          "value": 0,
+          "say": "tank: {v} l"
+        },
+        {
+          "read": "driest",
+          "is": "<",
+          "value": 30,
+          "say": "driest planted cell: {v} %"
+        },
+        {
+          "read": "notices",
+          "is": ">=",
+          "value": 1,
+          "say": "{v} notice(s) for you on the page"
+        }
+      ]
+    },
+    {
+      "title": "Robot: water from above",
+      "why": "Without the tank, the page proposes to water the dry cells from above with clean water, each with what its crop wants for a day.",
+      "do": {
+        "type": "proposal",
+        "id": "water",
+        "label": "Confirm: water the dry cells",
+        "limit": 3
+      },
+      "expect": [
+        {
+          "read": "last.water.state",
+          "is": "==",
+          "value": "done",
+          "say": "watering: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: refill the tank",
+      "why": "Refilling is a person's job. With water back in the pipes the wick takes over again and the soil climbs back by itself.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "tank"
+        },
+        "label": "Refill the tank"
+      },
+      "expect": [
+        {
+          "read": "bed.tank.litres",
+          "is": ">",
+          "value": 50,
+          "say": "tank: {v} l"
+        },
+        {
+          "read": "driest",
+          "is": ">=",
+          "value": 30,
+          "say": "driest planted cell: {v} %"
+        }
+      ]
+    }
+  ]
+}

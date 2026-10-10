@@ -26,6 +26,7 @@ from . import engine as engine
 from . import cloudsite
 from . import film
 from . import habitat_store as store
+from . import scenarios
 from . import sim
 from .core import server
 from .core import workspace as ws
@@ -136,6 +137,7 @@ def twin_start():
 
 @app.post("/api/twin/stop")
 def twin_stop():
+    scenarios.stop()
     sim.stop()
     return jsonify(_twin_state())
 
@@ -198,6 +200,78 @@ def twin_estop():
         return jsonify(sim.gateway("/estop", {"on": bool(body().get("on", True))}))
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
+
+
+# ------------------------------------------------------------- scenarios ----
+#
+# Guided walkthroughs (scenarios.py, scenarios/*.json). Starting one and doing
+# a step are a person's clicks; a step's robot job is the same proposal the
+# page lists, sent the same way.
+
+def _scenario_view() -> dict:
+    t = _twin_state()
+    cfg = t.get("config")
+    twin = t.get("twin") or {}
+    return {"running": bool(t["running"] and twin.get("gantry")),
+            "scenarios": [{"id": k, "title": s["title"], "about": s["about"], "steps": len(s["steps"]),
+                           "unavailable": scenarios.available(s, cfg)} for k, s in scenarios.load_all().items()],
+            "run": scenarios.state(twin, t["proposals"], t.get("notices") or [])}
+
+
+@app.get("/api/twin/scenarios")
+def scenario_list():
+    return jsonify(_scenario_view())
+
+
+@app.post("/api/twin/scenario")
+def scenario_start():
+    if not sim.running():
+        return jsonify({"errors": ["start the simulation first"]}), 409
+    try:
+        scenarios.start(str(body().get("id") or ""), engine.config())
+    except ValueError as exc:
+        return jsonify({"errors": [str(exc)]}), 400
+    return jsonify(_scenario_view())
+
+
+@app.post("/api/twin/scenario/do")
+def scenario_do():
+    """Carry out the current step's one action."""
+    t = _twin_state()
+    try:
+        act = scenarios.action(t["proposals"])
+        for event in act.get("events", []):
+            if event.get("op") == "tank" and "litres" not in event:           # "refill": to the brim
+                event = {**event, "litres": float(((t.get("config") or {}).get("tank") or {}).get("litres") or 0)}
+            sim.gateway("/event", event)
+        if "estop" in act:
+            sim.gateway("/estop", {"on": act["estop"]})
+        if "job" in act:
+            sim.gateway("/job", act["job"])
+    except ValueError as exc:
+        return jsonify({"errors": [str(exc)]}), 400
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+    scenarios.mark_done()
+    return jsonify(_scenario_view())
+
+
+@app.post("/api/twin/scenario/next")
+def scenario_next():
+    view = _scenario_view()
+    run = view["run"]
+    if run is None:
+        return jsonify({"errors": ["no scenario is running"]}), 409
+    if not run["ready"] and not body().get("skip"):
+        return jsonify({"errors": ["this step is not complete yet"]}), 409
+    finished = not scenarios.advance()
+    return jsonify({**_scenario_view(), "finished": finished})
+
+
+@app.post("/api/twin/scenario/stop")
+def scenario_stop():
+    scenarios.stop()
+    return jsonify(_scenario_view())
 
 
 # ------------------------------------------------------------------ link ----

@@ -18,6 +18,7 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "feed", "grams", "spot"} the worm box gets a portion from the hopper
                                      {"op": "hopper", "grams"} a person filled the hopper
                                      {"op": "tank", "litres"}  a person refilled (or emptied) the tank
+                                     {"op": "dry", "percent"}  hot, dry days in one go (scenarios)
 
 A sown cell gets a seedling in the world. Soil moisture is a simple number per
 cell (percent): watering raises it, time lowers it. With tank pipes under the
@@ -132,6 +133,10 @@ class GantryDriver:
         try:
             if op == "hopper":
                 self.hopper_g = max(0.0, min(float(e.get("grams", 0)), 5000.0))
+                return
+            if op == "dry":                                   # a scenario's hot, dry days in one go
+                for c in self.cells.values():
+                    c["moisture"] = max(5.0, c["moisture"] - float(e.get("percent", 0)))
                 return
             if op == "tank":
                 self.tank_l = max(0.0, min(float(e.get("litres", self.tank_cap)), self.tank_cap))

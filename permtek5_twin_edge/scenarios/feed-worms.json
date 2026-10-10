@@ -1,0 +1,102 @@
+{
+  "title": "Feed the worms with kitchen waste",
+  "about": "A worm box is a slow converter. In: kitchen scraps, paper bedding, air and moisture. Out: worm castings (a stable compost roots can feed on), a nutrient-carrying liquid, more worms, and a little heat. Here you fill the hopper, the gantry carries portions to the box, and the liquid drains into the tank under the bed and reaches the roots from below.",
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "You: put the scraps in the hopper",
+      "why": "The gantry cannot fetch waste from the kitchen. A person fills the hopper at the bed's near end: here, 1 kg of raw fruit and vegetable scraps. No meat, dairy or cooked food.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "hopper",
+          "grams": 1000
+        },
+        "label": "Fill the hopper (1 kg)"
+      },
+      "expect": [
+        {
+          "read": "bed.hopper.grams",
+          "is": ">=",
+          "value": 1000,
+          "say": "hopper: {v} g"
+        }
+      ]
+    },
+    {
+      "title": "Robot: carry a portion to the worm box",
+      "why": "The gantry lifts its tool, moves to the hopper, scoops 300 g, travels the length of the bed and drops it at one spot of the worm box. Watch the overview camera.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "label": "Confirm: feed the worms"
+      },
+      "expect": [
+        {
+          "read": "bed.hopper.grams",
+          "is": "<=",
+          "value": 700,
+          "say": "hopper: {v} g left"
+        },
+        {
+          "read": "bed.wormBin.feedings",
+          "is": ">=",
+          "value": 1,
+          "say": "worm box fed {v} time(s)"
+        }
+      ]
+    },
+    {
+      "title": "What changed in the worm box",
+      "why": "Fresh food warms the box a little and makes it wetter; that is what the two fixed probes in the box measure. Too hot (30 °C) or too cold (5 °C) and the page warns you. Liquid from the food drains down into the tank pipes.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.tempC",
+          "is": ">",
+          "value": 18.0,
+          "say": "worm box: {v} °C"
+        },
+        {
+          "read": "bed.wormBin.moisture",
+          "is": ">",
+          "value": 70.0,
+          "say": "worm box moisture: {v} %"
+        },
+        {
+          "read": "bed.tank.litres",
+          "is": ">",
+          "value": 0,
+          "say": "tank: {v} l"
+        }
+      ]
+    },
+    {
+      "title": "Robot: the next portion goes to the next spot",
+      "why": "Portions are spread in rotation across the box, so no corner is overloaded and the worms always have a quiet place. The proposal now names the next spot.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "label": "Confirm: feed the worms again"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.feedings",
+          "is": ">=",
+          "value": 2,
+          "say": "worm box fed {v} times"
+        },
+        {
+          "read": "bed.hopper.grams",
+          "is": "<=",
+          "value": 400,
+          "say": "hopper: {v} g left"
+        }
+      ]
+    }
+  ]
+}

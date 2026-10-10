@@ -1,0 +1,72 @@
+{
+  "title": "Sow what the map plans",
+  "about": "Cells you marked as planned on the PermTek-5 map become sowing jobs. The depth, the number of seeds and the spacing come from the crop.",
+  "needs": [],
+  "steps": [
+    {
+      "title": "The plan",
+      "why": "Hatched cells in the bed are planned, not sown. For each, the page proposes a sowing job: where (millimetres from the bed's home corner), how deep, how many seeds.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "proposals.plant",
+          "is": ">=",
+          "value": 1,
+          "say": "{v} cell(s) waiting to be sown"
+        }
+      ]
+    },
+    {
+      "title": "Robot: sow the first planned cell",
+      "why": "The gantry lifts the tool, moves over the cell's centre, lowers it to the sowing depth, drops the seeds and lifts again. Nothing moves before you confirm.",
+      "do": {
+        "type": "proposal",
+        "id": "plant-",
+        "label": "Confirm: sow the first cell"
+      },
+      "expect": [
+        {
+          "read": "last.plant.state",
+          "is": "==",
+          "value": "done",
+          "say": "sowing: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The cell is sown",
+      "why": "The cell changes from planned to sown and a seedling stands in the bed. When the world was prepared from your own site, this is written to its map with today's date at the next sync.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "count.CellSown",
+          "is": ">=",
+          "value": 1,
+          "say": "{v} cells sown"
+        }
+      ]
+    },
+    {
+      "title": "Robot: a picture of what is planted",
+      "why": "After the days a crop needs to germinate, a camera pass shows whether each point came up. Here it runs straight away, one picture per planted cell.",
+      "do": {
+        "type": "proposal",
+        "id": "photo",
+        "label": "Confirm: photograph the bed",
+        "limit": 4
+      },
+      "expect": [
+        {
+          "read": "last.photo.state",
+          "is": "==",
+          "value": "done",
+          "say": "photo pass: {v}"
+        }
+      ]
+    }
+  ]
+}
