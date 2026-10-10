@@ -64,3 +64,28 @@ def test_world_and_config_are_written(demo, tmp_path):
     growing = [c for c in cfg["cells"] if c["status"] in ("CellSown", "CellGrowing")]
     assert wbt.count("DEF CELL_") == len(growing)
     assert cfg["world"]["x"][1] == pytest.approx(3.05) and cfg["world"]["meshes"] is False
+
+
+def test_meshes_are_used_when_they_exist_and_never_needed(demo, tmp_path):
+    h, lib = demo
+    plain = (tmp_path / "plain")
+    world.generate(h, lib, plain)
+    assert "Mesh {" not in (plain / "roofbed.wbt").read_text()
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    for name in ("plant_grown", "plant_seedling", "bed_soil", "gantry_bridge", "tree_trunk", "tree_canopy"):
+        (assets / f"{name}.obj").write_text("o x\n")
+    out = world.generate(h, lib, tmp_path / "meshed", assets=assets)
+    wbt = (tmp_path / "meshed" / "roofbed.wbt").read_text()
+    for name in ("plant_grown", "bed_soil", "gantry_bridge", "tree_canopy"):
+        assert f"{name}.obj" in wbt, name
+    cfg = json.loads(open(out["config"]).read())
+    assert cfg["world"]["meshes"] is True and cfg["world"]["seedlingMesh"].endswith("plant_seedling.obj")
+    assert wbt.count("{") == wbt.count("}") and "https://" not in wbt
+
+
+def test_the_garden_trees_stand_behind_the_roof(demo, tmp_path):
+    h, lib = demo
+    world.generate(h, lib, tmp_path)
+    wbt = (tmp_path / "roofbed.wbt").read_text()
+    assert "# Pear by the wall" in wbt and "# Plum" in wbt and "# garden" in wbt

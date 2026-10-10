@@ -125,10 +125,16 @@ class GantryDriver:
         w = self.cfg["world"]
         x, y = (col + 0.5) * w["cellM"], (row + 0.5) * w["cellM"]
         r, g, b = self.rgb.get(crop, [0.3, 0.6, 0.3])
-        self.robot.getRoot().getField("children").importMFNodeFromString(-1, (
-            f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {w['soilZ'] + 0.012:.4f} children [ Shape {{ "
-            f"appearance PBRAppearance {{ baseColor {r:.3f} {g:.3f} {b:.3f} roughness 0.9 metalness 0 }} "
-            "geometry Sphere { radius 0.012 subdivision 2 } } ] }"))
+        look = f"PBRAppearance {{ baseColor {r:.3f} {g:.3f} {b:.3f} roughness 0.9 metalness 0 }}"
+        mesh = w.get("seedlingMesh")
+        if mesh:                                   # modelled 0.2 m across: a seedling is about 2.5 cm
+            shape = f'Transform {{ scale 0.12 0.12 0.12 children [ Shape {{ appearance {look} geometry Mesh {{ url [ "{mesh}" ] }} }} ] }}'
+            z = w["soilZ"]
+        else:
+            shape = f"Shape {{ appearance {look} geometry Sphere {{ radius 0.012 subdivision 2 }} }}"
+            z = w["soilZ"] + 0.012
+        self.robot.getRoot().getField("children").importMFNodeFromString(
+            -1, f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {z:.4f} children [ {shape} ] }}")
 
     # -- one step --------------------------------------------------------------
 

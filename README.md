@@ -2,11 +2,51 @@
 
 **v0.1.0** · GPL-3.0 · [releases](https://github.com/DigitalHome-cloud/permtek5-twin-edge/releases)
 
-PermTek-5 Twin Edge.
+A local app that turns a [PermTek-5](https://github.com/DigitalHome-cloud/digitalhome-cloud-PermTek-5)
+habitat into a **Webots twin** of its roof bed and gantry robot, runs it over
+**ROS 2**, and shows the **robot's views** while it works. It is an edge of
+PermTek-5 (permaculture on DigitalHome.Cloud): the habitat's map (beds, cells,
+crops) is the plan, the robot proposes jobs, and nothing moves until a person
+confirms. The same ROS 2 actions are meant to drive the real gantry later
+(PermTek-5 `docs/specs/roofbed-robot.md`).
 
-<!-- Generated from the D-LAB-5 tool template. Rewrite the parts about notes;
-     keep the install, update and agent sections accurate. scripts/release.py
-     updates every v-pin in this file. -->
+| Part | What |
+|---|---|
+| `permtek5_twin_edge/habitat.py` | reads a habitat's A-Box (Turtle) and the crop library; a cell as a seeder's job: x/y in mm from the bed's corner, depth, seeds, spacing (the cloud's rule) |
+| `permtek5_twin_edge/world.py` | writes a self-contained Webots world of one bed and its gantry, and `bed.json` for the ROS side |
+| `ros2/roofbed_interfaces` | actions `PlantCell`, `WaterCells`, `ProbeCells`, `PhotoPass` |
+| `ros2/roofbed_twin` | the gantry's Webots driver (axes, two cameras, the bed's state), `bed_actions` (the jobs), a gateway on 127.0.0.1 for this app, the launch |
+| `permtek5_twin_edge/sim.py`, `app.py` | start and stop the simulation; the page: robot views, the bed, proposed jobs with **Confirm** |
+| `assets/build.py` | optional looks made with Blender (`bpy`): plants, raked soil, the gantry's profile, trees |
+| `permtek5_twin_edge/edge/` | the D-LAB-5 edge layer: link to PermTek-5 (device flow), A-Box sync, chat with proposals |
+
+**The simulation needs** ROS 2 (Kilted) with `webots_ros2_driver`, Webots
+R2025a, and a source checkout (the ROS packages are built in `ros2/`):
+
+```bash
+(cd ros2 && source /opt/ros/kilted/setup.bash && colcon build --symlink-install)
+./run.sh                                  # then: Prepare world, Start, Confirm a job
+.venv/bin/python scripts/selftest-twin.py # the whole loop on CityDemo, end to end
+```
+
+The page says what is missing. Without a linked habitat it runs **CityDemo**,
+an invented roof bed and three fruit trees.
+
+**Blender meshes are optional.** `bpy` on PyPI is built for one Python version
+(3.13 today) and ROS 2 needs the system's 3.12, so it has an environment of
+its own and is used only to build mesh files:
+
+```bash
+scripts/setup-bpy.sh                      # once: uv, Python 3.13, bpy (about 400 MB)
+.venv-bpy/bin/python assets/build.py      # writes mydocs/twin/assets/*.obj
+```
+
+Prepare the world again and it uses them for looks. Without them it draws
+boxes and spheres; motion and jobs are the same either way.
+
+**Private stays private.** A real habitat synced from the cloud, the worlds
+generated from it, pictures and logs live in `mydocs/` (git-ignored), never in
+this repository. `scripts/check-public.sh` runs before every commit.
 
 ## Use it
 
@@ -28,10 +68,6 @@ sends nothing about you, is cached for six hours, and is skipped silently when
 there is no network. `--no-update-check` turns it off. **Restart** and **Stop**
 are only accepted from this machine.
 
-Notes live in two folders: `mydocs/` for your own, which git
-ignores and which follows the working directory, and the samples that ship
-inside the package. A save goes back to the folder the note came from.
-
 ## Installing without a clone
 
 **A release tarball**: needs neither git nor pip.
@@ -47,7 +83,7 @@ cd permtek5-twin-edge-0.1.0
 ```bash
 pipx install git+https://github.com/DigitalHome-cloud/permtek5-twin-edge@v0.1.0
 permtek5-twin-edge-web                 # the page
-permtek5-twin-edge summarise note.json # the command line
+permtek5-twin-edge world              # the command line
 permtek5-twin-edge-mcp                 # the MCP server, for agents
 permtek5-twin-edge-skill --install     # the agent skill, into ~/.claude/skills
 ```

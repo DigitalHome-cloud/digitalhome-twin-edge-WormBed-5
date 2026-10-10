@@ -242,3 +242,7 @@ temp/
 /ros2/build/
 /ros2/install/
 /ros2/log/
+
+# Blender-as-a-module, for the mesh builder only (scripts/setup-bpy.sh)
+/.venv-bpy/
+/.venv-uv/
