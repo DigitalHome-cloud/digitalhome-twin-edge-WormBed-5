@@ -45,6 +45,10 @@ packages = ["permtek5_twin_edge", "permtek5_twin_edge.core", "permtek5_twin_edge
 permtek5_twin_edge = ["VERSION", "templates/*.html", "static/*", "skill/*.md", "shared/*.json", "data/*.ttl"]
 "permtek5_twin_edge.core" = ["static/*", "templates/core/*.html"]
 
+# the drawing's browser-check screenshots are evidence for the repository, not part of the tool
+[tool.setuptools.exclude-package-data]
+permtek5_twin_edge = ["static/*.visual-check.*"]
+
 [tool.setuptools.dynamic]
 version = { file = "permtek5_twin_edge/VERSION" }
 

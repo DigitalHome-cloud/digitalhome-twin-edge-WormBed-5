@@ -44,6 +44,17 @@ scripts/setup-bpy.sh                      # once: uv, Python 3.13, bpy (about 40
 Prepare the world again and it uses them for looks. Without them it draws
 boxes and spheres; motion and jobs are the same either way.
 
+**How it works** is a drawing behind the rail's link (`/how`), made with
+Archify from `docs/how-it-works.architecture.json`:
+
+```bash
+node ~/.claude/skills/archify/bin/archify.mjs deliver architecture docs/how-it-works.architecture.json \
+     permtek5_twin_edge/static/how.html --quality showcase --json
+```
+
+The page uses the D-LAB-5 app shell (as the Mediathek edge does) in the
+colours of PermTek-5.
+
 **Private stays private.** A real habitat synced from the cloud, the worlds
 generated from it, pictures and logs live in `mydocs/` (git-ignored), never in
 this repository. `scripts/check-public.sh` runs before every commit.

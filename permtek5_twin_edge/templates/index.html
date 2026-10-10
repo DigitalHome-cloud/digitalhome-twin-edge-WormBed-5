@@ -1,63 +1,158 @@
 {% extends "core/_base.html" %}
 
-{#- The twin's page. The header (theme, About, Restart, Stop) and core.js come
-    from core/_base.html; this file fills the blocks. -#}
+{#- The twin edge's page, in the D-LAB-5 app shell (Rail, ShellHeader, Hero,
+    Stats and Panel; classes .app-*, tokens in style.css), as the Mediathek
+    edge uses it. Core's own header (core/_base.html) stays in the page but
+    hidden: the rail's buttons call the same core functions. -#}
+
+{% set ico = 'width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 {% endblock %}
 
-{% block toolbar %}
-  <select id="sel-source" title="The habitat the world is made from"><option value="">CityDemo (invented)</option></select>
-  <button id="btn-prepare" title="Write the Webots world for the habitat">Prepare world</button>
-  <button id="btn-start" class="primary">Start</button>
-  <button id="btn-stop">Stop</button>
-  <button id="btn-estop" class="danger" title="Hold the gantry where it is and abort the job">E-stop</button>
-{% endblock %}
-
 {% block main %}
-<main class="layout">
+<div class="app-shell app-shell--railed" id="shell">
+  <nav class="app-rail" id="rail" aria-label="PermTek-5 Twin Edge">
+    <a class="app-rail__brand" href="/" aria-label="PermTek-5 Twin Edge">
+      <span class="app-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"
+        stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V6h16v14"/><path d="M12 6v4"/>
+        <path d="M12 20v-5"/><path d="M12 16c0-2.5-1.8-3.8-4.2-3.8 0 2.5 1.8 3.8 4.2 3.8z"/><path d="M12 15c0-2.5 1.8-3.8 4.2-3.8 0 2.5-1.8 3.8-4.2 3.8z"/></svg></span>
+      <span>permtek5<span class="app-rail__brandaccent">.twin</span></span>
+    </a>
 
-  <section class="twin">
-    <p id="twin-status" class="note">loading…</p>
-    <ul id="twin-missing" class="disclaimer" hidden></ul>
-
-    <div class="views">
-      <figure>
-        <img id="view-overview" alt="The whole bed, from the overview camera" hidden>
-        <div class="view-off" id="off-overview">overview camera</div>
-        <figcaption>Overview</figcaption>
-      </figure>
-      <figure>
-        <img id="view-tool" alt="Looking down from the tool head" hidden>
-        <div class="view-off" id="off-tool">tool camera</div>
-        <figcaption>Tool camera <span id="axes" class="tag"></span></figcaption>
-      </figure>
+    <div class="app-rail__section">
+      <h2 class="app-rail__sectionlabel">Twin</h2>
+      <ul class="app-rail__items">
+        <li><a class="app-rail__item tab" href="#twin" data-tab="twin"><svg {{ ico|safe }}><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M9 6v12M15 6v12M3 12h18"/></svg><span>Simulation</span></a></li>
+        <li><a class="app-rail__item tab" href="#connections" data-tab="connections"><svg {{ ico|safe }}><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg><span>PermTek-5 link</span><span class="app-rail__dot" id="dot-linked" hidden></span></a></li>
+        <li><a class="app-rail__item tab" href="#chat" data-tab="chat"><svg {{ ico|safe }}><path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M8 10h8M8 13h5"/></svg><span>Chat</span></a></li>
+      </ul>
     </div>
 
-    <h3 id="bed-title">Bed</h3>
-    <div class="bed-scroll"><div id="bed" class="bed" role="img" aria-label="The bed's cells"></div></div>
-    <p class="note legend">
-      <span class="cell planned"></span> planned
-      <span class="cell sown"></span> sown
-      <span class="cell growing"></span> growing
-      <span class="cell head"></span> tool head
-      &nbsp;·&nbsp; row 1, column 1 is the gantry's home corner
-    </p>
-  </section>
+    <div class="app-rail__section">
+      <h2 class="app-rail__sectionlabel">Job</h2>
+      <p class="rail-job" id="rail-job">none</p>
+    </div>
 
-  <aside class="side">
-    <h3>Job</h3>
-    <div id="job" class="job note">none</div>
-    <h3>Proposed <span class="tag">nothing moves until you confirm</span></h3>
-    <div id="proposals" class="proposals"></div>
-    <h3>Done</h3>
-    <div id="history" class="history note">nothing yet</div>
-  </aside>
+    <div class="rail-foot">
+      <div class="app-rail__section">
+        <h2 class="app-rail__sectionlabel">This PC</h2>
+        <ul class="app-rail__items">
+          <li><button type="button" id="rail-agent" class="app-rail__item app-rail__item--button"><svg {{ ico|safe }}><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span>Connect an agent</span></button></li>
+          <li><button type="button" id="rail-about" class="app-rail__item app-rail__item--button"><svg {{ ico|safe }}><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span id="rail-about-label">About</span></button></li>
+          <li><a class="app-rail__item" href="/how" target="_blank" rel="noopener"><svg {{ ico|safe }}><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg><span>How it works</span></a></li>
+        </ul>
+      </div>
+      <div class="rail-actions">
+        <button type="button" id="rail-restart" class="app-linkbutton">Restart</button>
+        <button type="button" id="rail-stop" class="app-linkbutton app-linkbutton--danger">Stop server</button>
+      </div>
+      <div class="app-seg" role="group" aria-label="Appearance" id="theme-seg">
+        <button type="button" class="app-seg__option" data-theme-pick="dark">☾ dark</button>
+        <button type="button" class="app-seg__option" data-theme-pick="light">☀ light</button>
+      </div>
+      <p class="app-rail__note">A real habitat, its worlds and pictures stay on this PC. © 2026 D-LAB-5 · GPL-3.0</p>
+    </div>
+  </nav>
 
-  <section id="edge-connections" class="panel"></section>  <!-- edge layer -->
-  <section id="edge-chat" class="panel"></section>
-</main>
+  <div class="app-shell__body">
+    <header class="app-shell__header">
+      <button type="button" id="rail-toggle" class="app-linkbutton app-shell__railtoggle" aria-label="Hide menu" aria-expanded="true">☰</button>
+      <span class="app-shell__title">PermTek-5 Twin Edge</span>
+      <span class="app-shell__meta" id="shell-meta"></span>
+      <span class="app-shell__spacer"></span>
+      <span class="app-badge badge-estop" id="badge-estop" hidden>E-stop</span>
+      <span class="app-badge badge-sim" id="badge-sim" hidden>Simulation</span>
+      <span class="app-badge badge-agent" id="badge-agent" hidden>Agent connected</span>
+      <span class="app-badge badge-running">Running</span>
+    </header>
+
+    <main class="app-shell__main edge-main">
+
+      <section id="tab-twin" class="tabpane view">
+        <div class="edge-main">
+          <div class="app-hero">
+            <div class="app-hero__copy">
+              <p class="app-hero__eyebrow" id="hero-eyebrow">Roof-bed twin</p>
+              <h1 class="app-hero__title edge-hero__title" id="twin-status">loading…</h1>
+              <div class="hero-controls">
+                <select id="sel-source" title="The habitat the world is made from"><option value="">CityDemo (invented)</option></select>
+                <button id="btn-prepare" title="Write the Webots world for the habitat">Prepare world</button>
+                <button id="btn-start" class="primary">Start</button>
+                <button id="btn-stop">Stop</button>
+                <button id="btn-estop" class="danger" title="Hold the gantry where it is and abort the job">E-stop</button>
+              </div>
+              <ul id="twin-missing" class="missing" hidden></ul>
+            </div>
+          </div>
+
+          <dl class="app-stats" id="overview"></dl>
+
+          <div class="twin-grid">
+            <div class="twin-main">
+              <div class="app-panel">
+                <h2 class="app-panel__title">Robot views</h2>
+                <div class="views">
+                  <figure>
+                    <img id="view-overview" alt="The whole bed, from the overview camera" hidden>
+                    <div class="view-off" id="off-overview">overview camera</div>
+                    <figcaption><span>Overview</span></figcaption>
+                  </figure>
+                  <figure>
+                    <img id="view-tool" alt="Looking down from the tool head" hidden>
+                    <div class="view-off" id="off-tool">tool camera</div>
+                    <figcaption><span>Tool camera</span><span id="axes" class="tag"></span></figcaption>
+                  </figure>
+                </div>
+              </div>
+
+              <div class="app-panel">
+                <h2 class="app-panel__title" id="bed-title">Bed</h2>
+                <div class="bed-scroll"><div id="bed" class="bed" role="img" aria-label="The bed's cells"></div></div>
+                <p class="note legend">
+                  <span><span class="cell planned"></span>planned</span>
+                  <span><span class="cell sown"></span>sown</span>
+                  <span><span class="cell growing"></span>growing</span>
+                  <span><span class="cell head"></span>tool head</span>
+                  <span>row 1, column 1 is the gantry's home corner</span>
+                </p>
+              </div>
+            </div>
+
+            <aside class="twin-main">
+              <div class="app-panel">
+                <h2 class="app-panel__title">Job</h2>
+                <div id="job" class="job">none</div>
+                <h3>Proposed <span class="tag">nothing moves until you confirm</span></h3>
+                <div id="proposals" class="proposals"></div>
+                <h3>Done</h3>
+                <div id="history" class="history">nothing yet</div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-connections" class="tabpane view" hidden>
+        <div class="app-panel">
+          <h2 class="app-panel__title">PermTek-5 link</h2>
+          <p class="app-panel__hint">Link this edge to a PermTek-5 site: it shows a code, a site admin approves it there,
+            and the site's habitats sync to this PC. Then choose one as the twin's source; what the gantry sows goes back with the next sync.</p>
+          <section id="edge-connections" class="panel"></section>  <!-- edge layer -->
+        </div>
+      </section>
+
+      <section id="tab-chat" class="tabpane view" hidden>
+        <div class="app-panel">
+          <h2 class="app-panel__title">Chat</h2>
+          <p class="app-panel__hint">A local Claude Code with only this edge's tools. It can read the twin; every change is a proposal you confirm.</p>
+          <section id="edge-chat" class="panel"></section>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

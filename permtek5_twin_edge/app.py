@@ -50,6 +50,12 @@ def index() -> str:
     return render_template("index.html")
 
 
+@app.get("/how")
+def how():
+    """How the twin edge works: an Archify drawing (docs/how-it-works.architecture.json)."""
+    return app.send_static_file("how.html")
+
+
 @app.get("/favicon.ico")
 def favicon():
     """Browsers ask for this by name whatever the page links to."""

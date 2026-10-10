@@ -1,0 +1,386 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "How the PermTek-5 twin edge works",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1240,
+      660
+    ],
+    "views": [
+      {
+        "id": "plan",
+        "label": "From the map to a world",
+        "focus": [
+          "map",
+          "abox",
+          "knowledge",
+          "world",
+          "webots"
+        ],
+        "note": "The habitat you map in PermTek-5 syncs to this PC. Its bed, cells and crops become a Webots world; nothing is drawn by hand."
+      },
+      {
+        "id": "confirm",
+        "label": "Propose, then confirm",
+        "focus": [
+          "chat",
+          "page",
+          "gateway",
+          "actions"
+        ],
+        "note": "The page lists what the gantry could do. A job is sent only when you press Confirm; the chat can only propose."
+      },
+      {
+        "id": "move",
+        "label": "The gantry works a cell",
+        "focus": [
+          "actions",
+          "driver",
+          "webots",
+          "gateway",
+          "page"
+        ],
+        "note": "bed_actions lifts the tool, moves over the cell, sows, waters, probes or photographs. Soft limits are the bed; an e-stop holds it."
+      },
+      {
+        "id": "back",
+        "label": "Back to the map",
+        "focus": [
+          "page",
+          "knowledge",
+          "abox",
+          "map"
+        ],
+        "note": "A sown cell is written into the habitat's copy, checked with the cloud's shapes, and the next sync shows it on the map."
+      },
+      {
+        "id": "looks",
+        "label": "Blender meshes",
+        "focus": [
+          "assets",
+          "world",
+          "webots"
+        ],
+        "note": "Plants, soil, the gantry's profile and trees are built once with Blender in its own Python. Without them the world uses boxes."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "map",
+      "type": "frontend",
+      "label": "PermTek-5 map",
+      "sublabel": "beds · cells · crops",
+      "pos": [
+        60,
+        60
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "abox",
+      "type": "database",
+      "label": "Habitat A-Box",
+      "sublabel": "per area · versioned",
+      "pos": [
+        60,
+        300
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "chat",
+      "type": "frontend",
+      "label": "Chat",
+      "sublabel": "Claude Code · MCP",
+      "pos": [
+        290,
+        60
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "page",
+      "type": "frontend",
+      "label": "Twin page",
+      "sublabel": "views · jobs · Confirm",
+      "pos": [
+        500,
+        60
+      ],
+      "size": [
+        140,
+        64
+      ],
+      "tag": "you confirm"
+    },
+    {
+      "id": "knowledge",
+      "type": "database",
+      "label": "Habitat copy",
+      "sublabel": "A-Box · synced",
+      "pos": [
+        290,
+        300
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "world",
+      "type": "backend",
+      "label": "World generator",
+      "sublabel": "bed · gantry · cells",
+      "pos": [
+        500,
+        300
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "assets",
+      "type": "backend",
+      "label": "Blender meshes",
+      "sublabel": "bpy · built offline",
+      "pos": [
+        500,
+        520
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "security",
+      "label": "Gateway",
+      "sublabel": "127.0.0.1 only",
+      "pos": [
+        740,
+        60
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "actions",
+      "type": "backend",
+      "label": "bed_actions",
+      "sublabel": "sow · water · probe · photo",
+      "pos": [
+        950,
+        60
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "webots",
+      "type": "cloud",
+      "label": "Webots",
+      "sublabel": "roofbed.wbt",
+      "pos": [
+        740,
+        300
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "driver",
+      "type": "backend",
+      "label": "Gantry driver",
+      "sublabel": "axes · cameras · bed",
+      "pos": [
+        960,
+        300
+      ],
+      "size": [
+        140,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "PermTek-5 cloud",
+      "wraps": [
+        "map",
+        "abox"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "This PC · permtek5-twin-edge",
+      "wraps": [
+        "chat",
+        "page",
+        "knowledge",
+        "world",
+        "assets"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "This PC · ROS 2 and Webots",
+      "wraps": [
+        "gateway",
+        "actions",
+        "webots",
+        "driver"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "save",
+      "from": "map",
+      "to": "abox",
+      "label": "save",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        130,
+        212
+      ]
+    },
+    {
+      "id": "down",
+      "from": "abox",
+      "to": "knowledge",
+      "label": "sync",
+      "variant": "security"
+    },
+    {
+      "id": "cells",
+      "from": "knowledge",
+      "to": "world",
+      "label": "cells",
+      "variant": "emphasis"
+    },
+    {
+      "id": "meshes",
+      "from": "assets",
+      "to": "world",
+      "label": "OBJ · looks only",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        570,
+        442
+      ]
+    },
+    {
+      "id": "wbt",
+      "from": "world",
+      "to": "webots",
+      "label": "world",
+      "variant": "emphasis"
+    },
+    {
+      "id": "propose",
+      "from": "chat",
+      "to": "page",
+      "label": "proposes",
+      "variant": "dashed"
+    },
+    {
+      "id": "job",
+      "from": "page",
+      "to": "gateway",
+      "label": "job",
+      "variant": "emphasis"
+    },
+    {
+      "id": "action",
+      "from": "gateway",
+      "to": "actions",
+      "label": "action"
+    },
+    {
+      "id": "targets",
+      "from": "actions",
+      "to": "driver",
+      "label": "axis targets",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1030,
+        212
+      ]
+    },
+    {
+      "id": "sim",
+      "from": "driver",
+      "to": "webots",
+      "label": "moves"
+    },
+    {
+      "id": "sown",
+      "from": "page",
+      "to": "knowledge",
+      "label": "sown cells",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        440,
+        212
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "The loop",
+      "items": [
+        "Map the bed in PermTek-5; it syncs here",
+        "The world is generated, the gantry works its cells",
+        "What was sown goes back to the map"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "You decide",
+      "items": [
+        "Jobs are proposals until you press Confirm",
+        "One job at a time; the tool lifts before it moves",
+        "Soft limits are the bed; e-stop holds the gantry"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Stays on this PC",
+      "items": [
+        "A real habitat, its worlds, pictures and logs",
+        "The gateway answers local calls only",
+        "Pairing needs a code a site admin approves"
+      ]
+    }
+  ]
+}

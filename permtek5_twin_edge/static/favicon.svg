@@ -1,7 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="tool">
-  <title>tool</title>
-  <!-- Placeholder mark: replace it with the tool's own. Colours that read on a
-       light and a dark tab bar, no background plate. -->
-  <rect x="5" y="5" width="22" height="22" rx="6" fill="none" stroke="#0098d4" stroke-width="4"/>
-  <circle cx="16" cy="16" r="4.5" fill="#ee7c0e"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="PermTek-5 Twin Edge">
+  <title>PermTek-5 Twin Edge</title>
+  <!-- A sprout under a gantry: the Portal's dark tile and green, the tool head in amber. -->
+  <rect width="32" height="32" rx="7" fill="#0a0c0b"/>
+  <path d="M6 25V8.5h20V25" fill="none" stroke="#9fb0a8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16 8.5v4" stroke="#9fb0a8" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="16" cy="13.6" r="1.7" fill="#c9954f"/>
+  <path d="M16 26v-6" stroke="#6fae7e" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M16 22.5c0-3.4-2.3-5.2-5.6-5.2 0 3.4 2.3 5.2 5.6 5.2z" fill="#6fae7e"/>
+  <path d="M16 21c0-3.2 2.2-4.9 5.4-4.9 0 3.2-2.2 4.9-5.4 4.9z" fill="#8cc79a"/>
+  <path d="M10.5 26h11" stroke="#4f8a5e" stroke-width="2" stroke-linecap="round"/>
 </svg>

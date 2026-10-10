@@ -158,3 +158,22 @@ def test_a_synced_habitat_is_the_source_and_gets_the_sowing_written_back(client,
     sown = [c for c in g.subjects(RDF.type, hb.PERMA.PlantingCell)
             if int(g.value(c, hb.PERMA.row)) == 5 and int(g.value(c, hb.PERMA.col)) == 13]
     assert g.value(sown[0], hb.PERMA.cellStatus) == hb.PERMA.CellSown and g.value(sown[0], hb.PERMA.sownOn) is not None
+
+
+def test_how_it_works_is_served_and_the_shell_links_it(client):
+    how = client.get("/how")
+    assert how.status_code == 200 and b"How the PermTek-5 twin edge works" in how.data
+    page = client.get("/").get_data(as_text=True)
+    assert 'href="/how"' in page and 'id="rail"' in page and 'id="tab-connections"' in page
+    assert client.get("/favicon.ico").status_code == 200
+
+
+def test_the_drawing_and_its_source_agree():
+    """how.html is delivered from docs/how-it-works.architecture.json; a changed source needs a new delivery."""
+    import json
+    from pathlib import Path
+    root = Path(web.__file__).resolve().parent
+    spec = json.loads((root.parent / "docs" / "how-it-works.architecture.json").read_text(encoding="utf-8"))
+    html = (root / "static" / "how.html").read_text(encoding="utf-8")
+    for c in spec["components"]:
+        assert c["label"] in html, c["label"]
