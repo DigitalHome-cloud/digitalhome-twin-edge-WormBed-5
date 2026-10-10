@@ -9,7 +9,7 @@
 # perma-core, habitat module, v0.1: the places of one habitat (a DHC home,
 # ADR 0015) and what grows there, as its owners map it.
 #
-#   - a GARDEN ZONE: the roof, the garden, a balcony. Its exposure and a
+#   - a GARDEN ZONE, shown to people as an AREA of the site: the roof, the garden, a balcony. Its exposure and a
 #     microclimate offset adjust the area's climate (a roof is warmer and
 #     windier than the street).
 #   - a GROWING BED in a zone, split into square cells: the grid a person
@@ -32,8 +32,8 @@
 # ------------------------------------------------------------ classes
 
 perma:GardenZone a owl:Class ;
-    rdfs:label "Garden zone"@en , "Gartenbereich"@de , "Zone de jardin"@fr ;
-    rdfs:comment "A part of the habitat with one microclimate: the roof, the garden, a balcony."@en .
+    rdfs:label "Area"@en , "Bereich"@de , "Zone"@fr ;
+    rdfs:comment "An area of a site, with one microclimate: the roof, the garden, a balcony. People call it an area; the class keeps its first name."@en .
 
 perma:GrowingBed a owl:Class ;
     rdfs:label "Growing bed"@en , "Beet"@de , "Planche de culture"@fr ;
@@ -51,7 +51,7 @@ perma:GardenPlant a owl:Class ;
 
 perma:zoneKind a owl:ObjectProperty ;
     rdfs:domain perma:GardenZone ; rdfs:range skos:Concept ;
-    rdfs:label "kind of zone"@en , "Art des Bereichs"@de , "type de zone"@fr ;
+    rdfs:label "kind of area"@en , "Art des Bereichs"@de , "type de zone"@fr ;
     rdfs:comment "One concept from perma:ZoneKinds."@en .
 
 perma:exposure a owl:ObjectProperty ;
@@ -70,7 +70,7 @@ perma:microclimateOffsetC a owl:DatatypeProperty ;
 
 perma:inZone a owl:ObjectProperty ;
     rdfs:range perma:GardenZone ;
-    rdfs:label "in zone"@en , "im Bereich"@de , "dans la zone"@fr .
+    rdfs:label "in area"@en , "im Bereich"@de , "dans la zone"@fr .
 
 # ------------------------------------------------------------ beds and cells
 

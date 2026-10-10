@@ -57,6 +57,12 @@ def how():
     return app.send_static_file("how.html")
 
 
+@app.get("/model")
+def model():
+    """The PermTek-5 data model: the cloud's Archify drawing, copied by scripts/sync-ontology.sh."""
+    return app.send_static_file("model.html")
+
+
 @app.get("/favicon.ico")
 def favicon():
     """Browsers ask for this by name whatever the page links to."""

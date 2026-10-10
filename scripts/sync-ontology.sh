@@ -7,7 +7,8 @@
 #
 # T-Boxes, concepts and shapes go to edge/ontology/; the crop library and the
 # invented CityDemo habitat go to the package's data/ (the twin reads sowing
-# depth, seeds and spacing from the library, and runs CityDemo unlinked).
+# depth, seeds and spacing from the library, and runs CityDemo unlinked). The
+# data-model drawing behind the rail's link is copied too.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SRC="${1:-../digitalhome-cloud-PermTek-5}/packages/ontology"
@@ -19,4 +20,7 @@ cp "$SRC"/tbox/*.ttl "$PKG/edge/ontology/tbox/"
 cp "$SRC"/shapes/*.ttl "$PKG/edge/ontology/shapes/"
 cp "$SRC/abox/library/crops.ttl" "$PKG/data/crops.ttl"
 cp "$SRC/abox/examples/citydemo-habitat.ttl" "$PKG/data/citydemo-habitat.ttl"
-echo "  ontology, crop library and CityDemo copied from $SRC"
+# the data-model drawing is the cloud's (docs/data-model.architecture.json there): one source
+MODEL="${1:-../digitalhome-cloud-PermTek-5}/packages/site/static/model/index.html"
+[ -f "$MODEL" ] && cp "$MODEL" "$PKG/static/model.html"
+echo "  ontology, crop library, CityDemo and the data-model drawing copied from $SRC"

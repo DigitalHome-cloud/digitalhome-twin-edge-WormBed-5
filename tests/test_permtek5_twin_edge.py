@@ -166,6 +166,8 @@ def test_how_it_works_is_served_and_the_shell_links_it(client):
     page = client.get("/").get_data(as_text=True)
     assert 'href="/how"' in page and 'id="rail"' in page and 'id="tab-connections"' in page
     assert client.get("/favicon.ico").status_code == 200
+    model = client.get("/model")
+    assert model.status_code == 200 and b"The PermTek-5 data model" in model.data and 'href="/model"' in page
 
 
 def test_the_drawing_and_its_source_agree():

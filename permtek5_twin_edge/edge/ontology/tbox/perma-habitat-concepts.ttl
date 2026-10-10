@@ -6,7 +6,7 @@
 # ============================================================
 
 perma:ZoneKinds a skos:ConceptScheme ;
-    skos:prefLabel "Kinds of zone"@en , "Arten von Bereichen"@de , "Types de zone"@fr ;
+    skos:prefLabel "Kinds of area"@en , "Arten von Bereichen"@de , "Types de zone"@fr ;
     skos:hasTopConcept perma:RoofZone , perma:GroundZone , perma:BalconyZone , perma:GreenhouseZone .
 perma:RoofZone a skos:Concept ; skos:inScheme perma:ZoneKinds ; skos:topConceptOf perma:ZoneKinds ;
     skos:prefLabel "Roof"@en , "Dach"@de , "Toit"@fr .
