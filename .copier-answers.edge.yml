@@ -1,0 +1,16 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: '7237415'
+_src_path: gh:d-lab-5/template-dlab5-edge
+cloud_name: PermTek-5
+edge_kind: robot
+env_prefix: PERMTEK5_TWIN_EDGE
+github_org: DigitalHome-cloud
+package_name: permtek5_twin_edge
+port: 8772
+repo_name: permtek5-twin-edge
+space_noun: area
+tenant_noun: site
+title: PermTek-5 Twin Edge
+tool_name: permtek5-twin-edge
+with_mcp: true
+with_workspace: true
