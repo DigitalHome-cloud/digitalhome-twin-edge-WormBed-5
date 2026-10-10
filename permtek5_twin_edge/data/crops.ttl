@@ -458,6 +458,34 @@ id:crop-marigold a perma:Crop ;
         perma:confirmation perma:ToConfirm ; perma:basis "general growing and seed-saving guidance, approximate" ] ;
     perma:yields [ perma:part perma:Flower ; perma:keeps [ perma:method perma:Fresh ; perma:storageMonths 0 ] , [ perma:method perma:Dried ; perma:storageMonths 12 ] ] .
 
+# Added 2026-10-10: cover crops, for the soil between and after the crops.
+
+id:crop-white-clover a perma:Crop ;
+    rdfs:label "White clover"@en , "Weißklee"@de , "Trèfle blanc"@fr , "Trifolium repens"@la ;
+    rdfs:comment "A low, creeping legume: a living mulch under and between the crops. Cut it and leave it lying."@en ;
+    dwc:scientificName "Trifolium repens" ; perma:coverCrop true ;
+    perma:sowingDepthMm 5 ; perma:seedsPerPoint 6 ; perma:germinationDays 8 ; perma:waterMmPerWeek 20.0 ;
+    perma:sowMinTempC 8.0 ; perma:frostTender false ; perma:daysToHarvest 60 ; perma:spacingCm 10 ;
+    perma:seedSaving [ perma:propagation perma:FromSeed ; perma:lifeCycle perma:Perennial ; perma:pollination perma:InsectPollinated ;
+        perma:crossesWith "other Trifolium repens" ; perma:isolationM 200.0 ; perma:seedViabilityYears 3 ; perma:selfSows true ;
+        rdfs:comment "Spreads by runners; seed is rarely needed twice."@en ;
+        perma:confirmation perma:ToConfirm ; perma:basis "general growing and seed-saving guidance, approximate" ] ;
+    perma:yields [ perma:part perma:Leaf ; perma:keeps [ perma:method perma:Fresh ; perma:storageMonths 0 ] ] .
+
+id:crop-phacelia a perma:Crop ;
+    rdfs:label "Phacelia"@en , "Phacelia"@de , "Phacélie"@fr , "Phacelia tanacetifolia"@la ;
+    rdfs:comment "Quick cover that belongs to no vegetable family, so it fits any rotation; bees love it. Frost kills it and leaves a mulch."@en ;
+    dwc:scientificName "Phacelia tanacetifolia" ; perma:coverCrop true ;
+    perma:sowingDepthMm 10 ; perma:seedsPerPoint 4 ; perma:germinationDays 10 ; perma:waterMmPerWeek 15.0 ;
+    perma:sowMinTempC 8.0 ; perma:frostTender true ; perma:daysToHarvest 50 ; perma:spacingCm 10 ;
+    perma:seedSaving [ perma:propagation perma:FromSeed ; perma:lifeCycle perma:Annual ; perma:pollination perma:InsectPollinated ;
+        perma:crossesWith "other Phacelia tanacetifolia" ; perma:isolationM 200.0 ; perma:seedViabilityYears 4 ; perma:selfSows true ;
+        rdfs:comment "Cut before the seed ripens, or it sows itself everywhere."@en ;
+        perma:confirmation perma:ToConfirm ; perma:basis "general growing and seed-saving guidance, approximate" ] ;
+    perma:yields [ perma:part perma:Flower ; perma:keeps [ perma:method perma:Fresh ; perma:storageMonths 0 ] ] .
+
+id:crop-white-mustard perma:coverCrop true .
+
 # ------------------------------------------------------------ what each crop takes from the bed and gives to it
 #
 # For planting mixed (tbox/perma-food.ttl; packages/core/src/planting.ts places the plants from these).
@@ -531,3 +559,7 @@ id:crop-bush-bean dwc:family "Fabaceae" ; perma:feeding perma:SoilBuilder ; perm
     perma:gives perma:FixesNitrogen .
 id:crop-marigold dwc:family "Asteraceae" ; perma:feeding perma:LightFeeder ; perma:rootDepth perma:ShallowRoot ; perma:heightCm 30 ;
     perma:gives perma:ConfusesPests , perma:FeedsPollinators .
+id:crop-white-clover dwc:family "Fabaceae" ; perma:feeding perma:SoilBuilder ; perma:rootDepth perma:ShallowRoot ; perma:heightCm 15 ;
+    perma:gives perma:FixesNitrogen , perma:CoversSoil , perma:FeedsPollinators .
+id:crop-phacelia dwc:family "Hydrophyllaceae" ; perma:feeding perma:LightFeeder ; perma:rootDepth perma:MediumRoot ; perma:heightCm 60 ;
+    perma:gives perma:CoversSoil , perma:FeedsPollinators , perma:LoosensSoil .

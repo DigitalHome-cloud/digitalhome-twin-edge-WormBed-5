@@ -136,6 +136,11 @@ perma:tankPipeMm a owl:DatatypeProperty ;
     rdfs:label "pipe diameter (mm)"@en , "Rohrdurchmesser (mm)"@de , "diamètre des tuyaux (mm)"@fr ;
     rdfs:comment "Outer diameter of the tank pipes, e.g. 110."@en .
 
+perma:mulchCm a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "mulch (cm)"@en , "Mulch (cm)"@de , "paillis (cm)"@fr ;
+    rdfs:comment "Thickness of the mulch on the bed, 0 for none. It keeps the soil moist and most weeds down. On a robot bed keep it thin (up to about 3 cm): a thick mulch stops a seeder and hides the soil from the camera."@en .
+
 perma:wormBinCm a owl:DatatypeProperty ;
     rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
     rdfs:label "worm box (cm)"@en , "Wurmkiste (cm)"@de , "lombricomposteur (cm)"@fr ;

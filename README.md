@@ -88,6 +88,7 @@ acidity, sump level, lid) read with noise and can fail. Around it:
 | `feeding_guide.py` | the WormBed5 feeding guide (PermTek-5's data), enforced: what, how much, where, when |
 | `keeper.py` | the rules that hold jobs, lock the gantry out and tell the person what to do |
 | jobs | `feed_worms`, `care_box` (dry bedding, water), `top_dress` (finished compost back to cells); the sump's tap and the resting half are switches |
+| `weeds.py` | finds weeds in the tool camera's pictures: green that is not at a planted point (OpenCV, no trained model); jobs `scan_weeds` and `stamp_weeds` |
 
 The robot does the routine part (feeding, bedding, water, draining, compost
 back to the bed); a person fills the hopper's two compartments, says what

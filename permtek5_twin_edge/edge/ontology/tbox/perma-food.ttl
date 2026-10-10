@@ -303,3 +303,8 @@ perma:badNeighbour a owl:ObjectProperty , owl:SymmetricProperty ;
     rdfs:domain perma:Crop ; rdfs:range perma:Crop ;
     rdfs:label "bad neighbour of"@en , "schlechter Nachbar von"@de , "mauvais voisin de"@fr ;
     rdfs:comment "Traditionally kept apart. Stated once; it holds both ways."@en .
+
+perma:coverCrop a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:boolean ;
+    rdfs:label "cover crop"@en , "Gründüngung"@de , "engrais vert"@fr ;
+    rdfs:comment "Sown to cover bare soil between and after the crops, then cut and left as mulch. No bare soil: what is not planted is covered."@en .

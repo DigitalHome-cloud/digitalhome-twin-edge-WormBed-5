@@ -14,7 +14,8 @@ page needs:
                  {"kind": "photo", "cells": [[row, col], ...]}
                  {"kind": "feed", "grams", "spot"}
                  {"kind": "care", "what": "bedding", "grams", "spot"} | {"kind": "care", "what": "moisten", "ml"}
-                 {"kind": "topdress", "cells": [[row, col], ...], "grams"}   -> {"id": ...} or 409 while one runs
+                 {"kind": "topdress", "cells": [[row, col], ...], "grams"}
+                 {"kind": "scan"} | {"kind": "stamp", "places": [[x, y], ...]}   -> {"id": ...} or 409 while one runs
     POST /event  {"op": "hopper", "grams"} | {"op": "tank", "litres"} | {"op": "box", "do", ...}   what a person did at the bed
     POST /cancel                      cancel the running job
     POST /estop  {"on": true|false}
@@ -37,7 +38,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
-from roofbed_interfaces.action import CareBox, FeedWorms, PhotoPass, PlantCell, ProbeCells, TopDress, WaterCells
+from roofbed_interfaces.action import CareBox, FeedWorms, PhotoPass, PlantCell, ProbeCells, ScanWeeds, StampWeeds, TopDress, WaterCells
 
 CAMERAS = {"tool": "/gantry/tool_camera/compressed", "overview": "/gantry/overview_camera/compressed"}
 
@@ -65,7 +66,9 @@ class Gateway(Node):
                          "photo": ActionClient(self, PhotoPass, "/bed/photo_pass"),
                          "feed": ActionClient(self, FeedWorms, "/bed/feed_worms"),
                          "care": ActionClient(self, CareBox, "/bed/care_box"),
-                         "topdress": ActionClient(self, TopDress, "/bed/top_dress")}
+                         "topdress": ActionClient(self, TopDress, "/bed/top_dress"),
+                         "scan": ActionClient(self, ScanWeeds, "/bed/scan_weeds"),
+                         "stamp": ActionClient(self, StampWeeds, "/bed/stamp_weeds")}
         self.pub_event = self.create_publisher(String, "/bed/event", 10)
 
     def on_pos(self, msg):
@@ -85,7 +88,7 @@ class Gateway(Node):
     def start(self, spec):
         kind = spec.get("kind")
         if kind not in self.clients_:
-            raise ValueError("kind must be plant, water, probe, photo, feed, care or topdress")
+            raise ValueError("kind must be plant, water, probe, photo, feed, care, topdress, scan or stamp")
         goal = self.goal_for(kind, spec)
         with self.lock:
             if self.job and self.job["state"] == "running":
@@ -103,6 +106,11 @@ class Gateway(Node):
                                   depth_mm=float(s.get("depthMm", 5)), seeds=int(s.get("seeds", 1)))
         if kind == "feed":
             return FeedWorms.Goal(grams=float(s.get("grams", 300)), spot=int(s.get("spot", 0)))
+        if kind == "scan":
+            return ScanWeeds.Goal()
+        if kind == "stamp":
+            places = s.get("places") or []
+            return StampWeeds.Goal(xs=[float(p[0]) for p in places], ys=[float(p[1]) for p in places])
         if kind == "care":
             what = str(s.get("what", ""))
             return CareBox.Goal(what=what, amount=float(s.get("ml" if what == "moisten" else "grams", 0)), spot=int(s.get("spot", 0)))
@@ -148,6 +156,11 @@ class Gateway(Node):
             return {"sown": r.sown, "seeds": r.seeds_dropped}
         if kind == "feed":
             return {"fed": r.fed, "grams": round(r.grams_dropped)}
+        if kind == "scan":
+            return {"pictures": r.pictures, "weeds": [{"x": round(x, 3), "y": round(y, 3), "sizeMm": round(mm)}
+                                                      for x, y, mm in zip(r.xs, r.ys, r.sizes_mm)]}
+        if kind == "stamp":
+            return {"stamped": r.stamped, "skipped": r.skipped}
         if kind == "care":
             return {"done": r.done, "amount": round(r.amount_given)}
         if kind == "topdress":
@@ -248,10 +261,10 @@ def handler_for(gw: Gateway):
                 return self.send_json(200, {"id": job_id}) if job_id else self.send_json(409, {"error": "a job is running"})
             if self.path == "/event":
                 # what a person did at the bed: filled the hopper, refilled the tank
-                if data.get("op") not in ("hopper", "tank", "dry", "disturb", "calm", "time", "chaos", "box"):
-                    return self.send_json(400, {"error": "op must be hopper, tank, dry, disturb, calm, time, chaos or box"})
+                if data.get("op") not in ("hopper", "tank", "dry", "disturb", "calm", "time", "chaos", "box", "weeds"):
+                    return self.send_json(400, {"error": "op must be hopper, tank, dry, disturb, calm, time, chaos, box or weeds"})
                 keys = ("op", "grams", "litres", "percent", "id", "title", "effect", "minutes", "factor", "rate", "pool",
-                        "do", "on", "ml", "open", "mix", "to", "browns", "side")
+                        "do", "on", "ml", "open", "mix", "to", "browns", "side", "count", "large", "pull")
                 gw.pub_event.publish(String(data=json.dumps({k: data[k] for k in keys if k in data})))
                 return self.send_json(200, {"ok": True})
             if self.path == "/cancel":

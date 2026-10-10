@@ -170,3 +170,15 @@ def test_the_shape_library_ships_with_the_app_and_lists_every_shape_the_world_us
     used = set(re.findall(r'_mesh\(assets, "([a-z_]+)"\)', Path(world.__file__).read_text())) | {"plant_grown", "plant_seedling"}
     assert used <= set(lib), used - set(lib)
     assert sum((folder / s["file"]).stat().st_size for s in lib.values()) < 300_000, "the library stays small"
+
+
+def test_a_bed_says_how_thick_its_mulch_is(demo, tmp_path):
+    ttl = hb.CITYDEMO.read_text(encoding="utf-8")
+    h = hb.loads(ttl) if hasattr(hb, "loads") else hb.load(ttl)
+    assert h.beds[0].mulch_cm == 0
+    bed_iri = h.beds[0].id
+    mulched = hb.load(ttl + f"\n<{bed_iri}> <https://permaculture.digitalhome.cloud/ontology#mulchCm> 2 .\n")
+    assert mulched.beds[0].mulch_cm == 2
+    _, lib = demo
+    cfg = json.loads(open(world.generate(mulched, lib, tmp_path)["config"]).read())
+    assert cfg["bed"]["mulch_cm"] == 2 and cfg["world"]["camFovRad"] == 1.0

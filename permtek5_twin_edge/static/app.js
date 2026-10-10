@@ -55,16 +55,26 @@ function drawBed(t) {
   const g = t.twin && t.twin.gantry, cell = cfg.world.cellM;
   const binFrom = cfg.wormBin && cfg.wormBin.cols ? cfg.wormBin.fromCol : b.cols;
   const headKey = g ? `${Math.floor(g.y / cell)}_${Math.floor(g.x / cell)}` : "";
+  // what the last look over the bed found: the cell each weed stands in
+  const weeds = {};
+  for (const w of (t.weeds && t.weeds.found) || []) (weeds[`${Math.floor(w.y / cell)}_${Math.floor(w.x / cell)}`] ||= []).push(w);
+  const wl = t.weeds, sim = t.twin && t.twin.bed && t.twin.bed.sim;
+  $("#weeds-line").textContent = !wl ? "" : (wl.scanned
+    ? `Weeds, last look (${wl.when}): ${wl.small} small ones to stamp, ${wl.byHand} for your hands.`
+    : "Weeds: the bed has not been looked over yet.")
+    + (sim ? ` Simulation only: ${sim.weeds} really stand in the bed, ${sim.weedsLarge} of them big.` : "");
   el.querySelectorAll(".cell").forEach((n) => {
     const k = n.dataset.k, c = planned[k], l = live[k];
     const status = (l && l.status) || (c && c.status) || "";
     const inBin = Number(k.split("_")[1]) >= binFrom;
-    n.className = "cell" + (inBin ? " bin" : status ? " " + status.replace("Cell", "").toLowerCase() : "") + (k === headKey ? " head" : "");
+    n.className = "cell" + (inBin ? " bin" : status ? " " + status.replace("Cell", "").toLowerCase() : "") + (k === headKey ? " head" : "")
+      + (weeds[k] ? " weed" : "");
     if (inBin) { n.style.background = ""; n.title = "worm box"; return; }
     n.style.background = status === "CellGrowing" || status === "CellSown" ? rgb(c && c.rgb) || "var(--accent)" : "";
     const [r, col] = k.split("_").map(Number);
     n.title = `row ${r + 1}, column ${col + 1}` + (c ? ` · ${c.cropName}` : "") + (status ? ` · ${status.replace("Cell", "").toLowerCase()}` : "")
-      + (l && l.moisture !== undefined ? ` · soil ${l.moisture} %` : "");
+      + (l && l.moisture !== undefined ? ` · soil ${l.moisture} %` : "")
+      + (weeds[k] ? ` · weed ${weeds[k].map((w) => `${w.sizeMm} mm, ${w.do === "stamp" ? "to stamp" : "by hand"}`).join("; ")}` : "");
   });
 }
 
@@ -92,6 +102,7 @@ function drawJobs(t) {
   $("#history").innerHTML = hist.length ? hist.map((j) => {
     const r = j.result || {};
     const what = r.moisture ? `soil ${r.moisture.join(", ")} %` : r.givenMl ? `${r.givenMl.reduce((a, b) => a + b, 0)} ml`
+      : r.weeds ? `${r.weeds.length} weeds in ${r.pictures} pictures` : r.stamped !== undefined ? `${r.stamped} stamped`
       : r.grams ? `${r.grams} g` : r.givenG ? `${r.givenG.reduce((a, b) => a + b, 0)} g of compost`
       : r.photos ? `${r.photos.length} pictures` : "";
     return `<div class="${j.state === "done" ? "" : "bad"}">${core.esc(j.kind)} · ${core.esc(j.state)}`

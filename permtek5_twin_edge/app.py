@@ -96,6 +96,7 @@ _feeder_memory: dict = {}
 _guide = feeding_guide.load()       # the WormBed5 feeding guide: PermTek-5's data, enforced here
 _diary: list = []                   # what was loaded, fed and given as bedding in this simulation (simulated minutes)
 _guide_seen = {"now": 0.0, "feedN": 0, "load": None}
+_weeds: dict = {"scan": None, "stamp": None, "found": [], "when": ""}   # what the last look over the bed found
 _keeper_lock = threading.Lock()     # the page and a scenario ask at the same moment: one of them writes the log
 _offline = {"until": 0.0, "queued": 0}
 
@@ -176,6 +177,30 @@ def _follow_guide(cfg, bed, out, kept: dict) -> None:
             kept["holds"] = sorted(set(kept["holds"]) | {"feed"})
 
 
+def _follow_weeds(cfg, bed, twin: dict, kept: dict) -> None:
+    """Keep what the last look over the bed found: stamped ones go off the list; the rest are a person's."""
+    done = [j for j in (twin.get("history") or []) if j.get("state") == "done"]
+    scan = next((j for j in reversed(done) if j["kind"] == "scan"), None)
+    if scan and scan["id"] != _weeds["scan"]:
+        _weeds.update(scan=scan["id"], stamp=None, when=(bed.get("env") or {}).get("clock", ""),
+                      found=engine.sort_weeds(cfg, bed, (scan.get("result") or {}).get("weeds") or []))
+    elif not scan and _weeds["scan"]:
+        _weeds.update(scan=None, stamp=None, found=[], when="")          # the simulation started again
+    stamp = next((j for j in reversed(done) if j["kind"] == "stamp"), None)
+    if stamp and scan and stamp["id"] != _weeds["stamp"] and stamp.get("started", 0) > scan.get("started", 0):
+        _weeds["stamp"] = stamp["id"]
+        pressed = {(round(p[0], 3), round(p[1], 3)) for p in (stamp.get("spec") or {}).get("places") or []}
+        _weeds["found"] = [w for w in _weeds["found"] if (round(w["x"], 3), round(w["y"], 3)) not in pressed]
+    by_hand = [w for w in _weeds["found"] if w["do"] == "hand"]
+    kept["weeds"] = {"found": _weeds["found"], "when": _weeds["when"], "small": sum(1 for w in _weeds["found"] if w["do"] == "stamp"),
+                     "byHand": len(by_hand), "scanned": bool(_weeds["scan"])}
+    if by_hand:
+        big, close = sum(1 for w in by_hand if w["why"] == "large"), sum(1 for w in by_hand if w["why"] == "close")
+        keeper.add(kept, "weeds", f"{len(by_hand)} weed(s) are for your hands: "
+                   + ", ".join(p for p in (f"{big} too big for the stamp" if big else "", f"{close} too close to a plant" if close else "") if p)
+                   + ". Only weeds without seed and without creeping roots go to the worm box.")
+
+
 def _event(event: dict) -> dict:
     """Send what a person did to the twin; dry bedding given by hand also goes into the feeding diary."""
     out = sim.gateway("/event", event)
@@ -195,6 +220,8 @@ def _twin_state() -> dict:
     # the keeper: the rules that hold jobs back, lock the gantry out, and tell the person what to do
     with _keeper_lock:
         kept = _keep(cfg, bed, out, offline)
+    if cfg and bed:
+        _follow_weeds(cfg, bed, twin, kept)
     recorded = []
     if cfg and src.get("graph") and twin.get("history"):
         # What the gantry sowed goes into the habitat it was prepared from; the next sync takes it to the cloud.
@@ -209,10 +236,10 @@ def _twin_state() -> dict:
     return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
             "instance": instance.describe(),
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
-            "feeder": kept.get("feeder"), "guide": kept.get("guide"),
+            "feeder": kept.get("feeder"), "guide": kept.get("guide"), "weeds": kept.get("weeds"),
             "env": (bed or {}).get("env"),
             "habitats": store.habitats(), "recorded": recorded,
-            "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"])
+            "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"))
                           if not kept["lockout"] else [])}
 
 
@@ -381,7 +408,7 @@ def _disturb(key: str, minutes=None) -> None:
     if d.get("app"):                              # network loss is this app's, not the simulation's
         _offline["until"] = time.time() + float(minutes or d["minutes"]) / max(_factor(), 0.1)   # simulated minutes
         return
-    if d.get("event"):                            # something a person did wrong, not weather
+    if d.get("event"):                            # something that happens at the bed, not weather
         sim.gateway("/event", d["event"])
         return
     sim.gateway("/event", disturbances.event(key, minutes))

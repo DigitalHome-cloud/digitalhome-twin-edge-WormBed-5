@@ -109,7 +109,8 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None,
               holds: Optional[List[str]] = None, advice: Optional[Dict[str, Any]] = None,
-              guide: Optional[Dict[str, Any]] = None, active: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+              guide: Optional[Dict[str, Any]] = None, active: Optional[List[str]] = None,
+              weeds: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """The jobs the gantry could do now. Proposals only: a person confirms each before anything moves.
 
     Sowing: every planned cell not sown yet. Watering: planted cells whose soil
@@ -125,7 +126,41 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
     if not cfg:
         return []
     found = _box_care(cfg, bed_state or {}, guide or {}, active or []) + _proposals(cfg, bed_state, advice)
+    if bed_state and "sim" in bed_state:           # a twin that grows weeds: look for them, and press the small ones under
+        stampable = [w for w in (weeds or {}).get("found", []) if w["do"] == "stamp"]
+        if stampable:
+            found.append({"id": "stamp", "kind": "stamp", "title": f"Press {len(stampable)} small weed(s) into the soil",
+                          "detail": "with the stamp; they feed soil life where they stood. Places come from the last look over the bed",
+                          "spec": {"kind": "stamp", "places": [[w["x"], w["y"]] for w in stampable][:30]}})
+        found.append({"id": "scan", "kind": "scan", "title": "Look over the bed for weeds",
+                      "detail": "the tool camera, picture by picture: green that is not at a planted point is a weed"
+                                + (f'; last look: {(weeds or {}).get("when")}' if (weeds or {}).get("when") else ""),
+                      "spec": {"kind": "scan"}})
     return [p for p in found if p["kind"] not in (holds or [])]
+
+
+SMALL_WEED_BELOW_MM = 30    # under this the stamp presses a weed into the soil; above, a person pulls it
+STAMP_CLEAR_M = 0.03        # and never this close to where a plant reaches
+
+
+def sort_weeds(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]], found: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """What to do with each weed a look over the bed found: "stamp" the small ones that stand clear of
+    every plant, pull the others by "hand" (too big, or too close to a plant for the stamp)."""
+    cell_m = cfg["world"]["cellM"]
+    live = (bed_state or {}).get("cells") or {}
+    reach = []
+    for c in cfg["cells"]:
+        status = (live.get(f'{c["row"]}_{c["col"]}') or {}).get("status", c["status"])
+        if status in ("CellSown", "CellGrowing"):
+            spacing = ((c.get("job") or {}).get("spacingMm") or cell_m * 1000) / 1000.0
+            r = max(0.03, spacing * 0.38) + 0.015 if status == "CellGrowing" else 0.03
+            reach.append(((c["col"] + 0.5) * cell_m, (c["row"] + 0.5) * cell_m, r + STAMP_CLEAR_M))
+    out = []
+    for w in found:
+        close = any(((w["x"] - x) ** 2 + (w["y"] - y) ** 2) ** 0.5 < r for x, y, r in reach)
+        out.append({**w, "do": "stamp" if w["sizeMm"] < SMALL_WEED_BELOW_MM and not close else "hand",
+                    "why": "large" if w["sizeMm"] >= SMALL_WEED_BELOW_MM else "close" if close else ""})
+    return out
 
 
 REST_FROM_KG = 6.0          # a box this heavy has castings worth harvesting

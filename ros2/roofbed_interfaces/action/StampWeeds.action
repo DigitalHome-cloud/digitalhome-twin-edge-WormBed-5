@@ -1,0 +1,9 @@
+# Press small weeds into the soil with the stamp, where they feed soil life. Places in bed metres.
+float32[] xs
+float32[] ys
+---
+int32 stamped
+int32 skipped
+string message
+---
+int32 index

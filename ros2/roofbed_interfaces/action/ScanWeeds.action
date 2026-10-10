@@ -1,0 +1,10 @@
+# Look at the whole bed with the tool camera and find what grows where nothing was planted.
+---
+# every weed found, in bed metres, with its width on the ground
+float32[] xs
+float32[] ys
+float32[] sizes_mm
+int32 pictures
+string message
+---
+int32 index

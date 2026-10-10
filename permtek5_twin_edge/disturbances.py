@@ -40,6 +40,8 @@ CATALOGUE: Dict[str, Dict[str, Any]] = {
     "wrong-food": {"title": "Wrong food in the hopper", "about": "Somebody tips cooked leftovers and a lot of citrus into the hopper.",
                    "effect": {}, "minutes": 1, "owes": ["guide-load"],
                    "event": {"op": "hopper", "mix": {"vegetable": 500, "cooked": 200, "citrus": 300}}},
+    "weed-flush": {"title": "A flush of weeds", "about": "After wet days a dozen weeds come up between the plants, a few of them already big.",
+                   "effect": {}, "minutes": 1, "owes": ["weeds"], "event": {"op": "weeds", "count": 12, "large": 3}},
     "hopper-jam": {"title": "Hopper jam", "about": "The scoop comes back empty although the hopper holds scraps.",
                    "effect": {"hopperJam": True}, "minutes": 720, "owes": ["hopper-jam"]},
     "network-loss": {"title": "Network loss", "about": "No link to the cloud: the guild works on, and queues what it would write back.",

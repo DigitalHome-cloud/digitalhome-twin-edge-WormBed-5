@@ -310,3 +310,6 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
 .hopper-kinds .kind em { color: var(--app-text-muted); font-style: normal; font-size: 0.75rem; }
 .hopper-kinds .kind--never span { text-decoration: line-through; text-decoration-color: var(--app-danger, #b42318); }
 .hopper-kinds input { width: 5rem; }
+
+/* a weed the last look over the bed found */
+.bed .cell.weed, .legend .cell.weed { box-shadow: inset 0 0 0 2px #b9d130; }

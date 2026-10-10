@@ -1,0 +1,170 @@
+{
+  "title": "Weeds after a wet week",
+  "about": "Bare soil does not stay bare: something always comes up. The gantry has no gripper and needs none. It looks the bed over with its camera; green that is not where something was planted is a weed. Small ones it presses into the soil with a stamp, where they feed soil life. Big ones, and those too close to a plant, it leaves for your hands.",
+  "needs": [],
+  "steps": [
+    {
+      "title": "A clean start",
+      "why": "Whatever grew wild before is pulled, so the count is known.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "calm"
+          },
+          {
+            "op": "time",
+            "factor": 1
+          },
+          {
+            "op": "weeds",
+            "pull": "all"
+          }
+        ],
+        "label": "Clear the bed of weeds"
+      },
+      "expect": [
+        {
+          "read": "bed.sim.weeds",
+          "is": "==",
+          "value": 0,
+          "say": "weeds in the bed (simulation only): {v}"
+        }
+      ]
+    },
+    {
+      "title": "A flush of weeds",
+      "why": "Twelve come up between the plants, three of them already big. Only the simulation knows this number; the robot has to find them. Look at the overview camera: yellow-green dots on the soil.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "weeds",
+          "count": 12,
+          "large": 3
+        },
+        "label": "Let the weeds come up"
+      },
+      "expect": [
+        {
+          "read": "bed.sim.weeds",
+          "is": ">=",
+          "value": 10,
+          "say": "weeds in the bed (simulation only): {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: look the bed over",
+      "why": "The tool camera looks straight down from half a metre, so every pixel is a place in the bed. About 27 pictures cover the soil. No trained model: leaf-green by colour, then the plan of the bed says what was planted where.",
+      "do": {
+        "type": "proposal",
+        "id": "scan",
+        "label": "Confirm: look over the bed"
+      },
+      "expect": [
+        {
+          "read": "last.scan.state",
+          "is": "==",
+          "value": "done",
+          "say": "look over the bed: {v}"
+        },
+        {
+          "read": "weeds.small",
+          "is": ">=",
+          "value": 5,
+          "say": "small weeds found, clear of the plants: {v}"
+        },
+        {
+          "read": "weeds.byHand",
+          "is": ">=",
+          "value": 3,
+          "say": "for your hands: {v}"
+        },
+        {
+          "read": "keeper.weeds",
+          "is": "==",
+          "value": true,
+          "say": "the keeper tells you: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: press the small ones under",
+      "why": "The stamp goes to each small weed and presses a centimetre into the soil. It keeps three centimetres away from where any plant reaches.",
+      "do": {
+        "type": "proposal",
+        "id": "stamp",
+        "label": "Confirm: stamp the small weeds"
+      },
+      "expect": [
+        {
+          "read": "last.stamp.state",
+          "is": "==",
+          "value": "done",
+          "say": "stamping: {v}"
+        },
+        {
+          "read": "weeds.small",
+          "is": "==",
+          "value": 0,
+          "say": "small weeds left to stamp: {v}"
+        },
+        {
+          "read": "bed.sim.weedsLarge",
+          "is": ">=",
+          "value": 3,
+          "say": "big weeds still standing (simulation only): {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: pull the rest",
+      "why": "The notice at the top says how many are yours. Those with seed heads or creeping roots go to the bin, not to the worm box: it does not get hot enough to kill seed.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "weeds",
+          "pull": "all"
+        },
+        "label": "The rest is pulled by hand"
+      },
+      "expect": [
+        {
+          "read": "bed.sim.weeds",
+          "is": "==",
+          "value": 0,
+          "say": "weeds in the bed (simulation only): {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: look again",
+      "why": "A second look clears the list. On a real bed this look is a routine every few days: weeds are easiest while they are small.",
+      "do": {
+        "type": "proposal",
+        "id": "scan",
+        "label": "Confirm: look over the bed again"
+      },
+      "expect": [
+        {
+          "read": "weeds.byHand",
+          "is": "==",
+          "value": 0,
+          "say": "for your hands: {v}"
+        },
+        {
+          "read": "weeds.small",
+          "is": "==",
+          "value": 0,
+          "say": "small weeds: {v}"
+        },
+        {
+          "read": "keeper.weeds",
+          "is": "==",
+          "value": false,
+          "say": "the keeper's notice: {v}"
+        }
+      ]
+    }
+  ]
+}

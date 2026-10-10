@@ -25,7 +25,8 @@ Readings: bed.<path> (the twin's /bed/state), job.state, last.<kind>.state
 notices (how many), keeper.<rule> (true while that reaction is in force),
 holds.<kind> (true while jobs of that kind are on hold), lockout (true while
 the gantry is locked out), feeder.<key> (the feeder's advice: state, grams,
-eatsPerDay, uneatenG, offPct), composted (cells that got compost).
+eatsPerDay, uneatenG, offPct), composted (cells that got compost), weeds.<key> (the last look over the bed:
+small, byHand, scanned).
 A "proposal" step may carry "factor": the clock is set to it before the job starts. A scenario marked "fresh": true starts from a settled worm box, calm weather
 and the normal clock. A step marked "scored": true counts towards the
 run's score: how many scored steps came out as expected.
@@ -108,6 +109,8 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
         return path.split(".", 1)[1] in kept.get("holds", [])
     if path == "lockout":
         return bool(kept.get("lockout"))
+    if path.startswith("weeds."):
+        return (kept.get("weeds") or {}).get(path.split(".", 1)[1])
     if path.startswith("feeder."):
         return (kept.get("feeder") or {}).get(path.split(".", 1)[1])
     cells = [c for c in (bed.get("cells") or {}).values()]

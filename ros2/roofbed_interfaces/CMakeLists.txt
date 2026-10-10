@@ -14,6 +14,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/FeedWorms.action"
   "action/CareBox.action"
   "action/TopDress.action"
+  "action/ScanWeeds.action"
+  "action/StampWeeds.action"
   DEPENDENCIES sensor_msgs
 )
 

@@ -39,6 +39,7 @@ TIP_HOME = SOIL_Z + 0.42  # tool tip at z joint = 0: it clears the worm box's li
 CAM_Z = SOIL_Z + 0.50     # tool camera above the soil (on the carriage, so the view does not bob)
 AXIS_SPEED = 0.25        # m/s
 PARK = 0.12              # the head parks this far outside the bed along x
+CAM_FOV = 1.0            # the tool camera's angle of view across its picture, radians (weeds.py turns pixels into places with it)
 CAM_DX = 0.07            # the tool camera sits this far beside the tool, along x
 
 
@@ -154,7 +155,7 @@ def _gantry(length: float, width: float, zmax: float, assets: Optional[Path]) ->
                 Pose {{
                   translation {CAM_DX} 0 {_f(CAM_Z)}
                   rotation 0 1 0 1.5708
-                  children [ Camera {{ name "tool_camera" fieldOfView 1.0 width 320 height 240 }} ]
+                  children [ Camera {{ name "tool_camera" fieldOfView {CAM_FOV} width 320 height 240 }} ]
                 }}
                 SliderJoint {{
                   jointParameters JointParameters {{ axis 0 0 -1 minStop 0 maxStop {_f(zmax)} }}
@@ -288,7 +289,7 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
     cfg["world"] = {"soilZ": SOIL_Z, "tipHome": TIP_HOME, "zMax": zmax, "park": PARK, "cellM": cell_m,
                     "x": [-PARK, length + 0.05], "y": [0.0, width], "camOffsetX": CAM_DX, "meshes": bool(assets and _mesh(assets, "plant_grown")),
                     "seedlingMesh": _mesh(assets, "plant_seedling"),
-                    "lidOpenRad": LID_OPEN_RAD, "hatchOpenRad": HATCH_OPEN_RAD,
+                    "camFovRad": CAM_FOV, "lidOpenRad": LID_OPEN_RAD, "hatchOpenRad": HATCH_OPEN_RAD,
                     "wrapZ": SOIL_Z + BIN_ABOVE * 0.5, "wrapOffZ": WRAP_OFF_Z, "boxTopZ": SOIL_Z + BIN_ABOVE + 0.05}
 
     # the garden's plants, for scenery here and for the rendered film (assets/demo.py)

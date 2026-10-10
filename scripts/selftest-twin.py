@@ -115,6 +115,26 @@ def main():
         bed = sim.gateway("/state")["bed"]
         check("rain through an open lid fills the sump, and the tap lets it into the tank",
               full > 10 and bed["wormBin"]["sumpL"] < 1 and bed["tank"]["litres"] > 108, (full, bed["tank"]))
+        # weeds: the camera finds what the simulation grew, the stamp presses the small ones under
+        sim.gateway("/event", {"op": "weeds", "pull": "all"})
+        time.sleep(1.2)
+        job = sim.run_job({"kind": "scan"}, timeout=400)
+        check("a clean bed has no weeds", job["state"] == "done" and job["result"]["weeds"] == [], job["message"])
+        sim.gateway("/event", {"op": "weeds", "count": 8, "large": 2})
+        time.sleep(1.5)
+        truth = sim.gateway("/state")["bed"]["sim"]["weedsAt"]
+        job = sim.run_job({"kind": "scan"}, timeout=400)
+        found = job["result"]["weeds"]
+        near = lambda w: min(((w["x"] - x) ** 2 + (w["y"] - y) ** 2) ** 0.5 for x, y, _ in truth)   # noqa: E731
+        check("scan_weeds finds every weed, within 15 mm, and nothing else",
+              job["state"] == "done" and len(found) == len(truth) and all(near(w) < 0.015 for w in found), (job["message"], len(truth)))
+        small = [[w["x"], w["y"]] for w in found if w["sizeMm"] < 30]
+        job = sim.run_job({"kind": "stamp", "places": small}, timeout=400)
+        check("stamp_weeds presses the small ones under", job["state"] == "done" and job["result"]["stamped"] + job["result"]["skipped"] == len(small), job)
+        time.sleep(1.5)
+        left = sim.gateway("/state")["bed"]["sim"]
+        check("the big ones stand, for a person", left["weedsLarge"] == 2 and left["weeds"] == 2 + job["result"]["skipped"], left["weeds"])
+        sim.gateway("/event", {"op": "weeds", "pull": "all"})
         sim.gateway("/event", {"op": "tank", "litres": 100})
         # with water in the tank the soil is kept moist from below; an empty tank lets it dry
         time.sleep(6)

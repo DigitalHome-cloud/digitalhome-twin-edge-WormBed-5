@@ -8,6 +8,8 @@
     /bed/feed_worms   roofbed_interfaces/action/FeedWorms
     /bed/care_box     roofbed_interfaces/action/CareBox     dry bedding, or water, for the worm box
     /bed/top_dress    roofbed_interfaces/action/TopDress    finished compost from the box back to cells
+    /bed/scan_weeds   roofbed_interfaces/action/ScanWeeds   the whole bed by camera: what grows where nothing was planted
+    /bed/stamp_weeds  roofbed_interfaces/action/StampWeeds  press small weeds into the soil
 
 It talks to the gantry only through its driver's topics (/gantry/target,
 /gantry/position, the tool camera) and tells the bed what happened
@@ -31,7 +33,9 @@ from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
-from roofbed_interfaces.action import CareBox, FeedWorms, PhotoPass, PlantCell, ProbeCells, TopDress, WaterCells
+from roofbed_interfaces.action import CareBox, FeedWorms, PhotoPass, PlantCell, ProbeCells, ScanWeeds, StampWeeds, TopDress, WaterCells
+
+from . import weeds
 
 TOLERANCE_M = 0.002
 MOVE_TIMEOUT_S = 90.0
@@ -46,6 +50,9 @@ MAX_BEDDING_G = 500.0
 MAX_MOISTEN_ML = 2000.0
 MAX_TOPDRESS_CELLS = 8
 MAX_TOPDRESS_G = 100.0      # per cell: a spoonful, not a layer
+MAX_STAMPS = 30             # weeds pressed in one job
+STAMP_INTO_M = 0.01         # how far the stamp presses into the soil
+STAMP_CLEAR_M = 0.03        # the stamp stays this far from a planted point
 
 
 class Aborted(Exception):
@@ -73,7 +80,8 @@ class BedActions(Node):
         for name, kind, run in (("plant_cell", PlantCell, self.plant), ("water_cells", WaterCells, self.water),
                                 ("probe_cells", ProbeCells, self.probe), ("photo_pass", PhotoPass, self.photo),
                                 ("feed_worms", FeedWorms, self.feed), ("care_box", CareBox, self.care),
-                                ("top_dress", TopDress, self.topdress)):
+                                ("top_dress", TopDress, self.topdress), ("scan_weeds", ScanWeeds, self.scan),
+                                ("stamp_weeds", StampWeeds, self.stamp)):
             ActionServer(self, kind, f"/bed/{name}", execute_callback=self.guarded(run, kind), callback_group=g,
                          goal_callback=self.accept, cancel_callback=lambda _goal: CancelResponse.ACCEPT)
 
@@ -321,6 +329,60 @@ class BedActions(Node):
             result.given_g.append(grams)
         self.lift(gh)
         result.message = f"{len(cells)} cells top-dressed, {grams:.0f} g each"
+
+    def picture(self, gh):
+        """A fresh picture from the tool camera, taken after the gantry has come to rest."""
+        import cv2
+        import numpy as np
+        arrived = time.monotonic()
+        while self.frame is None or self.frame[0] < arrived + 0.3:
+            if time.monotonic() > arrived + 5.0:
+                raise Aborted("the tool camera sends no pictures")
+            self.pause(gh, 0.05)
+        return cv2.imdecode(np.frombuffer(bytes(self.frame[1].data), np.uint8), cv2.IMREAD_COLOR)
+
+    def scan(self, gh, result):
+        """The whole bed, picture by picture: green that is not at a planted point is a weed (weeds.py)."""
+        view = weeds.view_of(self.cfg)
+        dx = self.w.get("camOffsetX", 0.07)
+        found = []
+        at = weeds.stops(view)
+        self.lift(gh)
+        for i, (x, y) in enumerate(at):
+            gh.publish_feedback(ScanWeeds.Feedback(index=i))
+            tx = min(max(x - dx, self.w["x"][0]), self.w["x"][1])          # the camera sits beside the tool
+            self.move(gh, x=tx, y=y)
+            image = self.picture(gh)
+            found += weeds.find(image, (self.pos[0] + dx, self.pos[1]), view, weeds.planted_of(self.cfg, self.bed_state))
+        found = weeds.merge(found)
+        for w in found:
+            result.xs.append(w["x"])
+            result.ys.append(w["y"])
+            result.sizes_mm.append(float(w["sizeMm"]))
+        result.pictures = len(at)
+        small = sum(1 for w in found if w["kind"] == "small")
+        result.message = f"{len(found)} weeds in {len(at)} pictures: {small} small, {len(found) - small} large"
+
+    def stamp(self, gh, result):
+        """Press weeds into the soil. A place too close to a planted point is skipped, not stamped."""
+        g = gh.request
+        places = self.pairs(g.xs, g.ys)[:MAX_STAMPS]
+        planted = weeds.planted_of(self.cfg, self.bed_state)
+        view = weeds.view_of(self.cfg)
+        for i, (x, y) in enumerate(places):
+            gh.publish_feedback(StampWeeds.Feedback(index=i))
+            near = any(((x - px) ** 2 + (y - py) ** 2) ** 0.5 < reach + STAMP_CLEAR_M for px, py, reach in planted)
+            if near or not (0.0 <= x <= view["xMax"] and 0.0 <= y <= view["yMax"]):
+                result.skipped += 1
+                continue
+            self.lift(gh)
+            self.move(gh, x=float(x), y=float(y))
+            self.move(gh, z=(self.w["tipHome"] - self.w["soilZ"]) + STAMP_INTO_M)
+            self.pause(gh, 0.2)
+            self.event(op="stamp", x=float(x), y=float(y))
+            self.lift(gh)
+            result.stamped += 1
+        result.message = f"{result.stamped} weeds pressed into the soil" + (f", {result.skipped} too close to a plant" if result.skipped else "")
 
     def photo(self, gh, result):
         g = gh.request

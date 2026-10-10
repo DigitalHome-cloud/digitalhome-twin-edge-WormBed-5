@@ -383,3 +383,38 @@ def test_the_tap_and_the_resting_half_are_switches_not_gantry_jobs(client, twin)
     assert calls[-1] == ("/event", {"op": "box", "do": "rest", "side": 1})
     assert client.post("/api/twin/hopper", json={"browns": 1000}).status_code == 200
     assert calls[-1] == ("/event", {"op": "hopper", "browns": 1000.0})
+
+
+def test_small_weeds_clear_of_plants_are_stamped_the_rest_are_for_hands(tmp_path):
+    engine.prepare(engine.habitat_ttl(None), tmp_path)
+    cfg = engine.config(tmp_path)
+    grown = next(c for c in cfg["cells"] if c["status"] == "CellGrowing")
+    px, py = (grown["col"] + 0.5) * 0.1, (grown["row"] + 0.5) * 0.1
+    found = [{"x": 2.2, "y": 0.05, "sizeMm": 15}, {"x": 2.3, "y": 0.06, "sizeMm": 52}, {"x": px + 0.05, "y": py, "sizeMm": 12}]
+    sorted_ = engine.sort_weeds(cfg, None, found)
+    assert [(w["do"], w["why"]) for w in sorted_] == [("stamp", ""), ("hand", "large"), ("hand", "close")]
+    state = {**LIVE, "sim": {"weeds": 3}}
+    ps = {p["id"]: p for p in engine.proposals(cfg, state, weeds={"found": sorted_, "when": "day 1 · 10:00"})}
+    assert ps["stamp"]["spec"] == {"kind": "stamp", "places": [[2.2, 0.05]]} and "day 1" in ps["scan"]["detail"]
+    assert "stamp" not in {p["id"] for p in engine.proposals(cfg, state, weeds={"found": [], "when": ""})}
+    assert "scan" not in {p["id"] for p in engine.proposals(cfg, LIVE)}, "a twin without weeds is not looked over"
+
+
+def test_a_look_over_the_bed_is_remembered_and_stamping_takes_weeds_off_the_list(client, twin):
+    state, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    web._weeds.update(scan=None, stamp=None, found=[], when="")
+    state["twin"]["bed"].update({"sim": {"weeds": 3, "weedsLarge": 1},
+                                 "env": {"day": 1, "hour": 10.0, "airC": 16.0, "windMs": 2.0, "rainMmH": 0.0, "clock": "day 1 · 10:00", "disturbances": []}})
+    t = client.get("/api/twin").get_json()
+    assert t["weeds"]["scanned"] is False and "scan" in {p["id"] for p in t["proposals"]}
+    state["twin"]["history"] = [{"id": "j1", "kind": "scan", "state": "done", "started": 10.0, "spec": {"kind": "scan"},
+                                 "result": {"pictures": 27, "weeds": [{"x": 2.2, "y": 0.05, "sizeMm": 15}, {"x": 2.3, "y": 0.06, "sizeMm": 52}]}}]
+    t = client.get("/api/twin").get_json()
+    assert (t["weeds"]["small"], t["weeds"]["byHand"]) == (1, 1) and "weeds" in t["keeper"]["active"]
+    assert any("too big for the stamp" in n and "worm box" in n for n in t["notices"])
+    stamp = next(p for p in t["proposals"] if p["id"] == "stamp")
+    state["twin"]["history"].append({"id": "j2", "kind": "stamp", "state": "done", "started": 20.0, "spec": stamp["spec"], "result": {"stamped": 1, "skipped": 0}})
+    t = client.get("/api/twin").get_json()
+    assert (t["weeds"]["small"], t["weeds"]["byHand"]) == (0, 1) and "stamp" not in {p["id"] for p in t["proposals"]}

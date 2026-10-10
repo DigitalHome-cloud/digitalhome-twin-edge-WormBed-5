@@ -20,6 +20,8 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "tank", "litres"}  a person refilled (or emptied) the tank
                                      {"op": "care", "what": "bedding", "grams"} | {"what": "moisten", "ml"}  the robot cared for the box
                                      {"op": "topdress", "row", "col", "grams"}  finished compost from the box onto a cell
+                                     {"op": "weeds", "count", "large"} a flush of weeds | {"op": "weeds", "pull": "large" | "all"} pulled by hand
+                                     {"op": "stamp", "x", "y"}  the stamp pressed down at a place
                                      {"op": "dry", "percent" | "to"}  hot, dry days in one go (scenarios)
                                      {"op": "box", "do": "insulate", "on"} | {"do": "bedding", "grams"} | {"do": "moisten", "ml"}
                                        | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}
@@ -41,7 +43,9 @@ beside the cells. Further events: {"op": "disturb", "id", "effect", "minutes"},
 {"op": "calm"}, {"op": "time", "factor"}, {"op": "chaos", "rate", "pool"}.
 """
 import json
+import math
 import os
+import random
 
 import numpy as np
 import rclpy
@@ -64,6 +68,12 @@ MOISTURE_LOSS_PER_MIN = 0.01    # at an evaporation of 1.0 (a mild, still, overc
 WICK_TO = 45.0                  # the moisture the wick holds the soil at while the tank has water
 WICK_GAIN_PER_MIN = 0.4         # how fast a drier cell is brought back up (percent per minute)
 WICK_L_PER_CELL_MIN = 0.00002   # what that costs the tank, per planted cell and minute
+# Weeds: what comes up where nothing was planted. Only the simulation knows them; the robot has to find them (weeds.py).
+WEEDS_PER_M2_DAY = 0.4          # how many come up on bare, moist soil
+WEED_START_MM, WEED_MAX_MM, WEED_GROWS_MM_PER_H = 8.0, 80.0, 0.4
+WEED_LIMIT = 60
+STAMPABLE_BELOW_MM = 35.0       # a bigger weed springs back: it has to be pulled
+STAMP_REACH_M = 0.025
 COMPOST_FROM_G, COMPOST_KEEPS = 30.0, 0.85   # from this much compost on a cell, its soil loses this share of the usual
 TANK_DEAD_L = 1.0               # under a litre the wick does not reach the water (the worm box's liquid trickles in)
 RAIN_TO_TANK = 0.5              # the share of rain on the bed that reaches the tank pipes
@@ -108,6 +118,13 @@ class GantryDriver:
         self.new_box()
         self.overflowing = False
         self.shown = {}                  # what the world shows of the box: lid open, wrapping on
+        self.weeds = {}                  # id -> {"x", "y", "mm", "shown"}
+        self.weed_n = 0
+        self.weed_rng = random.Random(seed * 31 + 7)
+        self.mulch_cm = float(self.cfg["bed"].get("mulch_cm") or 0)
+        soil_to = (self.cfg.get("wormBin") or {}).get("x")
+        self.soil_x = float(soil_to[0]) if soil_to else self.cfg["bed"]["cols"] * self.cfg["world"]["cellM"]
+        self.soil_y = float(self.cfg["world"]["y"][1])
         b = self.cfg["bed"]
         self.bed_m2 = b["length_cm"] * b["width_cm"] / 10000.0
 
@@ -217,6 +234,21 @@ class GantryDriver:
                 self.last_feed = {"n": self.box.feedings, "grams": round(grams), "spot": int(e.get("spot", 0)),
                                   "mix": {k: round(g) for k, g in part.items() if g >= 0.5}, "atMin": round(self.env.minutes, 1)}
                 return
+            if op == "weeds":                                 # a flush of weeds comes up, or a person pulled some
+                if e.get("pull"):
+                    for key in [k for k, w in self.weeds.items() if e["pull"] == "all" or w["mm"] >= STAMPABLE_BELOW_MM]:
+                        self.remove_weed(key)
+                    return
+                large = int(e.get("large", 0))
+                for i in range(max(0, min(int(e.get("count", 0)), WEED_LIMIT))):
+                    self.spawn_weed(self.weed_rng.uniform(45.0, 60.0) if i < large else self.weed_rng.uniform(10.0, 22.0))
+                return
+            if op == "stamp":                                 # the stamp presses down: small weeds go under, big ones spring back
+                x, y = float(e["x"]), float(e["y"])
+                for key in [k for k, w in self.weeds.items()
+                            if w["mm"] < STAMPABLE_BELOW_MM and math.hypot(w["x"] - x, w["y"] - y) <= STAMP_REACH_M + w["mm"] / 2000.0]:
+                    self.remove_weed(key)
+                return
             if op == "care":                                  # the robot gave the box bedding or water
                 if not self.has_bin:
                     return
@@ -291,6 +323,58 @@ class GantryDriver:
         self.robot.getRoot().getField("children").importMFNodeFromString(
             -1, f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {z:.4f} children [ {shape} ] }}")
 
+    # -- weeds -------------------------------------------------------------------
+
+    def planted_points(self):
+        m = self.cfg["world"]["cellM"]
+        return [((int(k.split("_")[1]) + 0.5) * m, (int(k.split("_")[0]) + 0.5) * m)
+                for k, c in self.cells.items() if c["status"] in ("CellSown", "CellGrowing")]
+
+    def spawn_weed(self, mm=WEED_START_MM):
+        """A weed comes up somewhere on bare soil, away from what is planted."""
+        if len(self.weeds) >= WEED_LIMIT:
+            return
+        points = self.planted_points()
+        for _ in range(40):
+            x = self.weed_rng.uniform(0.04, self.soil_x - 0.04)
+            y = self.weed_rng.uniform(0.04, self.soil_y - 0.04)
+            if all(math.hypot(x - px, y - py) > 0.09 for px, py in points) and \
+                    all(math.hypot(x - w["x"], y - w["y"]) > 0.06 for w in self.weeds.values()):
+                break
+        else:
+            return
+        self.weed_n += 1
+        self.weeds[self.weed_n] = {"x": x, "y": y, "mm": float(mm), "shown": 0.0}
+        k = mm / 1000.0
+        look = "PBRAppearance { baseColor 0.45 0.72 0.18 roughness 0.9 metalness 0 }"
+        self.robot.getRoot().getField("children").importMFNodeFromString(
+            -1, f"DEF WEED_{self.weed_n} Pose {{ translation {x:.4f} {y:.4f} {self.cfg['world']['soilZ'] + 0.004:.4f} children [ "
+                f"DEF WEED_{self.weed_n}_S Transform {{ scale {k:.4f} {k:.4f} {k * 0.5:.4f} children [ "
+                f"Shape {{ appearance {look} geometry Sphere {{ radius 0.5 subdivision 2 }} }} ] }} ] }}")
+        self.weeds[self.weed_n]["shown"] = float(mm)
+
+    def remove_weed(self, key):
+        node = self.robot.getFromDef(f"WEED_{key}")
+        if node is not None:
+            node.remove()
+        self.weeds.pop(key, None)
+
+    def grow_weeds(self, dmin, rain_mm):
+        wet = 1.5 if rain_mm > 0 else 1.0
+        cover = max(0.2, 1.0 - 0.25 * self.mulch_cm)                    # a mulch keeps most of them down
+        expected = WEEDS_PER_M2_DAY * self.soil_x * self.soil_y * dmin / 1440.0 * wet * cover
+        while expected > 0 and self.weed_rng.random() < min(1.0, expected):
+            self.spawn_weed()
+            expected -= 1.0
+        for key, w in self.weeds.items():
+            w["mm"] = min(WEED_MAX_MM, w["mm"] + WEED_GROWS_MM_PER_H * dmin / 60.0 * wet)
+            if w["mm"] - w["shown"] >= 1.0:
+                node = self.robot.getFromDef(f"WEED_{key}_S")
+                if node is not None:
+                    k = w["mm"] / 1000.0
+                    node.getField("scale").setSFVec3f([k, k, k * 0.5])
+                w["shown"] = w["mm"]
+
     def new_box(self):
         """A settled worm box with nothing wrong, as at the start (also a scenario's fresh start)."""
         bin_cfg = self.cfg.get("wormBin") or {}
@@ -357,9 +441,11 @@ class GantryDriver:
             loss = MOISTURE_LOSS_PER_MIN * env.evaporation() * dmin
             rain_mm = env.rain_mm_h() * dmin / 60.0
             wicking = self.tank_cap > 0 and self.tank_l >= TANK_DEAD_L
+            mulched = max(0.6, 1.0 - 0.1 * self.mulch_cm)
+            self.grow_weeds(dmin, rain_mm)
             for c in self.cells.values():
-                # a top-dressing of compost shades the soil a little: it dries more slowly
-                c["moisture"] = max(5.0, c["moisture"] - loss * (COMPOST_KEEPS if c.get("compostG", 0) >= COMPOST_FROM_G else 1.0))
+                # a top-dressing of compost shades the soil a little: it dries more slowly; so does a mulch
+                c["moisture"] = max(5.0, c["moisture"] - loss * mulched * (COMPOST_KEEPS if c.get("compostG", 0) >= COMPOST_FROM_G else 1.0))
                 if rain_mm:
                     c["moisture"] = min(60.0, c["moisture"] + rain_mm * RAIN_WETS_PER_MM)
                 if wicking and c["status"] != "CellPlanned" and c["moisture"] < WICK_TO:
@@ -378,6 +464,9 @@ class GantryDriver:
             self.pub_bed.publish(String(data=json.dumps({
                 "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
                 "env": env.snapshot(),
+                # what only a simulation knows: the robot finds weeds with its camera, it is not told
+                "sim": {"weeds": len(self.weeds), "weedsLarge": sum(1 for w in self.weeds.values() if w["mm"] >= STAMPABLE_BELOW_MM),
+                        "weedsAt": [[round(w["x"], 3), round(w["y"], 3), round(w["mm"])] for w in self.weeds.values()]},
                 "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1), "overflowing": self.overflowing},
                 "wormBin": ({**self.probes.read(box, env.sensor),
                              "fillPct": round(100.0 * box.weight_g() / FULL_G, 1), "fedGrams": round(box.fed_g),

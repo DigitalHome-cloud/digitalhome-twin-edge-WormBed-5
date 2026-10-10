@@ -90,6 +90,7 @@ class Bed:
     tank_pipe_mm: int = 110
     worm_bin_cm: int = 0
     guild_id: Optional[str] = None
+    mulch_cm: int = 0
 
     @property
     def rows(self) -> int:
@@ -192,7 +193,8 @@ def load(ttl: str) -> Habitat:
                           _num(g, s, "cellSizeCm", int) or 10, _num(g, s, "substrateDepthCm", int),
                           _local(g.value(s, PERMA.substrateKind)) or None, _num(g, s, "tankPipeCount", int) or 0,
                           _num(g, s, "tankPipeMm", int) or 110, _num(g, s, "wormBinCm", int) or 0,
-                          str(g.value(s, PERMA.inGuild)) if g.value(s, PERMA.inGuild) is not None else None))
+                          str(g.value(s, PERMA.inGuild)) if g.value(s, PERMA.inGuild) is not None else None,
+                          _num(g, s, "mulchCm", int) or 0))
     for s in sorted(g.subjects(RDF.type, PERMA.PlantingCell)):
         sown = g.value(s, PERMA.sownOn)
         h.cells.append(Cell(str(s), str(g.value(s, PERMA.inBed) or ""), _num(g, s, "row", int) or 0,

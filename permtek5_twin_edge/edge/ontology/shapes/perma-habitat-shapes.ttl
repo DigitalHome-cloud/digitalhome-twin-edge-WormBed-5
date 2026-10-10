@@ -68,6 +68,8 @@ permash:GrowingBedShape a sh:NodeShape ;
                   sh:minInclusive 0 ; sh:maxInclusive 20 ; sh:message "A bed has 0..20 tank pipes."@en ] ;
     sh:property [ sh:path perma:tankPipeMm ; sh:maxCount 1 ; sh:datatype xsd:integer ;
                   sh:minInclusive 50 ; sh:maxInclusive 200 ; sh:message "Tank pipes are 50..200 mm across."@en ] ;
+    sh:property [ sh:path perma:mulchCm ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ; sh:maxInclusive 15 ;
+                  sh:message "Mulch is 0..15 cm thick."@en ] ;
     sh:property [ sh:path perma:wormBinCm ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ;
                   sh:lessThan perma:lengthCm ;
                   sh:message "The worm box is shorter than its bed."@en ] .
