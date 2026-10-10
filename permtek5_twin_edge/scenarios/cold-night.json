@@ -1,0 +1,140 @@
+{
+  "title": "A cold night: keeping the worms alive",
+  "about": "Compost worms stop working below about 5 °C and die in a frozen box. The box follows the air slowly, so there are hours to act. Here a cold snap comes, the keeper puts feeding on hold and asks you to insulate, and the box's own probes show whether that was enough.",
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "Speed the clock up",
+      "why": "A night takes hours. Here 30 simulated minutes pass every second.",
+      "do": {
+        "type": "time",
+        "factor": 30,
+        "label": "Run the clock 30 times faster"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": ">=",
+          "value": 30,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The air drops below freezing",
+      "why": "A cold snap for ten hours. The keeper watches the air and both box probes. Frost in the air is enough for it to react before the box itself is cold: no feeding (fresh food would only freeze), no watering.",
+      "do": {
+        "type": "disturb",
+        "id": "cold-snap",
+        "calmFirst": true,
+        "label": "Send a cold snap"
+      },
+      "expect": [
+        {
+          "read": "bed.env.airC",
+          "is": "<",
+          "value": 1,
+          "say": "air: {v} °C"
+        },
+        {
+          "read": "keeper.frost",
+          "is": "==",
+          "value": true,
+          "say": "frost reaction: {v}"
+        },
+        {
+          "read": "holds.feed",
+          "is": "==",
+          "value": true,
+          "say": "feeding on hold: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: wrap the box",
+      "why": "The robot cannot do this. You wrap the box in an old blanket or straw mats and shut the lid. Wrapped, the box loses its warmth about five times more slowly.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "box",
+          "do": "insulate",
+          "on": true
+        },
+        "label": "The box is wrapped"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.insulated",
+          "is": "==",
+          "value": true,
+          "say": "insulated: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The night passes",
+      "why": "Watch the two probes: the edge follows the air down, the core stays warmer. The step is complete when the cold snap is over. The worms' health is something only the simulation can show; on a real box you would see it days later, in how fast the food goes.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "bed.env.airC",
+          "is": ">",
+          "value": 5,
+          "say": "air: {v} °C"
+        },
+        {
+          "read": "bed.wormBin.tempC",
+          "is": ">",
+          "value": 5,
+          "say": "box core: {v} °C"
+        },
+        {
+          "read": "bed.wormBin.sim.health",
+          "is": ">=",
+          "value": 0.95,
+          "say": "worm health (simulation only): {v}"
+        }
+      ]
+    },
+    {
+      "title": "Back to a normal day",
+      "why": "The wrapping comes off again, or the box would overheat on the next warm day. The clock runs at its usual pace.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "calm"
+          },
+          {
+            "op": "box",
+            "do": "insulate",
+            "on": false
+          },
+          {
+            "op": "time",
+            "factor": 1
+          }
+        ],
+        "label": "Unwrap the box"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.insulated",
+          "is": "==",
+          "value": false,
+          "say": "insulated: {v}"
+        },
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    }
+  ]
+}

@@ -13,7 +13,7 @@ page needs:
                  {"kind": "probe", "cells": [[row, col], ...]}
                  {"kind": "photo", "cells": [[row, col], ...]}
                  {"kind": "feed", "grams", "spot"}                  -> {"id": ...} or 409 while one runs
-    POST /event  {"op": "hopper", "grams"} | {"op": "tank", "litres"}   what a person did at the bed
+    POST /event  {"op": "hopper", "grams"} | {"op": "tank", "litres"} | {"op": "box", "do", ...}   what a person did at the bed
     POST /cancel                      cancel the running job
     POST /estop  {"on": true|false}
 
@@ -235,9 +235,10 @@ def handler_for(gw: Gateway):
                 return self.send_json(200, {"id": job_id}) if job_id else self.send_json(409, {"error": "a job is running"})
             if self.path == "/event":
                 # what a person did at the bed: filled the hopper, refilled the tank
-                if data.get("op") not in ("hopper", "tank", "dry", "disturb", "calm", "time", "chaos"):
-                    return self.send_json(400, {"error": "op must be hopper, tank, dry, disturb, calm, time or chaos"})
-                keys = ("op", "grams", "litres", "percent", "id", "title", "effect", "minutes", "factor", "rate", "pool")
+                if data.get("op") not in ("hopper", "tank", "dry", "disturb", "calm", "time", "chaos", "box"):
+                    return self.send_json(400, {"error": "op must be hopper, tank, dry, disturb, calm, time, chaos or box"})
+                keys = ("op", "grams", "litres", "percent", "id", "title", "effect", "minutes", "factor", "rate", "pool",
+                        "do", "on", "ml", "open")
                 gw.pub_event.publish(String(data=json.dumps({k: data[k] for k in keys if k in data})))
                 return self.send_json(200, {"ok": True})
             if self.path == "/cancel":

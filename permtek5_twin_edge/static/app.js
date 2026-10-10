@@ -164,6 +164,7 @@ function draw(t) {
   notes.hidden = !(t.notices || []).length;
   notes.innerHTML = (t.notices || []).map((m) => `<li>${core.esc(m)}</li>`).join("");
   drawEnv(t);
+  drawBox(t, ready);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
   $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
   $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
@@ -304,6 +305,39 @@ async function pollShell() {
     $("#badge-agent").hidden = !(info && info.status && info.status.connected);
   } catch (_) { $("#badge-agent").hidden = true; }
 }
+
+/* ------------------------------------------------------------- worm box -- */
+
+// The box's sensors as they read (a dead one says so), the feeder's advice, and
+// what only the simulation knows. An older server without them hides the panel.
+function drawBox(t, ready) {
+  const box = t.twin && t.twin.bed && t.twin.bed.wormBin;
+  const panel = $("#box-panel");
+  panel.hidden = !(box && "weightKg" in box);
+  if (panel.hidden) return;
+  const r = (v, unit, digits) => typeof v === "number" ? `${v.toFixed(digits || 0)}${unit}` : "no reading";
+  const rows = [[r(box.tempC, " °C", 1), "core"], [r(box.edgeC, " °C", 1), "edge"], [r(box.moisture, " %"), "moisture"],
+    [r(box.weightKg, " kg", 2), "weight"], [r(box.gas, ""), "gas, 0 fresh to 100"], [box.lidOpen ? "open" : "closed", "lid"],
+    [box.insulated ? "wrapped" : "bare", "insulation"], [`${box.fedGrams} g`, `fed in ${box.feedings} portion(s)`]];
+  $("#box-readings").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
+  const f = t.feeder;
+  $("#box-feeder").textContent = !f ? "" : `Feeder: ${f.why}.` + (f.state === "known" ? ` It would feed ${f.grams} g now.` : "");
+  const sim = box.sim;
+  $("#box-sim").textContent = !sim ? "" : `Simulation only: worms ${sim.wormsG} g, health ${Math.round(sim.health * 100)} %, `
+    + `working at ${Math.round(sim.activity * 100)} %, eat ${sim.eatsPerDay} g a day, ${sim.foodG} g uneaten, ${sim.castingsG} g castings`
+    + (f && f.offPct !== undefined ? `. The feeder's estimate is off by ${f.offPct} %.` : ".")
+    + (box.wormsMayLeave ? " Worms may leave into the soil." : " The box is closed.");
+  $("#btn-insulate").textContent = box.insulated ? "Wrapping taken off" : "Box wrapped";
+  $("#btn-insulate").dataset.on = box.insulated ? "" : "1";
+  $("#btn-lid").textContent = box.lidOpen ? "Lid closed" : "Lid left open";
+  $("#btn-lid").dataset.open = box.lidOpen ? "" : "1";
+  for (const id of ["#btn-insulate", "#btn-bedding", "#btn-moisten", "#btn-lid"]) $(id).disabled = !ready;
+}
+const boxDo = async (body, said) => { if (await post("/api/twin/box", body)) core.toast(said); refresh(); };
+$("#btn-insulate").addEventListener("click", (e) => boxDo({ do: "insulate", on: !!e.target.dataset.on }, "Noted"));
+$("#btn-bedding").addEventListener("click", () => boxDo({ do: "bedding", grams: 500 }, "500 g of dry bedding"));
+$("#btn-moisten").addEventListener("click", () => boxDo({ do: "moisten", ml: 500 }, "Half a litre sprinkled"));
+$("#btn-lid").addEventListener("click", (e) => boxDo({ do: "lid", open: !!e.target.dataset.open }, "Noted"));
 
 /* ---------------------------------------------------------------- chaos -- */
 

@@ -125,6 +125,19 @@
                   <span>row 1, column 1 is the gantry's home corner</span>
                 </p>
               </div>
+              <div class="app-panel" id="box-panel" hidden>
+                <h2 class="app-panel__title">Worm box</h2>
+                <dl class="app-stats" id="box-readings"></dl>
+                <p class="note" id="box-feeder"></p>
+                <p class="note" id="box-sim" title="A real box cannot show this; the simulation can"></p>
+                <h3>Your part <span class="tag">what a person does at the box</span></h3>
+                <div class="hero-controls">
+                  <button id="btn-insulate" title="You wrapped the box against the cold (or took the wrapping off)">Wrap the box</button>
+                  <button id="btn-bedding" title="You mixed in 500 g of dry shredded paper: it takes up moisture and lets air in">Dry bedding added</button>
+                  <button id="btn-moisten" title="You sprinkled half a litre of water over the box">Water sprinkled</button>
+                  <button id="btn-lid" title="You closed the lid (or left it open)">Lid</button>
+                </div>
+              </div>
             </div>
 
             <aside class="twin-main">

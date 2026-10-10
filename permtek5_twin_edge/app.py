@@ -27,6 +27,7 @@ from flask import Response, abort, jsonify, render_template, request, send_file
 from . import engine as engine
 from . import cloudsite
 from . import disturbances
+from . import feeder
 from . import film
 from . import habitat_store as store
 from . import instance
@@ -88,6 +89,7 @@ def favicon():
 # side; these routes only pass data between the browser, engine and sim.
 
 _keeper_memory: dict = {}
+_feeder_memory: dict = {}
 _keeper_lock = threading.Lock()     # the page and a scenario ask at the same moment: one of them writes the log
 _offline = {"until": 0.0, "queued": 0}
 
@@ -101,6 +103,13 @@ def _keep(cfg, bed, out, offline: bool) -> dict:
     if cfg and bed:
         keeper.log_changes(out, kept, _keeper_memory, ((cfg.get("guild") or {}).get("id") or cfg["bed"]["id"]),
                            (bed.get("env") or {}).get("clock", ""))
+    if bed and "weightKg" in (bed.get("wormBin") or {}):   # the feeder: how much to feed, from the box's weight (feeder.py)
+        feeder.observe(_feeder_memory, bed)
+        advice = feeder.advise(_feeder_memory, bed)
+        truth = (bed["wormBin"].get("sim") or {}).get("eatsPerDay")
+        if advice.get("eatsPerDay") and truth:    # only a simulation can say how far off the feeder is
+            advice["offPct"] = round(100.0 * abs(advice["eatsPerDay"] - truth) / truth)
+        kept["feeder"] = advice
     return kept
 
 
@@ -129,9 +138,10 @@ def _twin_state() -> dict:
     return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
             "instance": instance.describe(),
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
+            "feeder": kept.get("feeder"),
             "env": (bed or {}).get("env"),
             "habitats": store.habitats(), "recorded": recorded,
-            "proposals": engine.proposals(cfg, bed, kept["holds"]) if not kept["lockout"] else []}
+            "proposals": engine.proposals(cfg, bed, kept["holds"], kept.get("feeder")) if not kept["lockout"] else []}
 
 
 @app.get("/api/twin")
@@ -215,6 +225,26 @@ def twin_tank():
         return jsonify(sim.gateway("/event", {"op": "tank", "litres": max(0.0, min(litres, full))}))
     except (TypeError, ValueError):
         return jsonify({"errors": ["litres is a number"]}), 400
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+BOX_DOES = {"insulate": ("on", bool, True), "bedding": ("grams", float, 500.0), "moisten": ("ml", float, 500.0),
+            "takeout": ("grams", float, 1000.0), "dump": ("grams", float, 1000.0), "lid": ("open", bool, True)}
+
+
+@app.post("/api/twin/box")
+def twin_box():
+    """What a person did at the worm box: {"do": "insulate", "on"} | {"do": "bedding", "grams"} |
+    {"do": "moisten", "ml"} | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}."""
+    do = str(body().get("do") or "")
+    if do not in BOX_DOES:
+        return jsonify({"errors": ["do is one of " + ", ".join(BOX_DOES)]}), 400
+    key, kind, default = BOX_DOES[do]
+    try:
+        return jsonify(sim.gateway("/event", {"op": "box", "do": do, key: kind(body().get(key, default))}))
+    except (TypeError, ValueError):
+        return jsonify({"errors": [f"{key} is a number"]}), 400
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
 

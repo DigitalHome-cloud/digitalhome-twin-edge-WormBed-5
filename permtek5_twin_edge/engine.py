@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 DRY_BELOW_PCT = 30.0        # a planted cell under this is proposed for watering
+TANK_DEAD_L = 1.0           # under a litre the wick does not reach the water: the tank counts as empty
 PORTION_G = 300             # what one feeding of the worm box carries
 
 
@@ -106,21 +107,23 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None,
-              holds: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+              holds: Optional[List[str]] = None, advice: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """The jobs the gantry could do now. Proposals only: a person confirms each before anything moves.
 
     Sowing: every planned cell not sown yet. Watering: planted cells whose soil
     is dry, each with what its crop wants for a day. A probe pass and a photo
     pass over what is planted. `bed_state` is the running twin's /bed/state.
     `holds` are the kinds of job the keeper has on hold (keeper.py): they are not proposed.
+    `advice` is the feeder's (feeder.py): how much to feed; without it a fixed portion.
     Whether this is the right MONTH to sow is PermTek-5's calendar, not decided here.
     """
     if not cfg:
         return []
-    return [p for p in _proposals(cfg, bed_state) if p["kind"] not in (holds or [])]
+    return [p for p in _proposals(cfg, bed_state, advice) if p["kind"] not in (holds or [])]
 
 
-def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],
+               advice: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     state = bed_state or {}
     live = state.get("cells", {})
     out: List[Dict[str, Any]] = []
@@ -128,14 +131,15 @@ def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]]) -> List
     dry = []
     # With water in the tank pipes the soil is kept moist from below: only what was
     # just sown, whose roots do not reach yet, is watered from above (clean water).
-    wicking = (state.get("tank") or {}).get("litres", 0) > 0
+    wicking = (state.get("tank") or {}).get("litres", 0) >= TANK_DEAD_L
     hopper = (state.get("hopper") or {}).get("grams", 0)
     box = cfg.get("wormBin") or {}
-    if box.get("cols") and hopper > 0:
-        grams = min(PORTION_G, int(hopper))
+    grams = min(int(advice["grams"]) if advice else PORTION_G, int(hopper))
+    if box.get("cols") and grams > 0:
         spot = int((state.get("wormBin") or {}).get("feedings", 0)) % int(box.get("spots", 1))
         out.append({"id": "feed", "kind": "feed", "title": f"Feed the worms: {grams} g from the hopper",
-                    "detail": f'spot {spot + 1} of {box.get("spots", 1)} across the box, in rotation; {int(hopper)} g in the hopper',
+                    "detail": f'spot {spot + 1} of {box.get("spots", 1)} across the box, in rotation; {int(hopper)} g in the hopper'
+                              + (f'. Why this much: {advice["why"]}' if advice else ""),
                     "spec": {"kind": "feed", "grams": grams, "spot": spot}})
     for c in cfg["cells"]:
         key = f'{c["row"]}_{c["col"]}'

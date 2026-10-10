@@ -1,0 +1,133 @@
+{
+  "title": "The feeder finds its rate",
+  "about": "How much should the worms get? Too little and they starve, too much and the box turns (see \"Overfed\"). Worms do not say, but the box gets lighter as they eat: about 0.6 g for every gram eaten. The feeder reads the load cells, fits a line through a day of weights, and proposes one day's eating. You still fill the hopper and confirm.",
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "You: fill the hopper",
+      "why": "3 kg of scraps: enough for the feeder to draw on for a week.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "hopper",
+          "grams": 3000
+        },
+        "label": "Fill the hopper (3 kg)"
+      },
+      "expect": [
+        {
+          "read": "bed.hopper.grams",
+          "is": ">=",
+          "value": 2500,
+          "say": "hopper: {v} g"
+        }
+      ]
+    },
+    {
+      "title": "Robot: a first, small portion",
+      "why": "The feeder has no weight history yet, so it says it is learning and proposes a small portion that is safe for any box.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "label": "Confirm: feed the worms"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.feedings",
+          "is": ">=",
+          "value": 1,
+          "say": "worm box fed {v} time(s)"
+        },
+        {
+          "read": "last.feed.state",
+          "is": "==",
+          "value": "done",
+          "say": "feed job: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Two days of weighing",
+      "why": "The clock runs at 2 hours a second. The feeder takes the box's weight at every look. After six hours of readings it has a first rate; a day of them makes it steadier.",
+      "do": {
+        "type": "time",
+        "factor": 120,
+        "label": "Run the clock: 2 hours a second"
+      },
+      "expect": [
+        {
+          "read": "bed.env.day",
+          "is": ">=",
+          "value": 3,
+          "say": "day {v}"
+        },
+        {
+          "read": "feeder.state",
+          "is": "==",
+          "value": "known",
+          "say": "feeder: {v}"
+        },
+        {
+          "read": "feeder.eatsPerDay",
+          "is": ">",
+          "value": 100,
+          "say": "the feeder's estimate: {v} g eaten a day"
+        }
+      ]
+    },
+    {
+      "title": "How good is the estimate?",
+      "why": "Only a simulation can answer this: it knows what the worms really eat. A real box cannot be asked, which is why the feeder is tried here first.",
+      "do": {
+        "type": "time",
+        "factor": 1,
+        "label": "Clock back to normal"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
+        },
+        {
+          "read": "bed.wormBin.sim.eatsPerDay",
+          "is": ">",
+          "value": 0,
+          "say": "what they really eat: {v} g a day"
+        },
+        {
+          "read": "feeder.offPct",
+          "is": "<",
+          "value": 35,
+          "say": "the estimate is off by {v} %"
+        }
+      ]
+    },
+    {
+      "title": "Robot: one day's food",
+      "why": "Now the proposal carries the feeder's amount, and its reason is written under it. The first food is long eaten, so this is a full day's portion.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "label": "Confirm: feed the worms"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.feedings",
+          "is": ">=",
+          "value": 2,
+          "say": "worm box fed {v} times"
+        },
+        {
+          "read": "last.feed.state",
+          "is": "==",
+          "value": "done",
+          "say": "feed job: {v}"
+        }
+      ]
+    }
+  ]
+}

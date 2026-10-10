@@ -1,0 +1,146 @@
+{
+  "title": "Overfed: too much food at once",
+  "about": "More food than the worms can eat does not wait for them: it composts. The core heats up, the air in the box is used up, and it starts to smell. Here somebody tips a whole bucket in, the sensors show it, the keeper stops further feeding, and you put it right.",
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "Speed the clock up",
+      "why": "Composting takes hours. Here 10 simulated minutes pass every second.",
+      "do": {
+        "type": "time",
+        "factor": 10,
+        "label": "Run the clock 10 times faster"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": ">=",
+          "value": 10,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Somebody tips a bucket in",
+      "why": "4 kg of scraps straight into the box, past the hopper and the robot: about ten days' food for these worms. The load cells see it at once.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "box",
+          "do": "dump",
+          "grams": 4000
+        },
+        "label": "Tip 4 kg into the box"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.weightKg",
+          "is": ">",
+          "value": 9.5,
+          "say": "box weight: {v} kg"
+        }
+      ]
+    },
+    {
+      "title": "The box heats up and runs out of air",
+      "why": "Two signs, from two sensors. The core probe climbs away from the edge probe: the pile is composting. The gas sensor rises: the box is going airless. Each is enough for the keeper to hold feeding.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "keeper.overfed",
+          "is": "==",
+          "value": true,
+          "say": "core much hotter than edge: {v}"
+        },
+        {
+          "read": "keeper.airless",
+          "is": "==",
+          "value": true,
+          "say": "smell of rot: {v}"
+        },
+        {
+          "read": "holds.feed",
+          "is": "==",
+          "value": true,
+          "say": "feeding on hold: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: take the excess out, add dry bedding",
+      "why": "Take out what is not yet eaten (3.5 kg) and mix in 800 g of dry shredded paper or cardboard. The bedding takes up moisture and lets air back in.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "takeout",
+            "grams": 3500
+          },
+          {
+            "op": "box",
+            "do": "bedding",
+            "grams": 800
+          }
+        ],
+        "label": "Excess out, bedding in"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.weightKg",
+          "is": "<",
+          "value": 8.5,
+          "say": "box weight: {v} kg"
+        }
+      ]
+    },
+    {
+      "title": "The box settles",
+      "why": "The core cools back towards the edge and the smell goes. The keeper lets feeding go again on its own, with some margin so it does not flicker.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "keeper.overfed",
+          "is": "==",
+          "value": false,
+          "say": "core much hotter than edge: {v}"
+        },
+        {
+          "read": "keeper.airless",
+          "is": "==",
+          "value": false,
+          "say": "smell of rot: {v}"
+        },
+        {
+          "read": "bed.wormBin.sim.health",
+          "is": ">=",
+          "value": 0.8,
+          "say": "worm health (simulation only): {v}"
+        }
+      ]
+    },
+    {
+      "title": "Back to the usual pace",
+      "why": "The clock runs normally again.",
+      "do": {
+        "type": "time",
+        "factor": 1,
+        "label": "Clock back to normal"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    }
+  ]
+}

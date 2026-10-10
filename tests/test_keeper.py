@@ -104,3 +104,30 @@ def test_changes_are_logged_once_as_observations(tmp_path):
     assert keeper.log_changes(tmp_path, off, m, "guild-g-1")[0]["hasSimpleResult"] == "off"
     rows = [json.loads(l) for l in (tmp_path / "observations.jsonl").read_text().splitlines()]
     assert len(rows) == 2 and rows[0]["@type"] == "sosa:Observation" and rows[0]["hasFeatureOfInterest"] == "guild-g-1"
+
+
+def box(**readings):
+    b = bed()
+    b["wormBin"].update({"edgeC": 17.0, "gas": 5.0, "weightKg": 6.2, "lidOpen": False, **readings})
+    return b
+
+
+def test_an_overfed_box_is_not_fed_more():
+    m = {}
+    r = keeper.evaluate(box(tempC=27.0, edgeC=17.0), m)
+    assert r["active"] == ["overfed"] and r["holds"] == ["feed"]
+    assert "overfed" in keeper.evaluate(box(tempC=22.0, edgeC=17.0), m)["active"], "still composting"
+    assert keeper.evaluate(box(tempC=19.0, edgeC=17.0), m)["active"] == []
+
+
+def test_a_smelling_or_soaked_box_is_not_fed_and_a_dry_one_is_only_reported():
+    assert keeper.evaluate(box(gas=70.0), {})["holds"] == ["feed"]
+    assert keeper.evaluate(box(moisture=93.0), {})["active"] == ["box-wet"]
+    dry = keeper.evaluate(box(moisture=45.0), {})
+    assert dry["active"] == ["box-dry"] and dry["holds"] == []
+    assert keeper.evaluate(box(lidOpen=True), {})["active"] == ["lid"]
+
+
+def test_any_dead_box_sensor_is_distrusted():
+    assert keeper.evaluate(box(weightKg=None), {})["active"] == ["sensor"]
+    assert keeper.evaluate(box(gas=None), {})["holds"] == ["feed"]

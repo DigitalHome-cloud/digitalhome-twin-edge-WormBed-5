@@ -27,7 +27,7 @@
     },
     {
       "title": "Robot: carry a portion to the worm box",
-      "why": "The gantry lifts its tool, moves to the hopper, scoops 300 g, travels the length of the bed and drops it at one spot of the worm box. Watch the overview camera.",
+      "why": "The gantry lifts its tool, moves to the hopper, scoops a portion, travels the length of the bed and drops it at one spot of the worm box. How much is the feeder's advice: a small portion while it is still learning what these worms eat. Watch the overview camera.",
       "do": {
         "type": "proposal",
         "id": "feed",
@@ -37,7 +37,7 @@
         {
           "read": "bed.hopper.grams",
           "is": "<=",
-          "value": 700,
+          "value": 900,
           "say": "hopper: {v} g left"
         },
         {
@@ -50,27 +50,27 @@
     },
     {
       "title": "What changed in the worm box",
-      "why": "Fresh food warms the box a little and makes it wetter; that is what the fixed probes in the box measure. The box also follows the air's temperature, slowly. Too hot (30 °C) or too cold (5 °C) and the keeper puts feeding on hold. Liquid from the food drains down into the tank pipes.",
+      "why": "Fresh food makes the box wetter and heavier; the box's own sensors show it (see the Worm box panel). The box also follows the air's temperature, slowly. As the worms eat, about a third of the food drains down into the tank pipes as liquid.",
       "do": {
         "type": "none"
       },
       "expect": [
         {
-          "read": "bed.wormBin.tempC",
-          "is": ">",
-          "value": -40,
-          "say": "worm box: {v} °C"
+          "read": "bed.wormBin.fedGrams",
+          "is": ">=",
+          "value": 100,
+          "say": "fed so far: {v} g"
         },
         {
           "read": "bed.wormBin.moisture",
           "is": ">",
-          "value": 70.0,
+          "value": 55,
           "say": "worm box moisture: {v} %"
         },
         {
           "read": "bed.tank.litres",
           "is": ">",
-          "value": 0,
+          "value": 1,
           "say": "tank: {v} l"
         }
       ]
@@ -93,7 +93,7 @@
         {
           "read": "bed.hopper.grams",
           "is": "<=",
-          "value": 400,
+          "value": 800,
           "say": "hopper: {v} g left"
         }
       ]

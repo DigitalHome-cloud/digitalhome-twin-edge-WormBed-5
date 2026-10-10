@@ -24,7 +24,8 @@ Readings: bed.<path> (the twin's /bed/state), job.state, last.<kind>.state
 (how many), count.<cell status>, driest (planted cells' lowest moisture, %),
 notices (how many), keeper.<rule> (true while that reaction is in force),
 holds.<kind> (true while jobs of that kind are on hold), lockout (true while
-the gantry is locked out). A step marked "scored": true counts towards the
+the gantry is locked out), feeder.<key> (the feeder's advice: state, grams,
+eatsPerDay, uneatenG, offPct). A step marked "scored": true counts towards the
 run's score: how many scored steps came out as expected.
 
 Starting a scenario is the person's choice; doing a step is a click (or, with
@@ -105,6 +106,8 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
         return path.split(".", 1)[1] in kept.get("holds", [])
     if path == "lockout":
         return bool(kept.get("lockout"))
+    if path.startswith("feeder."):
+        return (kept.get("feeder") or {}).get(path.split(".", 1)[1])
     cells = [c for c in (bed.get("cells") or {}).values()]
     if path.startswith("bed."):
         v: Any = bed

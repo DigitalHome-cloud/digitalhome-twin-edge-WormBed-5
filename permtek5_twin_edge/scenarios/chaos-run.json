@@ -161,8 +161,8 @@
       "expect": [
         {
           "read": "bed.tank.litres",
-          "is": "<=",
-          "value": 0,
+          "is": "<",
+          "value": 1,
           "say": "tank: {v} l"
         },
         {

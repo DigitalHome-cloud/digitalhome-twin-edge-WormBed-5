@@ -58,7 +58,14 @@ def main():
         time.sleep(1.2)
         bed = sim.gateway("/state")["bed"]
         check("the hopper is lighter, the worm box fed", bed["hopper"]["grams"] == 700 and bed["wormBin"]["feedings"] == 1, bed["hopper"])
-        check("the worm box is a little warmer", bed["wormBin"]["tempC"] > before_feed["wormBin"]["tempC"], bed["wormBin"])
+        check("the load cells see the portion", 0.2 < bed["wormBin"]["weightKg"] - before_feed["wormBin"]["weightKg"] < 0.4, bed["wormBin"])
+        sim.gateway("/event", {"op": "box", "do": "insulate", "on": True})
+        sim.gateway("/event", {"op": "disturb", "id": "storm", "effect": {"windMs": 20.0}, "minutes": 30})
+        time.sleep(1.2)
+        bed = sim.gateway("/state")["bed"]
+        check("a person's wrapping and a disturbance reach the twin", bed["wormBin"]["insulated"] and bed["env"]["windMs"] > 15, bed["env"])
+        sim.gateway("/event", {"op": "calm"})
+        sim.gateway("/event", {"op": "box", "do": "insulate", "on": False})
         g = sim.gateway("/state")["gantry"]
         check("the head is over the worm box", abs(g["x"] - 2.8) < 0.005, g)
         job = sim.run_job({"kind": "plant", "row": 5, "col": 27, "crop": "crop-rocket"})
@@ -69,10 +76,12 @@ def main():
         check("the wick holds a grown cell's moisture up", wet["cells"]["1_1"]["moisture"] >= 36.0, wet["cells"]["1_1"])
         check("and that draws on the tank", wet["tank"]["litres"] < 100.1, wet["tank"])
         sim.gateway("/event", {"op": "tank", "litres": 0})
+        sim.gateway("/event", {"op": "time", "factor": 60})     # drying takes hours: an hour a second
         time.sleep(1.2)
         level = sim.gateway("/state")["bed"]["cells"]["1_1"]["moisture"]
         time.sleep(5)
         check("an empty tank lets the soil dry", sim.gateway("/state")["bed"]["cells"]["1_1"]["moisture"] < level, level)
+        sim.gateway("/event", {"op": "time", "factor": 1})
         job = sim.run_job({"kind": "plant", "row": 40, "col": 2, "crop": "crop-rocket"})
         check("a cell outside the bed is refused (soft limit)", job["state"] == "failed" and "outside the bed" in job["message"], job)
     finally:

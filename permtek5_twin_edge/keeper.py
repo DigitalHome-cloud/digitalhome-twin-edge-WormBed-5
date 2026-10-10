@@ -15,6 +15,11 @@ REACTION with an id:
     tank-empty    0                             the person refills; the soil is no longer watered from below
     tank-falling  the level drops with no use   the person looks for a leak
     sensor        a reading is missing or frozen  distrust it; hold feeding (the safe side)
+    overfed       the core runs far hotter than the edge   hold feeding; the person takes food out, adds bedding
+    airless       the gas sensor smells rot     hold feeding; the person adds dry bedding
+    box-wet       the box is soaked             hold feeding; the person adds dry bedding
+    box-dry       the box is drying out         the person sprinkles water
+    lid           the lid stands open           the person closes it
     hopper-jam    the scoop comes back empty    hold feeding; the person clears it
     offline       no link to the cloud          work on; queue what is to be written back
     box-full      the worm box is nearly full   the person harvests the compost
@@ -43,9 +48,15 @@ HEAT_BOX_ON, HEAT_BOX_OFF = 30.0, 28.0
 HEAT_AIR_ON, HEAT_AIR_OFF = 32.0, 30.0
 STORM_ON, STORM_OFF = 12.0, 9.0          # m/s
 TANK_LOW_PCT = 15.0
+TANK_DEAD_L = 1.0                        # under a litre the wick does not reach the water: empty
 TANK_FALL_L, TANK_FALL_MIN = 5.0, 60.0   # this much lost within this many simulated minutes, with nothing drawing on it
 STUCK_MIN, STUCK_AIR_C = 120.0, 3.0      # a box temperature unchanged this long while the air moved this much
 BOX_FULL_PCT = 90.0
+OVERFED_ON, OVERFED_OFF = 6.0, 3.0       # °C the core is above the edge: uneaten food is composting
+GAS_ON, GAS_OFF = 60.0, 30.0             # the gas sensor's 0..100
+WET_ON, WET_OFF = 90.0, 85.0             # % moisture
+DRY_ON, DRY_OFF = 50.0, 55.0
+BOX_SENSORS = {"tempC": "core temperature", "edgeC": "edge temperature", "moisture": "moisture", "weightKg": "weight", "gas": "gas"}
 
 TEXT = {
     "frost": "Frost: feeding and watering are on hold. Insulate the worm box; in a hard frost take the worms indoors.",
@@ -55,14 +66,20 @@ TEXT = {
     "tank-low": "The tank is low: refill it.",
     "tank-empty": "The tank is empty: the soil is no longer watered from below. Refill it.",
     "tank-falling": "The tank is losing water although nothing draws on it: look for a leak.",
-    "sensor": "The worm box's temperature probe gives no trustworthy reading: feeding is on hold until it does.",
+    "sensor": "A worm box sensor gives no trustworthy reading: feeding is on hold until it does.",
+    "overfed": "The worm box's core runs much hotter than its edge: too much food is composting. Feeding is on hold; take some out and add dry bedding.",
+    "airless": "The worm box smells: it is short of air. Feeding is on hold; mix in dry bedding.",
+    "box-wet": "The worm box is soaked. Feeding is on hold; add dry bedding and check that it drains.",
+    "box-dry": "The worm box is drying out: sprinkle water over it.",
+    "lid": "The worm box's lid stands open: close it.",
     "hopper-jam": "The scoop comes back empty: the hopper is jammed. Feeding is on hold; clear it.",
     "offline": "No link to the cloud: the guild works on, and what it would write back is queued.",
     "box-full": "The worm box is nearly full: harvest the finished compost.",
 }
-HOLDS = {"frost": ["feed", "water"], "heat": ["feed"], "overflow": ["water"], "sensor": ["feed"], "hopper-jam": ["feed"]}
+HOLDS = {"frost": ["feed", "water"], "heat": ["feed"], "overflow": ["water"], "sensor": ["feed"], "hopper-jam": ["feed"],
+         "overfed": ["feed"], "airless": ["feed"], "box-wet": ["feed"]}
 LOCKS = {"storm"}
-ALERTS = {"frost", "heat", "storm", "tank-empty", "tank-falling", "sensor"}
+ALERTS = {"frost", "heat", "storm", "tank-empty", "tank-falling", "sensor", "overfed", "airless"}
 
 
 def _switch(memory: Dict[str, Any], key: str, on: bool, off: bool) -> bool:
@@ -102,7 +119,7 @@ def evaluate(bed: Optional[Dict[str, Any]], memory: Dict[str, Any], offline: boo
             litres, cap = tank.get("litres", 0.0), tank["capacity"]
             if tank.get("overflowing") or (rain >= 20.0 and litres >= 0.98 * cap):
                 active.append("overflow")
-            if litres <= 0:
+            if litres < TANK_DEAD_L:
                 active.append("tank-empty")
             elif 100.0 * litres / cap < TANK_LOW_PCT:
                 active.append("tank-low")
@@ -111,11 +128,12 @@ def evaluate(bed: Optional[Dict[str, Any]], memory: Dict[str, Any], offline: boo
             seen.append((now_min, litres))
             memory["tank"] = seen[-240:]
             lost = max(l for _, l in seen) - litres
-            if _switch(memory, "tank-falling", lost >= TANK_FALL_L and litres > 0, lost < 1.0):
+            if _switch(memory, "tank-falling", lost >= TANK_FALL_L and litres >= TANK_DEAD_L, lost < 1.0):
                 active.append("tank-falling")
 
         if box:
-            if box_c is None:
+            dead = [name for key, name in BOX_SENSORS.items() if key in box and box[key] is None]
+            if dead:
                 active.append("sensor")                         # dead
             elif air is not None:
                 last = memory.get("box")
@@ -123,6 +141,19 @@ def evaluate(bed: Optional[Dict[str, Any]], memory: Dict[str, Any], offline: boo
                     memory["box"] = {"value": box_c, "since": now_min, "air": air}
                 elif now_min - last["since"] >= STUCK_MIN and abs(air - last["air"]) >= STUCK_AIR_C:
                     active.append("sensor")                     # stuck: the air moved, the box "did not"
+            edge_c, gas, wet = box.get("edgeC"), box.get("gas"), box.get("moisture")
+            if box_c is not None and edge_c is not None and \
+                    _switch(memory, "overfed", box_c - edge_c >= OVERFED_ON, box_c - edge_c <= OVERFED_OFF):
+                active.append("overfed")
+            if gas is not None and _switch(memory, "airless", gas >= GAS_ON, gas <= GAS_OFF):
+                active.append("airless")
+            if wet is not None and "edgeC" in box:              # (the first twin's box had a moisture number but no sensors)
+                if _switch(memory, "box-wet", wet >= WET_ON, wet <= WET_OFF):
+                    active.append("box-wet")
+                if _switch(memory, "box-dry", wet <= DRY_ON, wet >= DRY_OFF):
+                    active.append("box-dry")
+            if box.get("lidOpen"):
+                active.append("lid")
             if (box.get("fillPct") or 0) >= BOX_FULL_PCT:
                 active.append("box-full")
         if (bed.get("hopper") or {}).get("jammed"):

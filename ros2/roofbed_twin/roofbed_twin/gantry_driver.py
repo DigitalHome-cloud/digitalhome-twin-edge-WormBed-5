@@ -19,21 +19,25 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "hopper", "grams"} a person filled the hopper
                                      {"op": "tank", "litres"}  a person refilled (or emptied) the tank
                                      {"op": "dry", "percent"}  hot, dry days in one go (scenarios)
+                                     {"op": "box", "do": "insulate", "on"} | {"do": "bedding", "grams"} | {"do": "moisten", "ml"}
+                                       | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}
+                                       what a person did at the worm box
 
 A sown cell gets a seedling in the world. Soil moisture is a simple number per
 cell (percent): watering and rain raise it; sun, warmth and wind lower it
 (environment.py: a clock that runs faster than the wall, a day and a night,
 weather, and disturbances laid over it). With tank pipes under the
 bed and water in them, the soil is kept moist from below and the tank slowly
-empties (a wicking bed). The worm box has a temperature, a moisture and a
-fill level; feeding it warms it a little and sends liquid down into the tank.
-The worm box follows the air's temperature with a delay; rain fills the tank up
-to its overflow. /bed/state carries "env", "tank", "wormBin" and "hopper"
+empties (a wicking bed). The worm box is a small living model of its own
+(wormbox.py): worms eat what is fed, the box gets lighter, liquid drains to
+the tank, uneaten food heats the core. Its sensors read with noise and can
+fail. Rain fills the tank up to its overflow. /bed/state carries "env",
+"tank", "wormBin" (sensor readings, and under "sim" what only a simulation
+can know) and "hopper"
 beside the cells. Further events: {"op": "disturb", "id", "effect", "minutes"},
 {"op": "calm"}, {"op": "time", "factor"}, {"op": "chaos", "rate", "pool"}.
 """
 import json
-import math
 import os
 
 import numpy as np
@@ -44,6 +48,7 @@ from std_msgs.msg import Bool, String
 
 from .environment import Environment
 from .spin import Drain
+from .wormbox import FULL_G, Sensors, WormBox
 
 CAMERAS = ("tool_camera", "overview_camera")
 CAMERA_EVERY_MS = 200
@@ -56,12 +61,9 @@ MOISTURE_LOSS_PER_MIN = 0.01    # at an evaporation of 1.0 (a mild, still, overc
 WICK_TO = 45.0                  # the moisture the wick holds the soil at while the tank has water
 WICK_GAIN_PER_MIN = 0.4         # how fast a drier cell is brought back up (percent per minute)
 WICK_L_PER_CELL_MIN = 0.00002   # what that costs the tank, per planted cell and minute
-BIN_LAG_MIN = 180.0             # the worm box follows the air with this delay (its mass and insulation)
-BIN_ABOVE_AIR_C = 2.0           # a working box runs a little warmer than the air
+TANK_DEAD_L = 1.0               # under a litre the wick does not reach the water (the worm box's liquid trickles in)
 RAIN_TO_TANK = 0.5              # the share of rain on the bed that reaches the tank pipes
 RAIN_WETS_PER_MM = 2.0          # percent of soil moisture a millimetre of rain adds
-LIQUID_L_PER_G = 0.0003         # liquid a portion of food sends down to the tank
-BIN_FULL_G = 20000.0            # the worm box is "full" at this much food and bedding
 
 
 
@@ -95,12 +97,13 @@ class GantryDriver:
         self.tank_cap = float(tank.get("litres") or 0)
         self.tank_l = self.tank_cap * 0.6                       # starts partly filled
         self.has_bin = bool((self.cfg.get("wormBin") or {}).get("cols"))
-        self.bin = {"tempC": 18.0, "moisture": 70.0, "grams": 6000.0, "fedGrams": 0.0, "feedings": 0}
         self.hopper_g = 0.0
-        self.env = Environment(seed=int(os.environ.get("PERMTEK5_TWIN_SEED", "5")))
-        self.bin["tempC"] = self.env.air_c() + BIN_ABOVE_AIR_C
+        seed = int(os.environ.get("PERMTEK5_TWIN_SEED", "5"))
+        self.env = Environment(seed=seed)
+        self.box = WormBox(may_leave=bool((self.cfg.get("guild") or {}).get("wormsMayLeave", True)), air_c=self.env.air_c())
+        self.probes = Sensors(seed=seed)
+        self.lid_left_open = False       # by a person; a disturbance can open it too
         self.overflowing = False
-        self.frozen = {}                 # a stuck sensor repeats the value it had when it stuck
         b = self.cfg["bed"]
         self.bed_m2 = b["length_cm"] * b["width_cm"] / 10000.0
 
@@ -157,7 +160,6 @@ class GantryDriver:
                 return
             if op == "calm":
                 self.env.calm(e.get("id"))
-                self.frozen.clear()
                 return
             if op == "time":
                 self.env.factor = max(0.1, min(float(e.get("factor", 1)), 600.0))
@@ -180,13 +182,24 @@ class GantryDriver:
                 if self.env.flag("hopperJam"):
                     return                                    # the scoop came back empty
                 grams = max(0.0, min(float(e.get("grams", 0)), self.hopper_g))
-                self.hopper_g -= grams
-                self.bin["grams"] = min(BIN_FULL_G, self.bin["grams"] + grams)
-                self.bin["fedGrams"] += grams
-                self.bin["feedings"] += 1
-                self.bin["tempC"] += grams / 400.0                      # fresh food warms the box a little
-                self.bin["moisture"] = min(95.0, self.bin["moisture"] + grams / 200.0)
-                self.tank_l = min(self.tank_cap, self.tank_l + grams * LIQUID_L_PER_G)
+                self.hopper_g -= self.box.feed(grams)
+                return
+            if op == "box":                                   # what a person did at the worm box
+                if not self.has_bin:
+                    return
+                do = e.get("do")
+                if do == "insulate":
+                    self.box.insulated = bool(e.get("on", True))
+                elif do == "bedding":
+                    self.box.add_bedding(min(float(e.get("grams", 500)), 5000.0))
+                elif do == "moisten":
+                    self.box.moisten(min(float(e.get("ml", 500)), 5000.0))
+                elif do == "takeout":
+                    self.box.take_out(float(e.get("grams", 0)))
+                elif do == "dump":
+                    self.box.feed(min(float(e.get("grams", 0)), 10000.0), by_robot=False)
+                elif do == "lid":
+                    self.lid_left_open = bool(e.get("open", True))
                 return
             row, col = int(e["row"]), int(e["col"])
         except (ValueError, KeyError, TypeError):
@@ -219,16 +232,6 @@ class GantryDriver:
             z = w["soilZ"] + 0.012
         self.robot.getRoot().getField("children").importMFNodeFromString(
             -1, f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {z:.4f} children [ {shape} ] }}")
-
-    def sense(self, path, value):
-        """A reading as its sensor gives it: the value, None from a dead sensor, the old value from a stuck one."""
-        mode = self.env.sensor(path)
-        if mode == "dead":
-            return None
-        if mode == "stuck":
-            return self.frozen.setdefault(path, value)
-        self.frozen.pop(path, None)
-        return value
 
     # -- one step --------------------------------------------------------------
 
@@ -266,7 +269,7 @@ class GantryDriver:
             env = self.env
             loss = MOISTURE_LOSS_PER_MIN * env.evaporation() * dmin
             rain_mm = env.rain_mm_h() * dmin / 60.0
-            wicking = self.tank_cap > 0 and self.tank_l > 0.0
+            wicking = self.tank_cap > 0 and self.tank_l >= TANK_DEAD_L
             for c in self.cells.values():
                 c["moisture"] = max(5.0, c["moisture"] - loss)
                 if rain_mm:
@@ -279,16 +282,19 @@ class GantryDriver:
                 self.tank_l += rain_mm * self.bed_m2 * RAIN_TO_TANK              # 1 mm on 1 m² is a litre
                 self.overflowing = self.tank_l >= self.tank_cap and rain_mm > 0  # the rest leaves by the overflow
                 self.tank_l = max(0.0, min(self.tank_l, self.tank_cap))
-            b = self.bin                                # the worm box follows the air, slowly
-            b["tempC"] += (env.air_c() + BIN_ABOVE_AIR_C - b["tempC"]) * (1.0 - math.exp(-dmin / BIN_LAG_MIN))
-            b["moisture"] = max(40.0, b["moisture"] - 0.002 * dmin)
+            box = self.box
+            box.lid_open = self.lid_left_open or env.flag("lidOpen")
+            if self.has_bin:
+                made = box.step(dmin, env.air_c(), env.rain_mm_h())
+                self.tank_l = min(self.tank_cap, self.tank_l + made["liquidL"])
             self.pub_bed.publish(String(data=json.dumps({
                 "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
                 "env": env.snapshot(),
                 "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1), "overflowing": self.overflowing},
-                "wormBin": ({"tempC": self.sense("wormBin.tempC", round(b["tempC"], 1)), "moisture": round(b["moisture"], 1),
-                             "fillPct": round(100.0 * b["grams"] / BIN_FULL_G, 1), "fedGrams": round(b["fedGrams"]),
-                             "feedings": b["feedings"], "wormsMayLeave": bool((self.cfg.get("guild") or {}).get("wormsMayLeave", True))}
+                "wormBin": ({**self.probes.read(box, env.sensor),
+                             "fillPct": round(100.0 * box.weight_g() / FULL_G, 1), "fedGrams": round(box.fed_g),
+                             "feedings": box.feedings, "wormsMayLeave": box.may_leave, "insulated": box.insulated,
+                             "sim": box.truth()}
                             if self.has_bin else None),
                 "hopper": {"grams": round(self.hopper_g), "jammed": env.flag("hopperJam")},
                 "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1)}
