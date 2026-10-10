@@ -116,6 +116,15 @@ function draw(t) {
   $("#btn-estop").disabled = !ready;
   $("#btn-estop").textContent = t.twin && t.twin.bed && t.twin.bed.stopped ? "Release e-stop" : "E-stop";
   $("#axes").textContent = g ? `x ${(g.x * 1000).toFixed(0)} · y ${(g.y * 1000).toFixed(0)} · z ${(g.z * 1000).toFixed(0)} mm` : "";
+  const sel = $("#sel-source"), want = (t.habitats || []).map((h) => h.graph).join("|");
+  if (sel.dataset.have !== want) {            // the areas this edge holds that have a growing bed
+    sel.dataset.have = want;
+    sel.innerHTML = '<option value="">CityDemo (invented)</option>' + (t.habitats || []).map((h) =>
+      `<option value="${core.esc(h.graph)}">${core.esc(h.graph)} · ${h.cells} cells</option>`).join("");
+    sel.value = t.source === "citydemo" ? "" : t.source;
+  }
+  sel.disabled = t.running;
+  if ((t.recorded || []).length) core.toast(`${t.recorded.length} sown cell(s) written to the habitat`);
   views(!!ready);
   drawBed(t);
   drawJobs(t);
@@ -126,7 +135,11 @@ async function refresh() {
   catch (err) { $("#twin-status").textContent = (err.errors || ["the page lost its server"])[0]; }
 }
 
-$("#btn-prepare").addEventListener("click", async () => { if (await post("/api/twin/prepare")) core.toast("World written from the habitat"); refresh(); });
+$("#btn-prepare").addEventListener("click", async () => {
+  const graph = $("#sel-source").value;
+  if (await post("/api/twin/prepare", graph ? { graph } : {})) core.toast("World written from the habitat");
+  refresh();
+});
 $("#btn-start").addEventListener("click", async () => { await post("/api/twin/start"); refresh(); });
 $("#btn-stop").addEventListener("click", async () => { views(false); await post("/api/twin/stop"); refresh(); });
 $("#btn-estop").addEventListener("click", async () => {

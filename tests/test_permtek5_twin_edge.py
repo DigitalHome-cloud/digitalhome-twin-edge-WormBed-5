@@ -136,3 +136,25 @@ def test_only_the_two_cameras_exist(client):
     assert client.get("/api/twin/camera/other.jpg").status_code == 404
     assert client.get("/api/twin/camera/tool.png").status_code == 404
     assert client.get("/api/twin/camera/tool.jpg").status_code == 503      # no simulation: no pictures
+
+
+def test_a_synced_habitat_is_the_source_and_gets_the_sowing_written_back(client, twin):
+    """Prepared from an area this edge holds: a finished sowing lands in that area's A-Box."""
+    from rdflib.namespace import RDF
+    from permtek5_twin_edge import habitat as hb
+    from permtek5_twin_edge.edge import knowledge as kn
+    state, _ = twin
+    web.sim.running = lambda: False
+    kn.KnowledgeBase().change("shared", lambda g: g.parse(hb.CITYDEMO, format="turtle"))
+    assert client.post("/api/twin/prepare", json={"graph": "elsewhere"}).status_code == 400
+    assert client.post("/api/twin/prepare", json={"graph": "shared"}).status_code == 200
+    t = client.get("/api/twin").get_json()
+    assert t["source"] == "shared" and t["habitats"] == [{"graph": "shared", "beds": 1, "cells": 28}] and t["recorded"] == []
+    state["twin"]["history"] = [{"id": "j9", "kind": "plant", "state": "done", "result": {"sown": True},
+                                 "spec": {"row": 5, "col": 13, "crop": "crop-rocket"}}]
+    assert len(client.get("/api/twin").get_json()["recorded"]) == 1
+    assert client.get("/api/twin").get_json()["recorded"] == []            # once
+    g = kn.KnowledgeBase().load("shared")
+    sown = [c for c in g.subjects(RDF.type, hb.PERMA.PlantingCell)
+            if int(g.value(c, hb.PERMA.row)) == 5 and int(g.value(c, hb.PERMA.col)) == 13]
+    assert g.value(sown[0], hb.PERMA.cellStatus) == hb.PERMA.CellSown and g.value(sown[0], hb.PERMA.sownOn) is not None

@@ -23,6 +23,7 @@ import urllib.request
 from flask import Response, abort, jsonify, render_template, request
 
 from . import engine as engine
+from . import habitat_store as store
 from . import sim
 from .core import server
 from .core import workspace as ws
@@ -30,6 +31,7 @@ from .core import workspace as ws
 app = server.create_app(__name__)
 
 from .edge import routes as edge_routes  # edge layer
+from .edge import cloud as edge_cloud
 edge_routes.install(app)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
@@ -63,9 +65,21 @@ def favicon():
 def _twin_state() -> dict:
     status = sim.status()
     cfg = engine.config()
-    bed_state = (status.get("twin") or {}).get("bed")
-    return {**status, **engine.summary(cfg), "config": cfg,
-            "proposals": engine.proposals(cfg, bed_state) if status["running"] else engine.proposals(cfg)}
+    twin = status.get("twin") or {}
+    out = engine.workspace()
+    src = store.source(out)
+    recorded = []
+    if cfg and src.get("graph") and twin.get("history"):
+        # What the gantry sowed goes into the habitat it was prepared from; the next sync takes it to the cloud.
+        recorded = store.record_results(out, cfg["bed"]["id"], twin["history"])
+        if recorded and edge_cloud.linked_profiles():
+            try:
+                edge_routes.JOBS.submit("knowledge-sync", {"graph": src["graph"]})
+            except Exception:                     # busy, or offline: the person syncs from Connections
+                pass
+    return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
+            "habitats": store.habitats(), "recorded": recorded,
+            "proposals": engine.proposals(cfg, twin.get("bed")) if status["running"] else engine.proposals(cfg)}
 
 
 @app.get("/api/twin")
@@ -78,11 +92,15 @@ def twin_prepare():
     """Write the world for a habitat: CityDemo, or Turtle sent in the body."""
     if sim.running():
         return jsonify({"errors": ["stop the simulation before preparing another world"]}), 409
-    ttl = body().get("ttl") or engine.habitat_ttl(None)
+    data = body()
+    graph = data.get("graph") or None
     try:
-        return jsonify(engine.prepare(ttl))
+        ttl = store.ttl_of(graph) if graph else (data.get("ttl") or engine.habitat_ttl(None))
+        out = engine.prepare(ttl)
     except ValueError as exc:
         return jsonify({"errors": str(exc).split("; ")}), 400
+    store.remember_source(engine.workspace(), graph)
+    return jsonify(out)
 
 
 @app.post("/api/twin/start")

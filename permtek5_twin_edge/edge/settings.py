@@ -37,6 +37,13 @@ ONTOLOGY = Path(__file__).resolve().parent / "ontology"
 # a CONFLICT the person resolves, instead of both being kept.
 SINGLE_VALUED: List[str] = [
     "https://schema.org/name",
+    # a planting cell has one status, one sowing date, one crop, one place
+    "https://permaculture.digitalhome.cloud/ontology#cellStatus",
+    "https://permaculture.digitalhome.cloud/ontology#sownOn",
+    "https://permaculture.digitalhome.cloud/ontology#grows",
+    "https://permaculture.digitalhome.cloud/ontology#row",
+    "https://permaculture.digitalhome.cloud/ontology#col",
+    "https://permaculture.digitalhome.cloud/ontology#inBed",
 ]
 # Facts that are single per LANGUAGE (one label per language).
 PER_LANGUAGE: List[str] = [
