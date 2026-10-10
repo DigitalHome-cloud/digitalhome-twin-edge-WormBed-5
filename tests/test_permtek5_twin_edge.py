@@ -1,17 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 D-LAB-5
-"""Tests for the sample engine and routes. Replace them along with the sample."""
+"""The twin's engine and routes, without ROS or Webots: the simulation is stood in for."""
 
 from __future__ import annotations
 
 import pytest
 
 from permtek5_twin_edge import app as web
-from permtek5_twin_edge import engine as engine
+from permtek5_twin_edge import engine, sim
 from permtek5_twin_edge.core import version
 from permtek5_twin_edge.core import workspace as ws
-
-NOTE = {"title": "Kick-off", "body": "one two\nthree", "tags": ["b", "a", "b"]}
 
 
 @pytest.fixture
@@ -24,60 +22,117 @@ def client(monkeypatch, tmp_path):
     return web.app.test_client()
 
 
-def test_a_good_note_is_valid():
-    assert engine.validate(NOTE) == []
+@pytest.fixture
+def twin(monkeypatch):
+    """A stand-in for the running simulation: remembers what the gateway was asked."""
+    calls = []
+    state = {"running": True, "missing": [], "gui": False, "started": 1.0,
+             "twin": {"gantry": {"x": 0.0, "y": 0.0, "z": 0.0}, "cameras": ["overview", "tool"], "job": None, "history": [],
+                      "bed": {"cells": {"5_13": {"status": "CellPlanned", "crop": "crop-rocket", "moisture": 35.0},
+                                        "1_1": {"status": "CellGrowing", "crop": "crop-lettuce", "moisture": 12.0}}}}}
+    monkeypatch.setattr(sim, "status", lambda: state)
+    monkeypatch.setattr(sim, "running", lambda: state["running"])
+    monkeypatch.setattr(sim, "gateway", lambda path, body=None, timeout=3.0: calls.append((path, body)) or {"id": "j1"})
+    return state, calls
 
 
-@pytest.mark.parametrize("bad, message", [
-    ([], "JSON object"),
-    ({"body": "x"}, "title is required"),
-    ({"title": "x" * 200}, "keep it to"),
-    ({"title": "t", "tags": "a,b"}, "list of strings"),
-])
-def test_a_bad_note_says_what_is_wrong(bad, message):
-    assert any(message in e for e in engine.validate(bad))
+# ---------------------------------------------------------------- engine ----
+
+def test_citydemo_is_ready_and_bad_turtle_says_so():
+    assert engine.check(engine.habitat_ttl(None)) == []
+    assert any("not valid Turtle" in e for e in engine.check("this is not turtle"))
+    assert any("no growing bed" in e for e in engine.check("@prefix x: <http://x/> . x:a x:b x:c ."))
 
 
-def test_summary_counts():
-    assert engine.summarise(NOTE) == {"title": "Kick-off", "words": 3, "lines": 2, "tags": ["a", "b"]}
+def test_prepare_writes_the_world_into_the_folder_given(tmp_path):
+    out = engine.prepare(engine.habitat_ttl(None), tmp_path)
+    assert (tmp_path / "roofbed.wbt").exists() and (tmp_path / "bed.json").exists()
+    assert out["prepared"] and out["bed"]["rows"] == 12 and out["cells"] == 28
+    assert out["byStatus"] == {"CellGrowing": 13, "CellSown": 12, "CellPlanned": 3}
 
 
-def test_cli_summarises_a_file(tmp_path, capsys):
-    path = tmp_path / "n.json"
-    path.write_text('{"title": "t", "body": "a b"}', encoding="utf-8")
-    assert engine.main(["summarise", str(path)]) == 0
-    assert '"words": 2' in capsys.readouterr().out
+def test_proposals_sow_what_is_planned_and_look_after_what_is_planted(tmp_path):
+    engine.prepare(engine.habitat_ttl(None), tmp_path)
+    cfg = engine.config(tmp_path)
+    ps = {p["id"]: p for p in engine.proposals(cfg)}
+    assert {"plant-5_13", "plant-5_15", "plant-8_26", "probe", "photo"} == set(ps)
+    assert ps["plant-5_13"]["spec"] == {"kind": "plant", "row": 5, "col": 13, "crop": "crop-rocket", "depthMm": 5, "seeds": 3}
+    assert "row 6, column 14" in ps["plant-5_13"]["title"]
+    assert len(ps["photo"]["spec"]["cells"]) == 25
 
 
-def test_summarise_route_refuses_an_invalid_note(client):
-    got = client.post("/api/summarise", json={"note": {"body": "no title"}})
-    assert got.status_code == 400 and "title is required" in got.get_json()["errors"]
+def test_a_sown_cell_is_not_proposed_again_and_dry_cells_are_watered(tmp_path):
+    engine.prepare(engine.habitat_ttl(None), tmp_path)
+    cfg = engine.config(tmp_path)
+    live = {"cells": {"5_13": {"status": "CellSown", "moisture": 34.0}, "1_1": {"status": "CellGrowing", "moisture": 12.0}}}
+    ps = {p["id"]: p for p in engine.proposals(cfg, live)}
+    assert "plant-5_13" not in ps
+    assert ps["water"]["spec"]["cells"] == [[1, 1, 223]]            # lettuce: a day's need
+    assert [5, 13] in ps["probe"]["spec"]["cells"]
 
 
-def test_save_read_and_list(client):
-    saved = client.put("/api/notes/kick-off", json={"note": NOTE}).get_json()
-    assert saved["folder"] == "user"
-    got = client.get("/api/notes/kick-off").get_json()
-    assert got["data"] == NOTE and got["version"] == saved["version"]
-    assert [n["name"] for n in client.get("/api/notes").get_json()] == ["kick-off"]
+def test_no_world_no_proposals(tmp_path):
+    assert engine.config(tmp_path) is None and engine.proposals(None) == []
 
 
-def test_a_stale_save_is_refused_with_the_current_note(client):
-    first = client.put("/api/notes/n", json={"note": NOTE}).get_json()
-    client.put("/api/notes/n", json={"note": {**NOTE, "title": "theirs"},
-                                     "base_version": first["version"]})
-    clash = client.put("/api/notes/n", json={"note": {**NOTE, "title": "mine"},
-                                             "base_version": first["version"]})
-    assert clash.status_code == 409
-    assert clash.get_json()["note"]["title"] == "theirs"
+def test_the_command_line(tmp_path, capsys):
+    assert engine.main(["check"]) == 0
+    assert engine.main(["jobs", "--out", str(tmp_path)]) == 1          # nothing prepared there
+    assert engine.main(["world", "--out", str(tmp_path)]) == 0
+    assert engine.main(["jobs", "--out", str(tmp_path)]) == 0
+    assert "Sow Rocket at row 6, column 14" in capsys.readouterr().out
 
 
-def test_a_name_cannot_escape_its_folder(client):
-    assert client.get("/api/notes/..%2F..%2Fetc").status_code in (400, 404)
-    assert client.put("/api/notes/a.b", json={"note": NOTE}).status_code == 400
+# ---------------------------------------------------------------- routes ----
+
+def test_the_page_and_the_status_before_anything_is_prepared(client):
+    assert client.get("/").status_code == 200
+    t = client.get("/api/twin").get_json()
+    assert t["prepared"] is False and t["running"] is False and t["proposals"] == []
 
 
-def test_the_shared_samples_ship():
-    from pathlib import Path
-    shipped = Path(web.__file__).resolve().parent / "shared"
-    assert list(shipped.glob("*.json")), "the package should carry at least one sample"
+def test_start_needs_a_world(client):
+    r = client.post("/api/twin/start", json={})
+    assert r.status_code == 400 and "prepare a world first" in r.get_json()["errors"][0]
+
+
+def test_prepare_then_the_status_carries_the_bed_and_the_proposals(client):
+    assert client.post("/api/twin/prepare", json={}).status_code == 200
+    t = client.get("/api/twin").get_json()
+    assert t["prepared"] and t["bed"]["cols"] == 30 and len(t["config"]["cells"]) == 28
+    assert any(p["id"] == "plant-5_13" for p in t["proposals"])
+
+
+def test_a_bad_habitat_is_refused_with_what_is_wrong(client):
+    r = client.post("/api/twin/prepare", json={"ttl": "nonsense"})
+    assert r.status_code == 400 and "not valid Turtle" in r.get_json()["errors"][0]
+
+
+def test_confirming_a_proposal_sends_exactly_its_job(client, twin):
+    _, calls = twin
+    client.post("/api/twin/prepare", json={})          # refused while "running"
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    r = client.post("/api/twin/job", json={"proposal": "plant-5_13"})
+    assert r.status_code == 200 and r.get_json() == {"id": "j1"}
+    assert calls == [("/job", {"kind": "plant", "row": 5, "col": 13, "crop": "crop-rocket", "depthMm": 5, "seeds": 3})]
+
+
+def test_a_proposal_that_is_no_longer_current_is_refused(client, twin):
+    state, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    state["twin"]["bed"]["cells"]["5_13"]["status"] = "CellSown"      # someone sowed it meanwhile
+    r = client.post("/api/twin/job", json={"proposal": "plant-5_13"})
+    assert r.status_code == 409 and calls == []
+
+
+def test_nothing_is_sent_without_a_proposal_or_a_spec(client, twin):
+    _, calls = twin
+    assert client.post("/api/twin/job", json={}).status_code == 400 and calls == []
+
+
+def test_only_the_two_cameras_exist(client):
+    assert client.get("/api/twin/camera/other.jpg").status_code == 404
+    assert client.get("/api/twin/camera/tool.png").status_code == 404
+    assert client.get("/api/twin/camera/tool.jpg").status_code == 503      # no simulation: no pictures

@@ -1,6 +1,6 @@
 {% extends "core/_base.html" %}
 
-{#- The tool's page. The header (theme, About, Restart, Stop) and core.js come
+{#- The twin's page. The header (theme, About, Restart, Stop) and core.js come
     from core/_base.html; this file fills the blocks. -#}
 
 {% block head %}
@@ -8,29 +8,52 @@
 {% endblock %}
 
 {% block toolbar %}
-  <button id="btn-new">New</button>
-  <button id="btn-save" class="primary">Save</button>
-  <button id="btn-delete" class="danger">Delete</button>
+  <button id="btn-prepare" title="Write the Webots world for the habitat">Prepare world</button>
+  <button id="btn-start" class="primary">Start</button>
+  <button id="btn-stop">Stop</button>
+  <button id="btn-estop" class="danger" title="Hold the gantry where it is and abort the job">E-stop</button>
 {% endblock %}
 
 {% block main %}
 <main class="layout">
 
-  <aside class="side">
-    <h3>Notes</h3>
-    <div id="note-list" class="note-list"><p class="note">loading…</p></div>
-  </aside>
-  <section class="editor">
-    <label>Title <input type="text" id="f-title" placeholder="What is this note about?"></label>
-    <label>Name <input type="text" id="f-name" placeholder="file name, e.g. meeting-notes"></label>
-    <label>Body <textarea id="f-body" rows="12"></textarea></label>
-    <label>Tags <input type="text" id="f-tags" placeholder="comma, separated"></label>
-    <div class="actions">
-      <button id="btn-summarise">Summarise</button>
-      <span id="status" class="note"></span>
+  <section class="twin">
+    <p id="twin-status" class="note">loading…</p>
+    <ul id="twin-missing" class="disclaimer" hidden></ul>
+
+    <div class="views">
+      <figure>
+        <img id="view-overview" alt="The whole bed, from the overview camera" hidden>
+        <div class="view-off" id="off-overview">overview camera</div>
+        <figcaption>Overview</figcaption>
+      </figure>
+      <figure>
+        <img id="view-tool" alt="Looking down from the tool head" hidden>
+        <div class="view-off" id="off-tool">tool camera</div>
+        <figcaption>Tool camera <span id="axes" class="tag"></span></figcaption>
+      </figure>
     </div>
-    <pre id="summary" class="summary" hidden></pre>
+
+    <h3 id="bed-title">Bed</h3>
+    <div class="bed-scroll"><div id="bed" class="bed" role="img" aria-label="The bed's cells"></div></div>
+    <p class="note legend">
+      <span class="cell planned"></span> planned
+      <span class="cell sown"></span> sown
+      <span class="cell growing"></span> growing
+      <span class="cell head"></span> tool head
+      &nbsp;·&nbsp; row 1, column 1 is the gantry's home corner
+    </p>
   </section>
+
+  <aside class="side">
+    <h3>Job</h3>
+    <div id="job" class="job note">none</div>
+    <h3>Proposed <span class="tag">nothing moves until you confirm</span></h3>
+    <div id="proposals" class="proposals"></div>
+    <h3>Done</h3>
+    <div id="history" class="history note">nothing yet</div>
+  </aside>
+
   <section id="edge-connections" class="panel"></section>  <!-- edge layer -->
   <section id="edge-chat" class="panel"></section>
 </main>

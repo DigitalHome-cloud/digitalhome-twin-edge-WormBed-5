@@ -53,6 +53,7 @@ CHAT_ALLOWED: List[Tuple[str, str]] = [
     ("POST", r"/api/cloud/use"),
     ("POST", r"/api/knowledge/sync"),
     ("POST", r"/api/ros2/publish"),
+    ("POST", r"/api/twin/(prepare|start|stop|job|cancel)"),
 ]
 
 CHAT_SYSTEM = """You are the chat of {title}, an edge of {cloud}: a local
@@ -63,6 +64,10 @@ page is in {{lang}}).
 Changes are proposals: a tool that changes something answers "proposed". The
 person sees a Confirm button for it. Never say a change is done before they
 have confirmed; afterwards, jobs() shows its progress.
+
+This edge runs a Webots twin of a gantry robot over the site's roof bed. twin()
+shows it; sowing, watering, probing and photographing cells are jobs the
+person confirms, one at a time. Cells are row, column counted from 1.
 
 Privacy: what this edge keeps private never reaches you. Names you see are
 the {tenant}'s; use them only to answer.""".format(

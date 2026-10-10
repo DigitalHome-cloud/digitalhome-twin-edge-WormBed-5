@@ -1,142 +1,138 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 D-LAB-5
 //
-// app.js — the permtek5-twin-edge page. core.js has already wired the header;
+// app.js — the twin's page. core.js has already wired the header;
 // window.core offers api(), dialog(), toast() and friends.
+//
+// The page polls /api/twin: the simulation's state, the bed, the robot's views
+// and the proposed jobs. A job is sent only by a Confirm click.
 
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const WORKSPACE = true;
+const S = { running: false, streams: false, bedKey: "", busy: false };
 
-const S = {
-  name: null,        // saved name, null while unsaved
-  folder: null,      // where it came from
-  version: null,     // the version it was read at, sent back on save
-  dirty: false,
-};
+const say = (err) => core.toast((err.errors || [String(err)]).join("; "), true);
 
-function readForm() {
-  return {
-    title: $("#f-title").value.trim(),
-    body: $("#f-body").value,
-    tags: $("#f-tags").value.split(",").map((t) => t.trim()).filter(Boolean),
-  };
+async function post(path, body) {
+  try { return await core.api("POST", path, body || {}); }
+  catch (err) { say(err); return null; }
 }
 
-function fillForm(note) {
-  $("#f-title").value = note.title || "";
-  $("#f-body").value = note.body || "";
-  $("#f-tags").value = (note.tags || []).join(", ");
-}
+function rgb(c) { return c ? `rgb(${c.map((v) => Math.round(v * 255)).join(",")})` : ""; }
 
-function status(text) { $("#status").textContent = text; }
-
-async function summarise() {
-  try {
-    const out = await core.api("POST", "/api/summarise", { note: readForm() });
-    $("#summary").hidden = false;
-    $("#summary").textContent = JSON.stringify(out, null, 2);
-  } catch (err) {
-    core.toast(err.errors.join("; "), true);
+/* The robot's views: a fresh picture a few times a second while the
+   simulation runs. Plain pictures rather than an MJPEG stream: a stream holds
+   a connection per view and not every browser paints one reliably. The next
+   picture is asked for only when the last one has arrived. */
+function views(on) {
+  if (on === S.streams) return;
+  S.streams = on;
+  for (const name of ["overview", "tool"]) {
+    const img = $(`#view-${name}`), off = $(`#off-${name}`);
+    img.hidden = !on; off.hidden = on;
+    if (!on) { img.onload = img.onerror = null; img.removeAttribute("src"); continue; }
+    const next = () => { if (S.streams) img.src = `/api/twin/camera/${name}.jpg?t=${Date.now()}`; };
+    img.onload = () => setTimeout(next, 220);
+    img.onerror = () => setTimeout(next, 1000);
+    next();
   }
 }
 
-/* ---------------------------------------------------------- workspace -- */
-
-async function refreshList() {
-  const list = $("#note-list");
-  let notes;
-  try { notes = await core.api("GET", "/api/notes"); }
-  catch (err) { list.innerHTML = `<p class="note">${core.esc(err.errors[0])}</p>`; return; }
-  if (!notes.length) { list.innerHTML = '<p class="note">Nothing saved yet.</p>'; return; }
-  list.innerHTML = notes.map((n) => `
-    <button class="row${n.name === S.name && n.folder === S.folder ? " is-on" : ""}"
-            data-name="${core.esc(n.name)}" data-folder="${core.esc(n.folder)}">
-      <span>${core.esc(n.name)}</span><span class="tag">${core.esc(n.folder)}</span>
-    </button>`).join("");
-  list.querySelectorAll("button.row").forEach((b) =>
-    b.addEventListener("click", () => openNote(b.dataset.name, b.dataset.folder)));
-}
-
-async function openNote(name, folder) {
-  if (S.dirty && !confirm("Discard your unsaved changes?")) return;
-  try {
-    const got = await core.api("GET", `/api/notes/${encodeURIComponent(name)}?folder=${encodeURIComponent(folder)}`);
-    Object.assign(S, { name: got.name, folder: got.folder, version: got.version, dirty: false });
-    $("#f-name").value = got.name;
-    fillForm(got.data);
-    status(`${got.folder} · ${got.version}`);
-    refreshList();
-  } catch (err) { core.toast(err.errors.join("; "), true); }
-}
-
-async function saveNote(force = false) {
-  const name = $("#f-name").value.trim();
-  if (!name) { core.toast("Give it a name first.", true); return; }
-  const sameDoc = name === S.name;
-  try {
-    const saved = await core.api("PUT", `/api/notes/${encodeURIComponent(name)}`, {
-      note: readForm(),
-      folder: sameDoc ? S.folder : null,
-      base_version: sameDoc && !force ? S.version : null,
-    });
-    Object.assign(S, { name: saved.name, folder: saved.folder, version: saved.version, dirty: false });
-    status(`saved to ${saved.folder} · ${saved.version}`);
-    refreshList();
-  } catch (err) {
-    if (err.status === 409) {
-      core.dialog("Changed elsewhere", `
-        <p class="note">Someone else (another tab, or an agent) saved “${core.esc(name)}”
-          after you opened it.</p>
-        <div class="actions">
-          <button value="cancel">Cancel</button>
-          <button type="button" id="q-theirs">Load theirs</button>
-          <button type="button" class="danger" id="q-mine">Keep mine</button>
-        </div>`, (form, dlg) => {
-        form.querySelector("#q-theirs").addEventListener("click", () => {
-          dlg.close(); S.dirty = false; openNote(name, S.folder);
-        });
-        form.querySelector("#q-mine").addEventListener("click", () => { dlg.close(); saveNote(true); });
-      });
-      return;
-    }
-    core.toast(err.errors.join("; "), true);
+function drawBed(t) {
+  const cfg = t.config, el = $("#bed");
+  if (!cfg) { el.innerHTML = ""; S.bedKey = ""; $("#bed-title").textContent = "Bed"; return; }
+  const b = cfg.bed, key = `${b.id}|${b.rows}|${b.cols}`;
+  $("#bed-title").textContent = `${b.name} · ${b.length_cm} × ${b.width_cm} cm · ${b.rows} rows × ${b.cols} columns`;
+  if (key !== S.bedKey) {
+    S.bedKey = key;
+    el.style.gridTemplateColumns = `repeat(${b.cols}, 1.15rem)`;
+    el.innerHTML = Array.from({ length: b.rows * b.cols }, (_, i) =>
+      `<span class="cell" data-k="${Math.floor(i / b.cols)}_${i % b.cols}"></span>`).join("");
   }
+  const planned = Object.fromEntries(cfg.cells.map((c) => [`${c.row}_${c.col}`, c]));
+  const live = (t.twin && t.twin.bed && t.twin.bed.cells) || {};
+  const g = t.twin && t.twin.gantry, cell = cfg.world.cellM;
+  const headKey = g ? `${Math.floor(g.y / cell)}_${Math.floor(g.x / cell)}` : "";
+  el.querySelectorAll(".cell").forEach((n) => {
+    const k = n.dataset.k, c = planned[k], l = live[k];
+    const status = (l && l.status) || (c && c.status) || "";
+    n.className = "cell" + (status ? " " + status.replace("Cell", "").toLowerCase() : "") + (k === headKey ? " head" : "");
+    n.style.background = status === "CellGrowing" || status === "CellSown" ? rgb(c && c.rgb) || "var(--accent)" : "";
+    const [r, col] = k.split("_").map(Number);
+    n.title = `row ${r + 1}, column ${col + 1}` + (c ? ` · ${c.cropName}` : "") + (status ? ` · ${status.replace("Cell", "").toLowerCase()}` : "")
+      + (l && l.moisture !== undefined ? ` · soil ${l.moisture} %` : "");
+  });
 }
 
-async function deleteNote() {
-  if (!S.name || !confirm(`Delete “${S.name}” from ${S.folder}?`)) return;
-  try {
-    await core.api("DELETE", `/api/notes/${encodeURIComponent(S.name)}?folder=${encodeURIComponent(S.folder)}`);
-    newNote(true);
-    refreshList();
-  } catch (err) { core.toast(err.errors.join("; "), true); }
+function drawJobs(t) {
+  const job = t.twin && t.twin.job;
+  S.busy = !!(job && job.state === "running");
+  $("#job").innerHTML = job
+    ? `<strong>${core.esc(job.kind)}</strong> · ${core.esc(job.state)}${job.feedback ? " · " + core.esc(job.feedback) : ""}`
+      + (job.message ? `<br>${core.esc(job.message)}` : "")
+      + (S.busy ? ' <button id="btn-cancel">Cancel</button>' : "")
+    : "none";
+  const cancel = $("#btn-cancel");
+  if (cancel) cancel.addEventListener("click", () => post("/api/twin/cancel"));
+
+  const list = t.proposals || [];
+  $("#proposals").innerHTML = list.length ? list.map((p) => `
+    <div class="proposal">
+      <div><strong>${core.esc(p.title)}</strong><br><span class="note">${core.esc(p.detail)}</span></div>
+      <button data-id="${core.esc(p.id)}" ${t.running && t.twin && !S.busy ? "" : "disabled"}>Confirm</button>
+    </div>`).join("") : '<p class="note">nothing to propose</p>';
+  $("#proposals").querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", async () => { b.disabled = true; await post("/api/twin/job", { proposal: b.dataset.id }); refresh(); }));
+
+  const hist = ((t.twin && t.twin.history) || []).slice().reverse();
+  $("#history").innerHTML = hist.length ? hist.map((j) => {
+    const r = j.result || {};
+    const what = r.moisture ? `soil ${r.moisture.join(", ")} %` : r.givenMl ? `${r.givenMl.reduce((a, b) => a + b, 0)} ml`
+      : r.photos ? `${r.photos.length} pictures` : "";
+    return `<div class="${j.state === "done" ? "" : "bad"}">${core.esc(j.kind)} · ${core.esc(j.state)}`
+      + `${j.message ? " · " + core.esc(j.message) : ""}${what ? " · " + core.esc(what) : ""}</div>`;
+  }).join("") : "nothing yet";
 }
 
-function newNote(skipCheck = false) {
-  if (!skipCheck && S.dirty && !confirm("Discard your unsaved changes?")) return;
-  Object.assign(S, { name: null, folder: null, version: null, dirty: false });
-  $("#f-name").value = "";
-  fillForm({});
-  status("");
+function draw(t) {
+  S.running = t.running;
+  const g = t.twin && t.twin.gantry;
+  const ready = t.running && t.twin && (t.twin.cameras || []).length >= 2;
+  $("#twin-status").textContent = !t.prepared ? "No world yet: prepare one from the habitat."
+    : !t.running ? `World ready (${t.cells} planted cells${t.meshes ? ", Blender meshes" : ""}). Start the simulation.`
+    : !ready ? "Starting Webots and the gantry…"
+    : (t.twin.bed && t.twin.bed.stopped) ? "E-STOP: the gantry holds its position." : "Simulation running.";
+  const miss = $("#twin-missing");
+  miss.hidden = !t.missing.length;
+  miss.innerHTML = t.missing.map((m) => `<li>${core.esc(m)}</li>`).join("");
+  if (!t.running && t.exit !== undefined && t.exit !== 0 && t.log) {
+    miss.hidden = false;
+    miss.innerHTML += `<li>the simulation ended (exit ${t.exit}): <code>${core.esc(t.log.slice(-3).join(" | "))}</code></li>`;
+  }
+  $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
+  $("#btn-stop").disabled = !t.running;
+  $("#btn-prepare").disabled = t.running;
+  $("#btn-estop").disabled = !ready;
+  $("#btn-estop").textContent = t.twin && t.twin.bed && t.twin.bed.stopped ? "Release e-stop" : "E-stop";
+  $("#axes").textContent = g ? `x ${(g.x * 1000).toFixed(0)} · y ${(g.y * 1000).toFixed(0)} · z ${(g.z * 1000).toFixed(0)} mm` : "";
+  views(!!ready);
+  drawBed(t);
+  drawJobs(t);
 }
 
-/* --------------------------------------------------------------- wire -- */
-
-document.querySelectorAll("#f-title, #f-body, #f-tags").forEach((el) =>
-  el.addEventListener("input", () => { S.dirty = true; }));
-$("#btn-summarise").addEventListener("click", summarise);
-
-if (WORKSPACE) {
-  $("#btn-new").addEventListener("click", () => newNote());
-  $("#btn-save").addEventListener("click", () => saveNote());
-  $("#btn-delete").addEventListener("click", deleteNote);
-  refreshList();
-
-  // Stop and Restart take the server away; unsaved work lives only in this tab.
-  core.setLeavingGuard((verb, go) => core.defaultLeaving(verb, go, S.dirty
-    ? `<b>“${core.esc(S.name || "untitled")}” has unsaved changes</b>, which live only in this tab. Save first to keep them.`
-    : ""));
-  window.addEventListener("beforeunload", (ev) => { if (S.dirty) { ev.preventDefault(); ev.returnValue = ""; } });
+async function refresh() {
+  try { draw(await core.api("GET", "/api/twin")); }
+  catch (err) { $("#twin-status").textContent = (err.errors || ["the page lost its server"])[0]; }
 }
+
+$("#btn-prepare").addEventListener("click", async () => { if (await post("/api/twin/prepare")) core.toast("World written from the habitat"); refresh(); });
+$("#btn-start").addEventListener("click", async () => { await post("/api/twin/start"); refresh(); });
+$("#btn-stop").addEventListener("click", async () => { views(false); await post("/api/twin/stop"); refresh(); });
+$("#btn-estop").addEventListener("click", async () => {
+  await post("/api/twin/estop", { on: $("#btn-estop").textContent === "E-stop" });
+  refresh();
+});
+
+refresh();
+setInterval(refresh, 800);

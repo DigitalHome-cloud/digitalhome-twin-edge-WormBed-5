@@ -4,10 +4,10 @@
 """
 mcp_server.py — MCP access to permtek5-twin-edge.
 
-Exposes the tool over stdio, so an agent can work on the same data a person has
-open in the browser. The pure engine calls run in-process; everything that
-touches files goes through the web server (core.mcp_bridge), which is started
-on demand, so browser and agent never disagree about what is on disk.
+Exposes the twin over stdio, so an agent sees the same simulation a person has
+open in the browser. Everything goes through the web server (core.mcp_bridge),
+which is started on demand; changes go through edge.mcp_tools.act(), which in
+the chat panel makes them proposals the person confirms.
 
     permtek5-twin-edge-mcp                               # talks to 127.0.0.1:8772
     permtek5-twin-edge-mcp --port 9000
@@ -23,8 +23,7 @@ Nothing may be written to stdout: that is the MCP transport. Log to stderr.
 from __future__ import annotations
 
 import argparse
-import urllib.parse
-from typing import Optional
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
@@ -34,74 +33,72 @@ from .core import mcp_bridge as web
 server = MCPServer(
     name="permtek5-twin-edge",
     instructions=(
-        "PermTek-5 Twin Edge" + ". "
-        "A note is a JSON object with a title, a body and optional tags. "
-        "Call validate_note before saving anything you assembled by hand."
-        " Notes live in two folders: 'user' (the person's own, where new saves "
-        "go) and 'shared' (samples that ship with the tool). Pass the version "
-        "read_note returned as base_version when you save, so a change the "
-        "person made in the browser meanwhile is never overwritten silently."
+        "PermTek-5 Twin Edge: a Webots twin of a gantry robot over a habitat's roof bed. "
+        "twin() says whether a world is prepared and the simulation runs, where the gantry "
+        "is, the bed's cells and the jobs proposed. Jobs (sow, water, probe, photograph "
+        "cells) are proposals: twin_confirm sends one, and in the chat panel that is a "
+        "proposal the person confirms first. Never say a job ran before twin() shows it "
+        "done. Cells are named row, column from 1, as the page shows them."
     ),
 )
 
 web.add_core_tools(server)
 
-from .edge.mcp_tools import add_edge_tools  # edge layer
+from .edge.mcp_tools import act, add_edge_tools  # edge layer
 add_edge_tools(server)
 
 
 @server.tool()
-def validate_note(note: dict) -> list[str]:
-    """Everything wrong with a note. An empty list means it is valid."""
-    return engine.validate(note)
+def check_habitat(ttl: str = "") -> list[str]:
+    """What stops a habitat (its A-Box in Turtle) from being simulated. Empty
+    text checks the invented CityDemo. An empty list means it is ready."""
+    return engine.check(ttl or engine.habitat_ttl(None))
 
 
 @server.tool()
-def summarise_note(note: dict) -> dict:
-    """Word and line counts and the distinct tags of a valid note."""
-    errors = engine.validate(note)
-    if errors:
-        # web.ToolError, not ValueError: only this kind reaches the agent's model
-        raise web.ToolError("; ".join(errors))
-    return engine.summarise(note)
-
-
-def _qualify(name: str, folder: str) -> str:
-    path = f"/api/notes/{urllib.parse.quote(name)}"
-    return f"{path}?folder={urllib.parse.quote(folder)}" if folder else path
-
-
-@server.tool()
-def list_notes() -> list[dict]:
-    """Every saved note, with its folder and version."""
+def twin() -> dict:
+    """The twin now: prepared or not, running or not, what is missing to start
+    it, the gantry's position (m), the running job, the last jobs, the bed
+    (rows, columns, planted cells) and the proposed jobs with their ids."""
     web.ensure_server()
-    return web.call("GET", "/api/notes")
+    t = web.call("GET", "/api/twin")
+    t.pop("config", None)                       # every cell with its job: too long to be useful here
+    if t.get("twin"):
+        cells = (t["twin"].get("bed") or {}).pop("cells", {})
+        t["twin"]["cells"] = {"sown or growing": sum(1 for c in cells.values() if c["status"] != "CellPlanned"),
+                              "driest %": min((c["moisture"] for c in cells.values()), default=None)}
+    return t
 
 
 @server.tool()
-def read_note(name: str, folder: str = "") -> dict:
-    """One note: {name, folder, version, data}. With no folder, the user's
-    copy wins over a shared one of the same name."""
-    web.ensure_server()
-    return web.call("GET", _qualify(name, folder))
+def twin_prepare() -> Any:
+    """Write the Webots world from the habitat (CityDemo unless a habitat was synced)."""
+    return act("Twin: prepare the world from the habitat", "POST", "/api/twin/prepare", {})
 
 
 @server.tool()
-def save_note(name: str, note: dict, folder: str = "",
-              base_version: Optional[str] = None) -> dict:
-    """Write a note. With no folder it goes back where it lives, or to 'user'
-    when new. Pass base_version from read_note: a save against a version that
-    has since changed is refused, and the error carries the current content."""
-    web.ensure_server()
-    payload = {"note": note, "folder": folder or None, "base_version": base_version}
-    return web.call("PUT", _qualify(name, ""), payload)
+def twin_start(window: bool = False) -> Any:
+    """Start the simulation (Webots, the gantry, the bed). window=True opens the Webots window."""
+    return act("Twin: start the simulation", "POST", "/api/twin/start", {"gui": window})
 
 
 @server.tool()
-def delete_note(name: str, folder: str = "") -> dict:
-    """Delete a note. Say which folder when the name exists in both."""
+def twin_stop() -> Any:
+    """Stop the simulation."""
+    return act("Twin: stop the simulation", "POST", "/api/twin/stop", {})
+
+
+@server.tool()
+def twin_confirm(proposal: str) -> Any:
+    """Send one proposed job to the gantry, by the id twin() lists (e.g. "plant-5_13", "water", "photo")."""
+    return act(f"Twin: run the proposed job {proposal}", "POST", "/api/twin/job", {"proposal": proposal})
+
+
+@server.tool()
+def twin_estop(on: bool = True) -> Any:
+    """Hold the gantry where it is and abort its job (on=False releases it). Never a proposal: stopping is always allowed."""
     web.ensure_server()
-    return web.call("DELETE", _qualify(name, folder))
+    return web.call("POST", "/api/twin/estop", {"on": on})
 
 
 def main() -> int:

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 D-LAB-5
 """
-app.py — browser front end for engine.py.
+app.py — browser front end for engine.py and the simulation (sim.py).
 
     permtek5-twin-edge-web                       # http://127.0.0.1:8772
     permtek5-twin-edge-web --port 9000
@@ -10,18 +10,20 @@ app.py — browser front end for engine.py.
 
 The page, stop, restart, update and the About box come from core.server; this
 module only adds the tool's own routes, and those only move data between the
-browser and engine or the workspace folders.
+browser, engine and the simulation's gateway.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from typing import Optional
+import urllib.error
+import urllib.request
 
-from flask import abort, jsonify, render_template, request
+from flask import Response, abort, jsonify, render_template, request
 
 from . import engine as engine
+from . import sim
 from .core import server
 from .core import workspace as ws
 
@@ -52,63 +54,110 @@ def favicon():
     return app.send_static_file("favicon.svg")
 
 
-# ---------------------------------------------------------------- engine ----
-
-@app.post("/api/validate")
-def validate():
-    return jsonify({"errors": engine.validate(body().get("note"))})
-
-
-@app.post("/api/summarise")
-def summarise():
-    note = body().get("note")
-    errors = engine.validate(note)
-    if errors:
-        return jsonify({"errors": errors}), 400
-    return jsonify(engine.summarise(note))
-
-
-# ------------------------------------------------------------- workspace ----
+# ------------------------------------------------------------------ twin ----
 #
-# An agent (through MCP) and a person (in the browser) edit the same files, so
-# a save carries the version it was based on, and the server refuses one that
-# would silently overwrite a change the saver never saw (409).
+# The page shows what the twin does and proposes jobs; nothing moves until a
+# person confirms one (POST /api/twin/job). The simulation runs on the ROS
+# side; these routes only pass data between the browser, engine and sim.
 
-@app.get("/api/folders")
-def folders():
-    return jsonify(ws.folders())
-
-
-@app.get("/api/notes")
-def list_notes():
-    return jsonify(ws.listing())
+def _twin_state() -> dict:
+    status = sim.status()
+    cfg = engine.config()
+    bed_state = (status.get("twin") or {}).get("bed")
+    return {**status, **engine.summary(cfg), "config": cfg,
+            "proposals": engine.proposals(cfg, bed_state) if status["running"] else engine.proposals(cfg)}
 
 
-@app.get("/api/notes/<name>")
-def read_note(name: str):
-    return jsonify(ws.read(name, request.args.get("folder") or None))
+@app.get("/api/twin")
+def twin_status():
+    return jsonify(_twin_state())
 
 
-@app.put("/api/notes/<name>")
-def save_note(name: str):
-    data = body()
-    note = data.get("note")
-    errors = engine.validate(note)
-    if errors:
-        return jsonify({"errors": errors}), 400
-    folder: Optional[str] = data.get("folder") or request.args.get("folder") or None
+@app.post("/api/twin/prepare")
+def twin_prepare():
+    """Write the world for a habitat: CityDemo, or Turtle sent in the body."""
+    if sim.running():
+        return jsonify({"errors": ["stop the simulation before preparing another world"]}), 409
+    ttl = body().get("ttl") or engine.habitat_ttl(None)
     try:
-        saved = ws.save(name, note, folder, data.get("base_version"))
-    except ws.Conflict as clash:
-        return jsonify({"errors": ["changed on disk since you opened it"],
-                        "version": clash.current_version,
-                        "note": clash.current}), 409
-    return jsonify(saved)
+        return jsonify(engine.prepare(ttl))
+    except ValueError as exc:
+        return jsonify({"errors": str(exc).split("; ")}), 400
 
 
-@app.delete("/api/notes/<name>")
-def delete_note(name: str):
-    return jsonify(ws.delete(name, request.args.get("folder") or None))
+@app.post("/api/twin/start")
+def twin_start():
+    if engine.config() is None:
+        return jsonify({"errors": ["prepare a world first"]}), 400
+    try:
+        sim.start(engine.workspace(), gui=bool(body().get("gui")))
+    except RuntimeError as exc:
+        return jsonify({"errors": str(exc).split("; ")}), 400
+    return jsonify(_twin_state())
+
+
+@app.post("/api/twin/stop")
+def twin_stop():
+    sim.stop()
+    return jsonify(_twin_state())
+
+
+@app.post("/api/twin/job")
+def twin_job():
+    """Confirm one job: a proposal by its id, or a full spec (plant, water, probe, photo)."""
+    data = body()
+    spec = data.get("spec")
+    if data.get("proposal"):
+        bed_state = (sim.status().get("twin") or {}).get("bed")
+        spec = next((p["spec"] for p in engine.proposals(engine.config(), bed_state) if p["id"] == data["proposal"]), None)
+        if spec is None:
+            return jsonify({"errors": ["that proposal is no longer current"]}), 409
+    if not isinstance(spec, dict):
+        return jsonify({"errors": ["name a proposal or give a job spec"]}), 400
+    try:
+        return jsonify(sim.gateway("/job", spec))
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+@app.post("/api/twin/cancel")
+def twin_cancel():
+    try:
+        return jsonify(sim.gateway("/cancel", {}))
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+@app.post("/api/twin/estop")
+def twin_estop():
+    try:
+        return jsonify(sim.gateway("/estop", {"on": bool(body().get("on", True))}))
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+@app.get("/api/twin/camera/<name>.<ext>")
+def twin_camera(name: str, ext: str):
+    """A robot view, passed through from the gateway: <name>.jpg is one picture, <name>.mjpg a live stream."""
+    if name not in ("tool", "overview") or ext not in ("jpg", "mjpg"):
+        abort(404)
+    try:
+        upstream = urllib.request.urlopen(sim.gateway_url(f"/camera/{name}.{ext}"), timeout=5)
+    except (urllib.error.URLError, OSError):
+        abort(503, "the simulation sends no pictures")
+
+    def chunks():
+        try:
+            while True:
+                data = upstream.read1(65536)
+                if not data:
+                    break
+                yield data
+        finally:
+            upstream.close()
+
+    return Response(chunks(), mimetype=upstream.headers.get("Content-Type", "image/jpeg"),
+                    headers={"Cache-Control": "no-store"})
 
 
 # ------------------------------------------------------------------ main ----
@@ -118,13 +167,16 @@ def main(argv: list | None = None) -> int:
                                  description=__doc__.strip().splitlines()[0])
     server.add_server_args(ap)
     ap.add_argument("--dir", default=ws.FOLDERS[ws.USER].name,
-                    help="your own notes (default: ./mydocs)")
+                    help="your own folder: generated worlds and run data go to its twin/ (default: ./mydocs)")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
 
     ws.configure(user_dir=args.dir)
     lines = [f"  {f['label'].lower():<13} {f['path']}" for f in ws.folders()]
     edge_routes.start_background()  # edge layer
-    return server.serve(app, args, lines=lines)
+    try:
+        return server.serve(app, args, lines=lines)
+    finally:
+        sim.stop()                     # never leave Webots running behind a stopped page
 
 
 if __name__ == "__main__":

@@ -1,63 +1,56 @@
 ---
 name: permtek5-twin-edge
-description: PermTek-5 Twin Edge. Validate and summarise notes (JSON objects with a title, body and tags), and read, save and delete them in the user's folder or the shared samples, from the command line, the permtek5-twin-edge MCP tools or the browser page. Use when someone asks to work with permtek5-twin-edge, or runs `permtek5-twin-edge`. REPLACE this sample description with the tool's real triggers.
+description: PermTek-5 Twin Edge, a Webots twin of a gantry robot over a habitat's roof bed (PermTek-5, permaculture on DigitalHome.Cloud). Check a habitat's Turtle, write its Webots world, start and stop the simulation over ROS 2, watch the robot's camera views, and confirm jobs that sow, water, probe and photograph the bed's cells. Use when someone asks to simulate the roof bed or the gantry, to work with permtek5-twin-edge, or runs `permtek5-twin-edge`.
 ---
 
 # PermTek-5 Twin Edge
 
-<!--
-  The template's sample skill. Rewrite it for the tool, and keep three things
-  true: the frontmatter name stays "permtek5-twin-edge", every `permtek5-twin-edge <command>`
-  line names a subcommand that exists (tests/test_core.py checks), and after
-  editing, `permtek5-twin-edge-skill --sync` copies this file to .claude/skills and
-  plugin/skills. The packaged copy in permtek5_twin_edge/skill/ is the source.
--->
+A local app (http://127.0.0.1:8772) that turns a PermTek-5 habitat into a
+Webots world of one growing bed and its gantry robot, runs it over ROS 2 and
+shows the robot's views. It is an edge of PermTek-5: it can link to the cloud
+and sync the habitat's A-Box. Without a link it runs the invented CityDemo.
 
-PermTek-5 Twin Edge.
+## What it works on
 
-## What a note is
-
-A JSON object:
-
-```json
-{"title": "Kick-off", "body": "Agenda\n- scope\n- dates", "tags": ["project"]}
-```
-
-`title` is required (at most 120 characters), `body` is text, and `tags` is a
-list of strings.
+- A **habitat** is an A-Box in Turtle: zones, growing beds split into square
+  cells, planting cells (crop, status), garden plants (PermTek-5 ADR 0016).
+- A cell's place for the robot: bed coordinates in mm from the corner of
+  row 1 / column 1, x along the length (columns), y across the width (rows),
+  the cell's centre; depth below the soil; seeds per point; spacing.
+- The world (`roofbed.wbt`) and `bed.json` are **outputs** in the workspace
+  (`./mydocs/twin`, git-ignored). Never edit them; prepare again.
 
 ## Working through MCP
 
-The `permtek5-twin-edge` MCP server starts the web server if it is not running, so
-you and the person at the browser work on the same files.
-
-- `validate_note(note)` returns everything wrong with it. Run it before saving
-  anything you put together by hand.
-- `summarise_note(note)` gives word and line counts and the tags.
-- `list_notes()`, `read_note(name, folder)`, `save_note(name, note, folder,
-  base_version)`, `delete_note(name, folder)`.
-- `server_url()` gives the page to hand to a person. `stop_server()` shuts it down.
-
-## Folders
-
-Notes live in two folders. `user` (`./mydocs`, git-ignored) holds
-the person's own. `shared` holds the samples that ship with the tool. A save
-with no folder goes back to where the note already lives, or to `user` when it
-is new. **Always pass the `version` you read as `base_version`:** a save against
-a version that has changed since then is refused (HTTP 409). Read the note again
-and merge, don't overwrite.
+- `twin()`: prepared, running, what is missing, the gantry's position, the
+  running job, the last jobs, and the **proposed jobs** with their ids.
+- `check_habitat(ttl)`: what stops a habitat from being simulated.
+- `twin_prepare()`, `twin_start(window)`, `twin_stop()`.
+- `twin_confirm(proposal)`: send one proposed job (`plant-5_13`, `water`,
+  `probe`, `photo`). In the chat panel this is a proposal the person confirms.
+- `twin_estop(on)`: hold the gantry now. Always allowed.
 
 ## Without MCP
 
 ```bash
-permtek5-twin-edge validate note.json
-permtek5-twin-edge summarise note.json
+permtek5-twin-edge check habitat.ttl
+permtek5-twin-edge world habitat.ttl
+permtek5-twin-edge jobs
 ```
 
-From a checkout, without installing: `python3 -m permtek5_twin_edge.engine summarise note.json`.
-The page is `./run.sh` (http://127.0.0.1:8772), or `permtek5-twin-edge-web` when installed.
+Without a file, CityDemo is used. From a checkout, without installing:
+`python3 -m permtek5_twin_edge.engine world`. The page is `./run.sh`, or
+`permtek5-twin-edge-web` when installed. The simulation needs ROS 2, Webots
+and the built `ros2/` workspace of a source checkout; the page says what is
+missing. `scripts/selftest-twin.py` runs the whole loop end to end.
 
 ## Judgement
 
-- Say what you changed and where it was saved (folder and name).
-- Never delete a shared sample unless you were asked to.
+- The robot proposes, a person confirms. Never report a job as done before
+  `twin()` shows it in the done list; a failed job says why (e.g. a cell
+  outside the bed is refused by the soft limit).
+- One job at a time. A second one is refused while one runs.
+- Whether it is the right month to sow is PermTek-5's calendar; this tool
+  only says what the gantry would do at a cell.
+- A real habitat synced from the cloud is private: keep its data out of the
+  repository and out of answers that leave this machine.

@@ -1,33 +1,51 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright (C) 2026 D-LAB-5
 
-   The tool's own styles, on top of core/static/core.css. Tokens from core.css
-   (--paper, --panel, --ink, --muted, --edge, --accent, --danger …) are
-   available; add your own below. */
+   The twin's own styles, on top of core/static/core.css. Tokens from core.css
+   (--paper, --panel, --ink, --muted, --edge, --accent, --danger …). */
 
 .layout {
-  display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 16px;
-  max-width: 1100px; margin: 0 auto; padding: 18px 16px 60px;
+  display: grid; grid-template-columns: 1fr minmax(240px, 320px); gap: 16px;
+  max-width: 1280px; margin: 0 auto; padding: 18px 16px 60px;
 }
-.layout:not(:has(.side)) { grid-template-columns: 1fr; max-width: 760px; }
-@media (max-width: 640px) { .layout { grid-template-columns: 1fr; } }
+.layout > .panel { grid-column: 1 / -1; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 
-.side h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-.note-list { display: flex; flex-direction: column; gap: 4px; }
-.note-list .row { display: flex; justify-content: space-between; gap: 8px; text-align: left; }
-.note-list .row.is-on { border-color: var(--accent); background: var(--panel-2); }
-.tag { font-size: 11px; color: var(--muted); }
+.twin { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.twin h3, .side h3 { margin: 6px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.tag { font-size: 11px; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 400; }
 
-.editor { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.editor label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-.editor input, .editor textarea { color: var(--ink); font-size: 14px; }
-.editor textarea { resize: vertical; font-family: var(--mono); font-size: 13px; }
-.actions { display: flex; align-items: center; gap: 8px; }
-.summary {
-  margin: 0; padding: 10px; background: var(--panel-2);
-  border: 1px solid var(--edge); border-radius: 6px; font-size: 12px;
+.views { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; }
+@media (max-width: 640px) { .views { grid-template-columns: 1fr; } }
+.views figure { margin: 0; }
+.views img, .view-off {
+  display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover;
+  border: 1px solid var(--edge); border-radius: 6px; background: var(--panel-2);
 }
+.views img[hidden], .view-off[hidden] { display: none; }
+.view-off { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+.views figcaption { font-size: 12px; color: var(--muted); padding-top: 4px; }
+
+.bed-scroll { overflow-x: auto; padding-bottom: 4px; }
+.bed { display: grid; gap: 1px; width: max-content; background: var(--edge); border: 1px solid var(--edge); }
+.cell { display: inline-block; width: 1.15rem; height: 1.15rem; background: var(--panel-2); box-sizing: border-box; }
+.cell.planned { background: repeating-linear-gradient(45deg, var(--panel-2) 0 3px, var(--muted) 3px 4px); }
+.cell.sown { box-shadow: inset 0 0 0 5px var(--panel-2); }
+.cell.harvested { opacity: .35; }
+.cell.head { outline: 2px solid var(--ink); outline-offset: -2px; }
+.legend .cell { width: .8rem; height: .8rem; vertical-align: -1px; margin-left: 8px; }
+.legend .cell.sown, .legend .cell.growing { background: var(--accent); }
+
+.side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.job { padding: 8px 10px; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel-2); }
+.proposals { display: flex; flex-direction: column; gap: 6px; max-height: 22rem; overflow-y: auto; }
+.proposal {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--edge); border-radius: 6px; font-size: 13px;
+}
+.history { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.history .bad { color: var(--danger); }
 .disclaimer {
-  margin: 0; padding: 8px 10px; font-size: 12px;
+  margin: 0; padding: 8px 10px 8px 26px; font-size: 12px;
   border-left: 3px solid var(--warn); background: var(--panel-2); border-radius: 4px;
 }
