@@ -1,0 +1,29 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix dwc:     <http://rs.tdwg.org/dwc/terms/> .
+
+# ============================================================
+# perma-core, taxon links, v0.1: how a taxon (dwc:Taxon, keyed by its GBIF
+# IRI) is linked to the French reference TAXREF and to Wikidata.
+# To merge into perma-bio when that file joins this folder. Taxa are never
+# copied in: only identifiers, names for search, and statuses with dates.
+# skos:exactMatch links the same taxon in Wikidata and TAXREF.
+# ============================================================
+
+<https://permaculture.digitalhome.cloud/ontology/taxa>
+    a owl:Ontology ;
+    rdfs:label "perma-core: taxon links"@en , "perma-core: Taxon-Verknüpfungen"@de , "perma-core : liens taxonomiques"@fr ;
+    owl:versionInfo "0.1.0" .
+
+perma:taxrefId a owl:DatatypeProperty ;
+    rdfs:domain dwc:Taxon ; rdfs:range xsd:string ;
+    rdfs:label "TAXREF ID (CD_NOM)"@en , "TAXREF-ID (CD_NOM)"@de , "identifiant TAXREF (CD_NOM)"@fr ;
+    rdfs:comment "The taxon's number in TAXREF, the French national taxonomic reference (MNHN), as Wikidata records it (P3186)."@en .
+
+perma:iucnGlobalStatus a owl:ObjectProperty ;
+    rdfs:domain dwc:Taxon ;
+    rdfs:label "IUCN global status"@en , "globaler IUCN-Status"@de , "statut UICN mondial"@fr ;
+    rdfs:comment "The global IUCN Red List category, as a Wikidata item (P141). French protection and regional red-list statuses come from TAXREF's status file, not from here."@en .

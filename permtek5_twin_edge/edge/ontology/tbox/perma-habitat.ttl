@@ -1,0 +1,150 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+
+# ============================================================
+# perma-core, habitat module, v0.1: the places of one habitat (a DHC home,
+# ADR 0015) and what grows there, as its owners map it.
+#
+#   - a GARDEN ZONE: the roof, the garden, a balcony. Its exposure and a
+#     microclimate offset adjust the area's climate (a roof is warmer and
+#     windier than the street).
+#   - a GROWING BED in a zone, split into square cells: the grid a person
+#     plants by hand today and a gantry robot can work later.
+#   - a PLANTING CELL: where one plant or sowing point stands. Only planted
+#     cells are stored; the crop's spacing gives how many cells it covers.
+#   - a GARDEN PLANT: a plant kept for years at one spot, e.g. a fruit tree.
+#     Positions are in metres inside its zone, never geographic.
+#
+# The things are the habitat's own (id space of the app); crops are linked
+# from the shared library by IRI. Namespace provisional, as the other modules.
+# ============================================================
+
+<https://permaculture.digitalhome.cloud/ontology/habitat>
+    a owl:Ontology ;
+    rdfs:label "perma-core: habitat"@en , "perma-core: Lebensraum"@de , "perma-core : habitat"@fr ;
+    dcterms:description "Zones, growing beds with their cells, and long-lived plants of one habitat."@en ;
+    owl:versionInfo "0.1.0" .
+
+# ------------------------------------------------------------ classes
+
+perma:GardenZone a owl:Class ;
+    rdfs:label "Garden zone"@en , "Gartenbereich"@de , "Zone de jardin"@fr ;
+    rdfs:comment "A part of the habitat with one microclimate: the roof, the garden, a balcony."@en .
+
+perma:GrowingBed a owl:Class ;
+    rdfs:label "Growing bed"@en , "Beet"@de , "Planche de culture"@fr ;
+    rdfs:comment "A rectangular bed in a zone, split into square cells (row 0 and column 0 at one corner)."@en .
+
+perma:PlantingCell a owl:Class ;
+    rdfs:label "Planting cell"@en , "Pflanzzelle"@de , "Case de plantation"@fr ;
+    rdfs:comment "Where one plant or sowing point of a bed stands, with its crop and how far it has got."@en .
+
+perma:GardenPlant a owl:Class ;
+    rdfs:label "Garden plant"@en , "Gartenpflanze"@de , "Plante du jardin"@fr ;
+    rdfs:comment "A plant kept for years at one spot of a zone, e.g. a fruit tree or a currant bush."@en .
+
+# ------------------------------------------------------------ zones
+
+perma:zoneKind a owl:ObjectProperty ;
+    rdfs:domain perma:GardenZone ; rdfs:range skos:Concept ;
+    rdfs:label "kind of zone"@en , "Art des Bereichs"@de , "type de zone"@fr ;
+    rdfs:comment "One concept from perma:ZoneKinds."@en .
+
+perma:exposure a owl:ObjectProperty ;
+    rdfs:domain perma:GardenZone ; rdfs:range skos:Concept ;
+    rdfs:label "exposure"@en , "Lage"@de , "exposition"@fr ;
+    rdfs:comment "Concepts from perma:Exposures: sun, half shade, shade, windy."@en .
+
+perma:areaM2 a owl:DatatypeProperty ;
+    rdfs:domain perma:GardenZone ; rdfs:range xsd:decimal ;
+    rdfs:label "area (m²)"@en , "Fläche (m²)"@de , "surface (m²)"@fr .
+
+perma:microclimateOffsetC a owl:DatatypeProperty ;
+    rdfs:domain perma:GardenZone ; rdfs:range xsd:decimal ;
+    rdfs:label "microclimate offset (°C)"@en , "Mikroklima-Abweichung (°C)"@de , "écart microclimatique (°C)"@fr ;
+    rdfs:comment "Added to the area's monthly temperatures for this zone: about +1 on a roof, 0 in an open garden, below 0 in a frost hollow."@en .
+
+perma:inZone a owl:ObjectProperty ;
+    rdfs:range perma:GardenZone ;
+    rdfs:label "in zone"@en , "im Bereich"@de , "dans la zone"@fr .
+
+# ------------------------------------------------------------ beds and cells
+
+perma:lengthCm a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "length (cm)"@en , "Länge (cm)"@de , "longueur (cm)"@fr ;
+    rdfs:comment "Along the columns."@en .
+
+perma:widthCm a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "width (cm)"@en , "Breite (cm)"@de , "largeur (cm)"@fr ;
+    rdfs:comment "Along the rows."@en .
+
+perma:substrateDepthCm a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "substrate depth (cm)"@en , "Substrattiefe (cm)"@de , "profondeur du substrat (cm)"@fr .
+
+perma:cellSizeCm a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "cell size (cm)"@en , "Zellgröße (cm)"@de , "taille de case (cm)"@fr .
+
+perma:inBed a owl:ObjectProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range perma:GrowingBed ;
+    rdfs:label "in bed"@en , "im Beet"@de , "dans la planche"@fr .
+
+perma:row a owl:DatatypeProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range xsd:integer ;
+    rdfs:label "row"@en , "Reihe"@de , "rangée"@fr .
+
+perma:col a owl:DatatypeProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range xsd:integer ;
+    rdfs:label "column"@en , "Spalte"@de , "colonne"@fr .
+
+perma:grows a owl:ObjectProperty ;
+    rdfs:range perma:Crop ;
+    rdfs:label "grows"@en , "trägt"@de , "porte"@fr ;
+    rdfs:comment "The crop of the library a cell or a garden plant grows."@en .
+
+perma:cellStatus a owl:ObjectProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range skos:Concept ;
+    rdfs:label "status"@en , "Stand"@de , "état"@fr ;
+    rdfs:comment "One concept from perma:CellStatuses: planned, sown, growing, harvested."@en .
+
+perma:cellSowingDepthMm a owl:DatatypeProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range xsd:integer ;
+    rdfs:label "sowing depth here (mm)"@en , "Saattiefe hier (mm)"@de , "profondeur de semis ici (mm)"@fr ;
+    rdfs:comment "Only when this cell differs from the crop's perma:sowingDepthMm."@en .
+
+perma:cellSeedsPerPoint a owl:DatatypeProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range xsd:integer ;
+    rdfs:label "seeds here"@en , "Samen hier"@de , "graines ici"@fr ;
+    rdfs:comment "Only when this cell differs from the crop's perma:seedsPerPoint."@en .
+
+perma:sownOn a owl:DatatypeProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range xsd:date ;
+    rdfs:label "sown on"@en , "gesät am"@de , "semé le"@fr .
+
+# ------------------------------------------------------------ garden plants
+
+perma:plantedYear a owl:DatatypeProperty ;
+    rdfs:domain perma:GardenPlant ; rdfs:range xsd:integer ;
+    rdfs:label "planted in"@en , "gepflanzt"@de , "planté en"@fr .
+
+perma:rootstock a owl:DatatypeProperty ;
+    rdfs:domain perma:GardenPlant ; rdfs:range xsd:string ;
+    rdfs:label "rootstock"@en , "Unterlage"@de , "porte-greffe"@fr ;
+    rdfs:comment "For a grafted tree: the rootstock, which sets its size (e.g. Quince A, St Julien A, Gisela 5)."@en .
+
+perma:xM a owl:DatatypeProperty ;
+    rdfs:domain perma:GardenPlant ; rdfs:range xsd:decimal ;
+    rdfs:label "x (m)"@en , "x (m)"@de , "x (m)"@fr ;
+    rdfs:comment "Metres from the zone's left edge, on the zone's own sketch."@en .
+
+perma:yM a owl:DatatypeProperty ;
+    rdfs:domain perma:GardenPlant ; rdfs:range xsd:decimal ;
+    rdfs:label "y (m)"@en , "y (m)"@de , "y (m)"@fr ;
+    rdfs:comment "Metres from the zone's top edge, on the zone's own sketch."@en .

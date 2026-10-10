@@ -1,0 +1,91 @@
+@prefix perma: <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+
+# ============================================================
+# perma-core, vegetation concept schemes, v0.1
+#
+# New classes of vegetation are added HERE, as data. Each concept needs an
+# English prefLabel (the master); German and French are expected.
+# ============================================================
+
+# ------------------------------------------------------------ vegetation classes
+
+perma:VegetationClasses a skos:ConceptScheme ;
+    skos:prefLabel "Vegetation classes"@en , "Vegetationsklassen"@de , "Classes de végétation"@fr ;
+    skos:hasTopConcept perma:WoodyVegetation , perma:HerbaceousVegetation , perma:BareSoil .
+
+perma:WoodyVegetation a skos:Concept ; skos:inScheme perma:VegetationClasses ;
+    skos:topConceptOf perma:VegetationClasses ;
+    skos:prefLabel "Woody vegetation"@en , "Gehölze"@de , "Végétation ligneuse"@fr .
+
+perma:Tree a skos:Concept ; skos:inScheme perma:VegetationClasses ; skos:broader perma:WoodyVegetation ;
+    skos:prefLabel "Tree"@en , "Baum"@de , "Arbre"@fr ;
+    skos:definition "A woody plant with a trunk, usually above 5 m, with a canopy."@en .
+
+perma:Shrub a skos:Concept ; skos:inScheme perma:VegetationClasses ; skos:broader perma:WoodyVegetation ;
+    skos:prefLabel "Shrub"@en , "Strauch"@de , "Arbuste"@fr ;
+    skos:definition "A woody plant with several stems, usually below 5 m."@en .
+
+perma:Hedge a skos:Concept ; skos:inScheme perma:VegetationClasses ; skos:broader perma:WoodyVegetation ;
+    skos:prefLabel "Hedge"@en , "Hecke"@de , "Haie"@fr ;
+    skos:definition "A line of shrubs and small trees, planted or grown along a boundary."@en .
+
+perma:Bramble a skos:Concept ; skos:inScheme perma:VegetationClasses ; skos:broader perma:WoodyVegetation ;
+    skos:prefLabel "Bramble thicket"@en , "Brombeergestrüpp"@de , "Roncier"@fr ;
+    skos:definition "A dense thicket of brambles (Rubus) or similar thorny scrub; impassable for people and small machines."@en .
+
+perma:HerbaceousVegetation a skos:Concept ; skos:inScheme perma:VegetationClasses ;
+    skos:topConceptOf perma:VegetationClasses ;
+    skos:prefLabel "Herbaceous vegetation"@en , "Krautige Vegetation"@de , "Végétation herbacée"@fr .
+
+perma:Meadow a skos:Concept ; skos:inScheme perma:VegetationClasses ; skos:broader perma:HerbaceousVegetation ;
+    skos:prefLabel "Meadow"@en , "Wiese"@de , "Prairie"@fr ;
+    skos:definition "Grassland kept short by mowing or grazing."@en .
+
+perma:TallGrass a skos:Concept ; skos:inScheme perma:VegetationClasses ; skos:broader perma:HerbaceousVegetation ;
+    skos:prefLabel "Tall grass"@en , "Hochgras"@de , "Herbes hautes"@fr ;
+    skos:definition "Unmown grassland and tall herbs, roughly knee-high or more."@en .
+
+perma:Crop a skos:Concept ; skos:inScheme perma:VegetationClasses ; skos:broader perma:HerbaceousVegetation ;
+    skos:prefLabel "Crop bed"@en , "Beet"@de , "Planche de culture"@fr ;
+    skos:definition "Vegetables, herbs or green manure grown in beds."@en .
+
+perma:BareSoil a skos:Concept ; skos:inScheme perma:VegetationClasses ;
+    skos:topConceptOf perma:VegetationClasses ;
+    skos:prefLabel "Bare soil"@en , "Offener Boden"@de , "Sol nu"@fr ;
+    skos:definition "Soil without plant cover: paths, freshly worked ground, erosion scars."@en .
+
+# ------------------------------------------------------------ vegetation statuses
+
+perma:VegetationStatuses a skos:ConceptScheme ;
+    skos:prefLabel "Vegetation statuses"@en , "Vegetationsstatus"@de , "Statuts de la végétation"@fr ;
+    skos:hasTopConcept perma:Existing , perma:Planted , perma:Planned .
+
+perma:Existing a skos:Concept ; skos:inScheme perma:VegetationStatuses ; skos:topConceptOf perma:VegetationStatuses ;
+    skos:prefLabel "Existing"@en , "Bestand"@de , "Existant"@fr ;
+    skos:definition "Was there before the design: wild, self-sown or inherited."@en .
+
+perma:Planted a skos:Concept ; skos:inScheme perma:VegetationStatuses ; skos:topConceptOf perma:VegetationStatuses ;
+    skos:prefLabel "Planted"@en , "Gepflanzt"@de , "Planté"@fr ;
+    skos:definition "Planted or sown as part of the design."@en .
+
+perma:Planned a skos:Concept ; skos:inScheme perma:VegetationStatuses ; skos:topConceptOf perma:VegetationStatuses ;
+    skos:prefLabel "Planned"@en , "Geplant"@de , "Prévu"@fr ;
+    skos:definition "In the design, not in the ground yet."@en .
+
+# ------------------------------------------------------------ map statuses
+
+perma:MapStatuses a skos:ConceptScheme ;
+    skos:prefLabel "Map statuses"@en , "Kartenstatus"@de , "Statuts cartographiques"@fr ;
+    skos:hasTopConcept perma:ToConfirm , perma:Confirmed , perma:Rejected ;
+    skos:note "Mirrors perma-core's Suggested / Confirmed / Rejected for map entries; to be merged with that scheme when perma-core joins this folder."@en .
+
+perma:ToConfirm a skos:Concept ; skos:inScheme perma:MapStatuses ; skos:topConceptOf perma:MapStatuses ;
+    skos:prefLabel "To confirm"@en , "Zu bestätigen"@de , "À confirmer"@fr ;
+    skos:definition "Traced from a plan or an aerial photo, or suggested by a rover; nobody has checked it on site yet."@en .
+
+perma:Confirmed a skos:Concept ; skos:inScheme perma:MapStatuses ; skos:topConceptOf perma:MapStatuses ;
+    skos:prefLabel "Confirmed"@en , "Bestätigt"@de , "Confirmé"@fr .
+
+perma:Rejected a skos:Concept ; skos:inScheme perma:MapStatuses ; skos:topConceptOf perma:MapStatuses ;
+    skos:prefLabel "Rejected"@en , "Verworfen"@de , "Rejeté"@fr .

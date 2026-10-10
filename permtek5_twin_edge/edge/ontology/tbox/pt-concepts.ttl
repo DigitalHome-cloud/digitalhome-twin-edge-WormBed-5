@@ -1,4 +1,4 @@
-@prefix app:     <https://template.dlab5.net/ontology#> .
+@prefix app:     <https://permtek-5.digitalhome.cloud/ontology#> .
 @prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
 
 # ============================================================

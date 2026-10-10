@@ -1,0 +1,85 @@
+@prefix perma: <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix crop:  <https://permaculture.digitalhome.cloud/id/> .
+@prefix id:    <https://permtek-5.digitalhome.cloud/id/> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# CityDemo: an INVENTED city habitat, like everything in this public repository.
+# A small flat roof with one bed (3 m x 1.2 m, 10 cm cells: 12 rows, 30 columns)
+# and a small back garden with three fruit trees. Positions are metres inside
+# each zone, never geographic.
+
+id:zone-z-cityroof a perma:GardenZone ; rdfs:label "Flat roof" ;
+    perma:zoneKind perma:RoofZone ; perma:exposure perma:FullSun , perma:Windy ;
+    perma:areaM2 12.0 ; perma:microclimateOffsetC 1.0 .
+
+id:zone-z-citygarden a perma:GardenZone ; rdfs:label "Back garden" ;
+    perma:zoneKind perma:GroundZone ; perma:exposure perma:HalfShade ;
+    perma:areaM2 60.0 ; perma:microclimateOffsetC 0.0 .
+
+id:bed-b-citybed a perma:GrowingBed ; rdfs:label "Roof bed" ; perma:inZone id:zone-z-cityroof ;
+    perma:lengthCm 300 ; perma:widthCm 120 ; perma:substrateDepthCm 25 ; perma:cellSizeCm 10 .
+
+id:cell-c001 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 1 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c002 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 4 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c003 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 7 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c004 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 4 ; perma:col 1 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c005 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 4 ; perma:col 4 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c006 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 4 ; perma:col 7 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c007 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 7 ; perma:col 1 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c008 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 7 ; perma:col 4 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c009 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 7 ; perma:col 7 ;
+    perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
+id:cell-c010 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 10 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date ; perma:cellSowingDepthMm 15 .
+id:cell-c011 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 11 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c012 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 12 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c013 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 13 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c014 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 14 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c015 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 15 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c016 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 16 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c017 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 17 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c018 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 18 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c019 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 19 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c020 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 20 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c021 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 10 ; perma:col 21 ;
+    perma:grows crop:crop-radish ; perma:cellStatus perma:CellSown ; perma:sownOn "2026-05-02"^^xsd:date .
+id:cell-c022 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 12 ;
+    perma:grows crop:crop-swiss-chard ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-25"^^xsd:date .
+id:cell-c023 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 16 ;
+    perma:grows crop:crop-swiss-chard ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-25"^^xsd:date .
+id:cell-c024 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 5 ; perma:col 13 ;
+    perma:grows crop:crop-rocket ; perma:cellStatus perma:CellPlanned .
+id:cell-c025 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 5 ; perma:col 15 ;
+    perma:grows crop:crop-rocket ; perma:cellStatus perma:CellPlanned .
+id:cell-c026 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 27 ;
+    perma:grows crop:crop-chives ; perma:cellStatus perma:CellGrowing .
+id:cell-c027 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 4 ; perma:col 27 ;
+    perma:grows crop:crop-parsley ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-10"^^xsd:date .
+id:cell-c028 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 8 ; perma:col 26 ;
+    perma:grows crop:crop-tomato ; perma:cellStatus perma:CellPlanned .
+
+id:plant-p-citypear a perma:GardenPlant ; rdfs:label "Pear by the wall" ; perma:inZone id:zone-z-citygarden ;
+    perma:grows crop:crop-pear ; perma:plantedYear 2012 ; perma:rootstock "Quince A" ; perma:xM 2.0 ; perma:yM 1.5 .
+id:plant-p-cityplum a perma:GardenPlant ; rdfs:label "Plum" ; perma:inZone id:zone-z-citygarden ;
+    perma:grows crop:crop-plum ; perma:plantedYear 2018 ; perma:rootstock "St Julien A" ; perma:xM 6.5 ; perma:yM 7.0 .
+id:plant-p-citycherry a perma:GardenPlant ; rdfs:label "Morello on the north fence" ; perma:inZone id:zone-z-citygarden ;
+    perma:grows crop:crop-sour-cherry ; perma:plantedYear 2020 ; perma:rootstock "Colt" ; perma:xM 9.0 ; perma:yM 0.5 .

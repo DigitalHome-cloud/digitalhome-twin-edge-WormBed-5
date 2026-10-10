@@ -1,5 +1,5 @@
-@prefix app:    <https://template.dlab5.net/ontology#> .
-@prefix appsh:  <https://template.dlab5.net/shapes#> .
+@prefix app:    <https://permtek-5.digitalhome.cloud/ontology#> .
+@prefix appsh:  <https://permtek-5.digitalhome.cloud/shapes#> .
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
 @prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
 @prefix schema: <https://schema.org/> .

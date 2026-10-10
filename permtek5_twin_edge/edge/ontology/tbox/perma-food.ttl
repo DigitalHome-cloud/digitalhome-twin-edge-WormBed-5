@@ -1,0 +1,266 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix schema:  <https://schema.org/> .
+@prefix dwc:     <http://rs.tdwg.org/dwc/terms/> .
+
+# ============================================================
+# perma-core, food module, v0.1: crops, their seasons on a site, recipes.
+#
+# Three layers, kept apart because they are shared differently:
+#   - the CROP LIBRARY (perma:Crop): what a crop is, which parts we eat and
+#     the ways each can be kept (fresh, cellar, dried, frozen ...) and for how
+#     long. The same for every project (a global library).
+#   - the SITE CALENDAR (perma:SeasonWindow): when to sow, plant out and
+#     harvest on ONE site. Climate, altitude and exposure make it differ
+#     between projects, so it lives in the site's A-Box.
+#   - RECIPES (schema:Recipe): ingredients linked to crops and parts, so a
+#     recipe can be checked against a site's calendar ("when can I make this
+#     from my garden, and what do I still have to buy?").
+#
+# schema.org already has Recipe, recipeIngredient (text) and
+# recipeInstructions; this file adds only the links to crops and seasons.
+# Namespace provisional, as in perma-vegetation.ttl.
+# ============================================================
+
+<https://permaculture.digitalhome.cloud/ontology/food>
+    a owl:Ontology ;
+    rdfs:label "perma-core: food"@en , "perma-core: Lebensmittel"@de , "perma-core : alimentation"@fr ;
+    dcterms:description "Crops, their seasons on a site, and recipes that use them."@en ;
+    owl:versionInfo "0.1.0" .
+
+# ------------------------------------------------------------ crop library
+
+perma:Crop a owl:Class ;
+    rdfs:label "Crop"@en , "Kulturpflanze"@de , "Culture"@fr ;
+    rdfs:comment "A kind of cultivated plant as gardeners and cooks name it (courgette, onion), linked to its taxon. One entry in the shared crop library."@en .
+
+perma:taxon a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ;
+    rdfs:range dwc:Taxon ;
+    rdfs:label "taxon"@en , "Taxon"@de , "taxon"@fr ;
+    rdfs:comment "The crop's taxon, by GBIF or TAXREF IRI (perma-bio); dwc:scientificName gives the name until then."@en .
+
+perma:yields a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ;
+    rdfs:range perma:HarvestPart ;
+    rdfs:label "yields"@en , "liefert"@de , "produit"@fr .
+
+perma:HarvestPart a owl:Class ;
+    rdfs:label "Harvested part"@en , "Erntegut"@de , "Partie récoltée"@fr ;
+    rdfs:comment "A part of a crop that is harvested and used (the fruit of the courgette, the seed of mustard), with the ways it can be kept."@en .
+
+perma:part a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:label "part"@en , "Pflanzenteil"@de , "partie"@fr ;
+    rdfs:comment "One concept from perma:PlantParts."@en .
+
+perma:keeps a owl:ObjectProperty ;
+    rdfs:domain perma:HarvestPart ;
+    rdfs:range perma:KeepingWay ;
+    rdfs:label "keeps"@en , "hält sich"@de , "se conserve"@fr ;
+    rdfs:comment "One way the part can be kept after the harvest, with how long. Dill leaves: fresh a few days, dried a year."@en .
+
+perma:KeepingWay a owl:Class ;
+    rdfs:label "Way of keeping"@en , "Aufbewahrungsart"@de , "Mode de conservation"@fr ;
+    rdfs:comment "A preservation method and how many months a part keeps that way."@en .
+
+perma:method a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:label "method"@en , "Methode"@de , "méthode"@fr ;
+    rdfs:comment "One concept from perma:PreservationMethods."@en .
+
+perma:storageMonths a owl:DatatypeProperty ;
+    rdfs:domain perma:KeepingWay ;
+    rdfs:range xsd:integer ;
+    rdfs:label "keeps (months)"@en , "haltbar (Monate)"@de , "se conserve (mois)"@fr ;
+    rdfs:comment "How many months after the harvest the part keeps this way. 0 = only in the weeks of the harvest."@en .
+
+# ------------------------------------------------------------ site calendar
+
+perma:SeasonWindow a owl:Class ;
+    rdfs:label "Season window"@en , "Saisonfenster"@de , "Fenêtre saisonnière"@fr ;
+    rdfs:comment "When one garden activity for one crop happens on one site: from month to month (the window may run over the new year)."@en .
+
+perma:forCrop a owl:ObjectProperty ;
+    rdfs:domain perma:SeasonWindow ;
+    rdfs:range perma:Crop ;
+    rdfs:label "for crop"@en , "für Kultur"@de , "pour la culture"@fr .
+
+perma:atSite a owl:ObjectProperty ;
+    rdfs:domain perma:SeasonWindow ;
+    rdfs:label "at site"@en , "am Standort"@de , "sur le site"@fr ;
+    rdfs:comment "The site (tenant) the window holds for. Another site, another calendar."@en .
+
+perma:activity a owl:ObjectProperty ;
+    rdfs:domain perma:SeasonWindow ;
+    rdfs:range skos:Concept ;
+    rdfs:label "activity"@en , "Tätigkeit"@de , "activité"@fr ;
+    rdfs:comment "One concept from perma:GardenActivities."@en .
+
+perma:fromMonth a owl:DatatypeProperty ;
+    rdfs:domain perma:SeasonWindow ; rdfs:range xsd:integer ;
+    rdfs:label "from month"@en , "ab Monat"@de , "à partir du mois"@fr .
+
+perma:toMonth a owl:DatatypeProperty ;
+    rdfs:domain perma:SeasonWindow ; rdfs:range xsd:integer ;
+    rdfs:label "to month"@en , "bis Monat"@de , "jusqu'au mois"@fr .
+
+perma:confirmation a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:label "confirmation"@en , "Bestätigung"@de , "confirmation"@fr ;
+    rdfs:comment "How sure a value is: one concept from perma:MapStatuses (to confirm, confirmed, rejected). A calendar starts from general practice and is confirmed by the site's own harvest records."@en .
+
+perma:basis a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "basis"@en , "Grundlage"@de , "fondement"@fr ;
+    rdfs:comment "Where a value comes from: general practice for a climate, the site's own records, a seed catalogue."@en .
+
+# ------------------------------------------------------------ recipes
+
+perma:usesIngredient a owl:ObjectProperty ;
+    rdfs:domain schema:Recipe ;
+    rdfs:range perma:IngredientUse ;
+    rdfs:label "uses ingredient"@en , "verwendet Zutat"@de , "utilise l'ingrédient"@fr .
+
+perma:IngredientUse a owl:Class ;
+    rdfs:label "Ingredient use"@en , "Zutatenverwendung"@de , "Utilisation d'ingrédient"@fr ;
+    rdfs:comment "One line of a recipe: its text (schema:name, as written), and when it comes from a crop, which crop and which part, and how the recipe accepts it (fresh, dried ...). A line without a crop is bought (vinegar, salt, a curry mix)."@en .
+
+perma:crop a owl:ObjectProperty ;
+    rdfs:domain perma:IngredientUse ; rdfs:range perma:Crop ;
+    rdfs:label "crop"@en , "Kultur"@de , "culture"@fr .
+
+perma:acceptsMethod a owl:ObjectProperty ;
+    rdfs:domain perma:IngredientUse ; rdfs:range skos:Concept ;
+    rdfs:label "accepts"@en , "akzeptiert"@de , "accepte"@fr ;
+    rdfs:comment "How the recipe takes this ingredient: fresh, dried, from the cellar ... (perma:PreservationMethods). Without it, any way the part keeps will do."@en .
+
+perma:preservesAs a owl:ObjectProperty ;
+    rdfs:domain schema:Recipe ; rdfs:range skos:Concept ;
+    rdfs:label "preserves as"@en , "konserviert als"@de , "conserve sous forme de"@fr ;
+    rdfs:comment "When the recipe itself is a way of keeping the harvest: its method (pickled, fermented, bottled)."@en .
+
+perma:shelfLifeDays a owl:DatatypeProperty ;
+    rdfs:domain schema:Recipe ; rdfs:range xsd:integer ;
+    rdfs:label "keeps (days)"@en , "haltbar (Tage)"@de , "se conserve (jours)"@fr ;
+    rdfs:comment "How long the result keeps, as the recipe says it is stored."@en .
+
+# ------------------------------------------------------------ seed saving (keeping the plants)
+
+perma:seedSaving a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ; rdfs:range perma:SeedSaving ;
+    rdfs:label "seed saving"@en , "Saatgutgewinnung"@de , "production de semences"@fr .
+
+perma:SeedSaving a owl:Class ;
+    rdfs:label "Seed saving"@en , "Saatgutgewinnung"@de , "Production de semences"@fr ;
+    rdfs:comment "How to keep a crop going from the garden: how it is propagated, its life cycle, and for seed: pollination, what it crosses with, how far to isolate it, how long the seed stays good."@en .
+
+perma:lifeCycle a owl:ObjectProperty ;
+    rdfs:domain perma:SeedSaving ; rdfs:range skos:Concept ;
+    rdfs:label "life cycle"@en , "Lebenszyklus"@de , "cycle de vie"@fr ;
+    rdfs:comment "One concept from perma:LifeCycles: a biennial only sets seed in its second year."@en .
+
+perma:pollination a owl:ObjectProperty ;
+    rdfs:domain perma:SeedSaving ; rdfs:range skos:Concept ;
+    rdfs:label "pollination"@en , "Bestäubung"@de , "pollinisation"@fr ;
+    rdfs:comment "One concept from perma:PollinationTypes."@en .
+
+perma:crossesWith a owl:DatatypeProperty ;
+    rdfs:domain perma:SeedSaving ; rdfs:range xsd:string ;
+    rdfs:label "crosses with"@en , "kreuzt sich mit"@de , "se croise avec"@fr ;
+    rdfs:comment "What else in the garden or the neighbourhood the crop crosses with (usually everything of the same species)."@en .
+
+perma:isolationM a owl:DatatypeProperty ;
+    rdfs:domain perma:SeedSaving ; rdfs:range xsd:decimal ;
+    rdfs:label "isolation distance (m)"@en , "Isolationsabstand (m)"@de , "distance d'isolement (m)"@fr ;
+    rdfs:comment "Distance from other flowering plants it crosses with, for seed true to type. Bagging or hand pollination replaces it."@en .
+
+perma:seedViabilityYears a owl:DatatypeProperty ;
+    rdfs:domain perma:SeedSaving ; rdfs:range xsd:integer ;
+    rdfs:label "seed stays good (years)"@en , "Keimfähigkeit (Jahre)"@de , "durée germinative (ans)"@fr ;
+    rdfs:comment "Years the seed keeps a useful germination rate, stored cool and dry."@en .
+
+perma:selfSows a owl:DatatypeProperty ;
+    rdfs:domain perma:SeedSaving ; rdfs:range xsd:boolean ;
+    rdfs:label "self-sows"@en , "sät sich selbst aus"@de , "se ressème seul"@fr .
+
+perma:propagation a owl:ObjectProperty ;
+    rdfs:domain perma:SeedSaving ; rdfs:range skos:Concept ;
+    rdfs:label "propagated by"@en , "vermehrt durch"@de , "multiplié par"@fr ;
+    rdfs:comment "How the crop is kept going: concepts from perma:PropagationMethods. Garlic from cloves, apple by grafting (its seed does not come true)."@en .
+
+# ------------------------------------------------------------ what a crop needs (for a calendar from the climate)
+#
+# General-practice thresholds, compared with an area's monthly normals (the
+# mean of the daily minimum, mean and maximum temperature), shifted by a
+# zone's microclimate offset. packages/core/src/calendar.ts derives sowing,
+# planting-out and harvest months from them; every derived month is "to
+# confirm" until the site's own records say otherwise.
+
+perma:growthForm a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ; rdfs:range skos:Concept ;
+    rdfs:label "growth form"@en , "Wuchsform"@de , "port"@fr ;
+    rdfs:comment "For woody crops: perma:Tree or perma:Shrub (perma:VegetationClasses). Their calendar is typical windows, not sowing."@en .
+
+perma:sowMinTempC a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:decimal ;
+    rdfs:label "sow from (mean °C)"@en , "Aussaat ab (Mittel °C)"@de , "semis à partir de (moy. °C)"@fr ;
+    rdfs:comment "Sow outdoors once the monthly mean temperature reaches this. Above every month's mean: start it under cover."@en .
+
+perma:plantOutMinNightC a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:decimal ;
+    rdfs:label "plant out from (nights °C)"@en , "Auspflanzen ab (Nächte °C)"@de , "plantation à partir de (nuits °C)"@fr ;
+    rdfs:comment "For frost-tender crops: plant out once the mean daily minimum reaches this."@en .
+
+perma:boltAboveC a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:decimal ;
+    rdfs:label "bolts above (max °C)"@en , "schießt über (Max °C)"@de , "monte en graines au-dessus de (max °C)"@fr ;
+    rdfs:comment "Do not sow in months whose mean daily maximum is above this: the crop runs to seed (lettuce, spinach, rocket)."@en .
+
+perma:frostTender a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:boolean ;
+    rdfs:label "frost-tender"@en , "frostempfindlich"@de , "craint le gel"@fr .
+
+perma:daysToHarvest a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:integer ;
+    rdfs:label "days to harvest"@en , "Tage bis zur Ernte"@de , "jours jusqu'à la récolte"@fr ;
+    rdfs:comment "From sowing to the first harvest, in good conditions."@en .
+
+perma:spacingCm a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:integer ;
+    rdfs:label "spacing (cm)"@en , "Abstand (cm)"@de , "espacement (cm)"@fr ;
+    rdfs:comment "Distance between plants; in a bed it gives how many cells one plant covers."@en .
+
+perma:typicalWindow a owl:ObjectProperty ;
+    rdfs:domain perma:Crop ; rdfs:range perma:TypicalWindow ;
+    rdfs:label "typical window"@en , "typisches Zeitfenster"@de , "période habituelle"@fr .
+
+perma:TypicalWindow a owl:Class ;
+    rdfs:label "Typical window"@en , "Typisches Zeitfenster"@de , "Période habituelle"@fr ;
+    rdfs:comment "When an activity usually happens for a crop in a stated climate (perma:basis), e.g. pruning or flowering of a fruit tree. A site's own perma:SeasonWindow overrides it."@en .
+
+# ------------------------------------------------------------ how to sow and tend (by hand or by a gantry robot)
+
+perma:sowingDepthMm a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:integer ;
+    rdfs:label "sowing depth (mm)"@en , "Saattiefe (mm)"@de , "profondeur de semis (mm)"@fr ;
+    rdfs:comment "How deep the seed goes; 0 for light germinators pressed onto the surface. A gantry's seeder uses it as its z."@en .
+
+perma:seedsPerPoint a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:integer ;
+    rdfs:label "seeds per point"@en , "Samen je Saatstelle"@de , "graines par poquet"@fr ;
+    rdfs:comment "Seeds sown at one point; the strongest seedling is kept (thinning)."@en .
+
+perma:germinationDays a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:integer ;
+    rdfs:label "days to germinate"@en , "Keimdauer (Tage)"@de , "durée de levée (jours)"@fr ;
+    rdfs:comment "In good conditions; after this, a camera pass can check whether the point came up."@en .
+
+perma:waterMmPerWeek a owl:DatatypeProperty ;
+    rdfs:domain perma:Crop ; rdfs:range xsd:decimal ;
+    rdfs:label "water (mm per week)"@en , "Wasser (mm pro Woche)"@de , "eau (mm par semaine)"@fr ;
+    rdfs:comment "Rain plus watering the crop wants in its growing season; 1 mm is 1 litre per m². Shallow roof beds dry faster."@en .

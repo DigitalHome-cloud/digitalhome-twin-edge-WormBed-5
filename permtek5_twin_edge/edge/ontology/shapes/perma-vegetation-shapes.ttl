@@ -1,0 +1,62 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix permash: <https://permaculture.digitalhome.cloud/shapes#> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix geo:     <http://www.opengis.net/ont/geosparql#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# SHACL shapes for the vegetation map, v0.1. Validate an A-Box TOGETHER
+# with tbox/perma-vegetation-concepts.ttl, so each class and status can be
+# checked against its scheme. Nothing reaches the map, the nest or the twin
+# unless it conforms (design rule 5).
+# ============================================================
+
+permash:InVegetationClasses a sh:NodeShape ;
+    sh:property [ sh:path skos:inScheme ; sh:hasValue perma:VegetationClasses ] .
+permash:InVegetationStatuses a sh:NodeShape ;
+    sh:property [ sh:path skos:inScheme ; sh:hasValue perma:VegetationStatuses ] .
+permash:InMapStatuses a sh:NodeShape ;
+    sh:property [ sh:path skos:inScheme ; sh:hasValue perma:MapStatuses ] .
+
+permash:VegetationUnitShape a sh:NodeShape ;
+    sh:targetClass perma:VegetationUnit , perma:VegetationPatch , perma:Plant ;
+    sh:property [
+        sh:path perma:vegetationClass ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InVegetationClasses ;
+        sh:message "A vegetation unit has exactly one class from perma:VegetationClasses."@en ;
+    ] ;
+    sh:property [
+        sh:path perma:vegetationStatus ; sh:maxCount 1 ; sh:node permash:InVegetationStatuses ;
+        sh:message "A vegetation status is one concept from perma:VegetationStatuses."@en ;
+    ] ;
+    sh:property [
+        sh:path perma:mapStatus ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InMapStatuses ;
+        sh:message "Every unit on the map says how sure it is: one concept from perma:MapStatuses."@en ;
+    ] ;
+    sh:property [
+        sh:path geo:hasGeometry ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A vegetation unit has one geometry."@en ;
+    ] ;
+    sh:property [
+        sh:path perma:heightM ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 60 ;
+        sh:message "Height is one number of metres between 0 and 60."@en ;
+    ] ;
+    sh:property [
+        sh:path perma:canopyRadiusM ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ;
+        sh:message "Canopy radius is one number of metres."@en ;
+    ] ;
+    sh:property [
+        sh:path perma:hasCanopy ; sh:maxCount 1 ; sh:datatype xsd:boolean ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ; sh:minCount 1 ;
+        sh:message "A vegetation unit needs a label a person can read."@en ;
+    ] .
+
+permash:GeometryShape a sh:NodeShape ;
+    sh:targetObjectsOf geo:hasGeometry ;
+    sh:property [
+        sh:path geo:asWKT ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A geometry is given as one WKT literal (local site frame, metres)."@en ;
+    ] .

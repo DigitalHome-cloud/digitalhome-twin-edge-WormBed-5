@@ -1,0 +1,140 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix permash: <https://permaculture.digitalhome.cloud/shapes#> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema:  <https://schema.org/> .
+@prefix dwc:     <http://rs.tdwg.org/dwc/terms/> .
+
+# ============================================================
+# SHACL shapes for crops, site calendars and recipes, v0.1. Validate
+# TOGETHER with tbox/perma-food-concepts.ttl and tbox/perma-vegetation-concepts.ttl
+# (for the confirmation statuses), and with the crop library when checking a
+# calendar or a recipe.
+# ============================================================
+
+permash:InPlantParts a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:PlantParts ] .
+permash:InGardenActivities a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:GardenActivities ] .
+permash:InMapStatusesFood a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:MapStatuses ] .
+
+permash:CropShape a sh:NodeShape ;
+    sh:targetClass perma:Crop ;
+    sh:property [ sh:path rdfs:label ; sh:qualifiedValueShape [ sh:languageIn ( "en" ) ] ; sh:qualifiedMinCount 1 ;
+                  sh:message "A crop needs an English name."@en ] ;
+    sh:property [ sh:path rdfs:label ; sh:qualifiedValueShape [ sh:languageIn ( "fr" ) ] ; sh:qualifiedMinCount 1 ;
+                  sh:message "A crop needs a French name."@en ] ;
+    sh:property [ sh:path rdfs:label ; sh:qualifiedValueShape [ sh:languageIn ( "de" ) ] ; sh:qualifiedMinCount 1 ;
+                  sh:message "A crop needs a German name."@en ] ;
+    sh:property [ sh:path rdfs:label ; sh:qualifiedValueShape [ sh:languageIn ( "la" ) ] ; sh:qualifiedMinCount 1 ;
+                  sh:message "A crop needs its Latin name (rdfs:label @la)."@en ] ;
+    sh:property [ sh:path perma:taxon ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+                  sh:pattern "^https://www\\.gbif\\.org/species/[0-9]+$" ;
+                  sh:message "A crop links at most one GBIF taxon (https://www.gbif.org/species/KEY)."@en ] ;
+    sh:property [ sh:path dwc:scientificName ; sh:minCount 1 ; sh:maxCount 1 ;
+                  sh:message "A crop names its taxon (dwc:scientificName) until perma-bio links the IRI."@en ] ;
+    sh:property [ sh:path perma:yields ; sh:minCount 1 ; sh:node permash:HarvestPartShape ;
+                  sh:message "A crop yields at least one harvested part."@en ] ;
+    sh:property [ sh:path perma:sowMinTempC ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive -5 ; sh:maxInclusive 35 ] ;
+    sh:property [ sh:path perma:plantOutMinNightC ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive -5 ; sh:maxInclusive 25 ] ;
+    sh:property [ sh:path perma:boltAboveC ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 5 ; sh:maxInclusive 45 ] ;
+    sh:property [ sh:path perma:frostTender ; sh:maxCount 1 ; sh:datatype xsd:boolean ] ;
+    sh:property [ sh:path perma:daysToHarvest ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 730 ] ;
+    sh:property [ sh:path perma:spacingCm ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 2000 ] ;
+    sh:property [ sh:path perma:sowingDepthMm ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ; sh:maxInclusive 150 ] ;
+    sh:property [ sh:path perma:seedsPerPoint ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 20 ] ;
+    sh:property [ sh:path perma:germinationDays ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 120 ] ;
+    sh:property [ sh:path perma:waterMmPerWeek ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 100 ] ;
+    sh:property [ sh:path perma:growthForm ; sh:maxCount 1 ; sh:in ( perma:Tree perma:Shrub ) ;
+                  sh:message "A crop's growth form is perma:Tree or perma:Shrub (or none, for herbaceous crops)."@en ] ;
+    sh:property [ sh:path perma:typicalWindow ; sh:node permash:TypicalWindowShape ] .
+
+permash:TypicalWindowShape a sh:NodeShape ;
+    sh:property [ sh:path perma:activity ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InGardenActivities ;
+                  sh:message "A typical window is for one activity from perma:GardenActivities."@en ] ;
+    sh:property [ sh:path perma:part ; sh:maxCount 1 ; sh:node permash:InPlantParts ] ;
+    sh:property [ sh:path perma:fromMonth ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 1 ; sh:maxInclusive 12 ; sh:message "fromMonth is 1..12."@en ] ;
+    sh:property [ sh:path perma:toMonth ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 1 ; sh:maxInclusive 12 ; sh:message "toMonth is 1..12."@en ] ;
+    sh:property [ sh:path perma:confirmation ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InMapStatusesFood ] ;
+    sh:property [ sh:path perma:basis ; sh:minCount 1 ; sh:message "Say for which climate the window is typical (perma:basis)."@en ] .
+
+permash:HarvestPartShape a sh:NodeShape ;
+    sh:property [ sh:path perma:part ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InPlantParts ;
+                  sh:message "A harvested part is one concept from perma:PlantParts."@en ] ;
+    sh:property [ sh:path perma:keeps ; sh:minCount 1 ; sh:node permash:KeepingWayShape ;
+                  sh:message "Say at least one way the part keeps (fresh counts)."@en ] .
+
+permash:InPreservationMethods a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:PreservationMethods ] .
+
+permash:KeepingWayShape a sh:NodeShape ;
+    sh:property [ sh:path perma:method ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InPreservationMethods ;
+                  sh:message "A way of keeping is one concept from perma:PreservationMethods."@en ] ;
+    sh:property [ sh:path perma:storageMonths ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 0 ; sh:maxInclusive 36 ; sh:message "Months it keeps this way, 0..36."@en ] .
+
+permash:SeasonWindowShape a sh:NodeShape ;
+    sh:targetClass perma:SeasonWindow ;
+    sh:property [ sh:path perma:forCrop ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:Crop ;
+                  sh:message "A season window is for one crop of the library."@en ] ;
+    sh:property [ sh:path perma:atSite ; sh:minCount 1 ; sh:maxCount 1 ;
+                  sh:message "A season window holds for one site."@en ] ;
+    sh:property [ sh:path perma:activity ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InGardenActivities ;
+                  sh:message "A season window is for one activity from perma:GardenActivities."@en ] ;
+    sh:property [ sh:path perma:fromMonth ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 1 ; sh:maxInclusive 12 ; sh:message "fromMonth is 1..12."@en ] ;
+    sh:property [ sh:path perma:toMonth ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 1 ; sh:maxInclusive 12 ; sh:message "toMonth is 1..12."@en ] ;
+    sh:property [ sh:path perma:confirmation ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InMapStatusesFood ;
+                  sh:message "Say how sure the window is: one concept from perma:MapStatuses."@en ] .
+
+permash:RecipeShape a sh:NodeShape ;
+    sh:targetClass schema:Recipe ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ; sh:message "A recipe needs a name."@en ] ;
+    sh:property [ sh:path perma:usesIngredient ; sh:minCount 1 ; sh:node permash:IngredientUseShape ;
+                  sh:message "A recipe lists its ingredients as perma:IngredientUse."@en ] ;
+    sh:property [ sh:path perma:preservesAs ; sh:maxCount 1 ; sh:node permash:InPreservationMethods ] ;
+    sh:property [ sh:path perma:shelfLifeDays ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] .
+
+permash:IngredientUseShape a sh:NodeShape ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ; sh:maxCount 1 ;
+                  sh:message "An ingredient keeps its line as written (schema:name)."@en ] ;
+    sh:property [ sh:path perma:crop ; sh:maxCount 1 ; sh:class perma:Crop ] ;
+    sh:property [ sh:path perma:part ; sh:maxCount 1 ; sh:node permash:InPlantParts ] ;
+    sh:property [ sh:path perma:acceptsMethod ; sh:node permash:InPreservationMethods ;
+                  sh:message "An ingredient accepts methods from perma:PreservationMethods."@en ] .
+
+permash:CropNeedsPart a sh:NodeShape ;
+    sh:targetSubjectsOf perma:crop ;
+    sh:property [ sh:path perma:part ; sh:minCount 1 ;
+                  sh:message "An ingredient from a crop says which part of it."@en ] .
+
+permash:InLifeCycles a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:LifeCycles ] .
+permash:InPollinationTypes a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:PollinationTypes ] .
+permash:InPropagationMethods a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:PropagationMethods ] .
+
+# Grown from seed: then say how it is pollinated and how long the seed stays good.
+permash:SeedPropagatedShape a sh:NodeShape ;
+    sh:targetSubjectsOf perma:propagation ;
+    sh:or ( [ sh:not [ sh:property [ sh:path perma:propagation ; sh:hasValue perma:FromSeed ] ] ]
+            [ sh:property [ sh:path perma:pollination ; sh:minCount 1 ] ;
+              sh:property [ sh:path perma:seedViabilityYears ; sh:minCount 1 ] ] ) ;
+    sh:message "A crop kept from seed says how it is pollinated and how long the seed stays good."@en .
+
+permash:SeedSavingShape a sh:NodeShape ;
+    sh:targetObjectsOf perma:seedSaving ;
+    sh:property [ sh:path perma:lifeCycle ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InLifeCycles ;
+                  sh:message "Seed saving says the life cycle (perma:LifeCycles)."@en ] ;
+    sh:property [ sh:path perma:propagation ; sh:minCount 1 ; sh:node permash:InPropagationMethods ;
+                  sh:message "Say how the crop is propagated (perma:PropagationMethods)."@en ] ;
+    sh:property [ sh:path perma:pollination ; sh:maxCount 1 ; sh:node permash:InPollinationTypes ] ;
+    sh:property [ sh:path perma:isolationM ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path perma:seedViabilityYears ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 0 ; sh:maxInclusive 30 ] ;
+    sh:property [ sh:path perma:confirmation ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InMapStatusesFood ] .
+
+permash:TaxonLinkShape a sh:NodeShape ;
+    sh:targetSubjectsOf perma:taxrefId ;
+    sh:property [ sh:path perma:taxrefId ; sh:maxCount 1 ; sh:pattern "^[0-9]+$" ;
+                  sh:message "A taxon has at most one TAXREF ID (CD_NOM, digits)."@en ] .

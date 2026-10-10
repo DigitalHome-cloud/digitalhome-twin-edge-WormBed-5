@@ -1,0 +1,111 @@
+@prefix perma: <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+
+# ============================================================
+# perma-core, food concept schemes, v0.1. New parts and activities are data.
+# ============================================================
+
+perma:PlantParts a skos:ConceptScheme ;
+    skos:prefLabel "Plant parts"@en , "Pflanzenteile"@de , "Parties de plante"@fr ;
+    skos:hasTopConcept perma:Fruit , perma:Bulb , perma:Leaf , perma:Seed , perma:Root , perma:Tuber , perma:Flower .
+
+perma:Fruit a skos:Concept ; skos:inScheme perma:PlantParts ; skos:topConceptOf perma:PlantParts ;
+    skos:prefLabel "Fruit"@en , "Frucht"@de , "Fruit"@fr .
+perma:Bulb a skos:Concept ; skos:inScheme perma:PlantParts ; skos:topConceptOf perma:PlantParts ;
+    skos:prefLabel "Bulb"@en , "Zwiebel"@de , "Bulbe"@fr .
+perma:Leaf a skos:Concept ; skos:inScheme perma:PlantParts ; skos:topConceptOf perma:PlantParts ;
+    skos:prefLabel "Leaf"@en , "Blatt"@de , "Feuille"@fr .
+perma:Seed a skos:Concept ; skos:inScheme perma:PlantParts ; skos:topConceptOf perma:PlantParts ;
+    skos:prefLabel "Seed"@en , "Samen"@de , "Graine"@fr .
+perma:Root a skos:Concept ; skos:inScheme perma:PlantParts ; skos:topConceptOf perma:PlantParts ;
+    skos:prefLabel "Root"@en , "Wurzel"@de , "Racine"@fr .
+perma:Tuber a skos:Concept ; skos:inScheme perma:PlantParts ; skos:topConceptOf perma:PlantParts ;
+    skos:prefLabel "Tuber"@en , "Knolle"@de , "Tubercule"@fr .
+perma:Flower a skos:Concept ; skos:inScheme perma:PlantParts ; skos:topConceptOf perma:PlantParts ;
+    skos:prefLabel "Flower"@en , "Blüte"@de , "Fleur"@fr .
+
+perma:GardenActivities a skos:ConceptScheme ;
+    skos:prefLabel "Garden activities"@en , "Gartenarbeiten"@de , "Travaux du jardin"@fr ;
+    skos:hasTopConcept perma:SowIndoors , perma:SowOutdoors , perma:PlantOut , perma:Harvest , perma:SaveSeed ,
+                       perma:Flowering , perma:WinterPrune , perma:SummerPrune .
+
+perma:SowIndoors a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Sow under cover"@en , "Vorziehen"@de , "Semis sous abri"@fr .
+perma:SowOutdoors a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Sow outdoors"@en , "Direktsaat"@de , "Semis en pleine terre"@fr .
+perma:PlantOut a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Plant out"@en , "Auspflanzen"@de , "Plantation"@fr .
+perma:Harvest a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Harvest"@en , "Ernte"@de , "Récolte"@fr .
+
+perma:PreservationMethods a skos:ConceptScheme ;
+    skos:prefLabel "Preservation methods"@en , "Konservierungsarten"@de , "Modes de conservation"@fr ;
+    skos:hasTopConcept perma:Fresh , perma:Cellar , perma:Dried , perma:Frozen , perma:Pickled ,
+                       perma:Fermented , perma:Bottled , perma:Macerated .
+
+perma:Fresh a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Fresh"@en , "Frisch"@de , "Frais"@fr ;
+    skos:definition "Used in the days or weeks after the harvest."@en .
+perma:Cellar a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Cellar storage"@en , "Einlagern"@de , "Conservation en cave"@fr ;
+    skos:definition "Kept whole, cool, dark and dry or humid as the crop needs (onions, roots, squash, apples)."@en .
+perma:Dried a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Dried"@en , "Getrocknet"@de , "Séché"@fr ;
+    skos:definition "Air- or sun-dried, or in a dryer (herbs, seeds, peppers, beans)."@en .
+perma:Frozen a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Frozen"@en , "Eingefroren"@de , "Congelé"@fr .
+perma:Pickled a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Pickled in vinegar"@en , "In Essig eingelegt"@de , "Au vinaigre"@fr .
+perma:Fermented a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Lacto-fermented"@en , "Milchsauer vergoren"@de , "Lacto-fermenté"@fr .
+perma:Bottled a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Bottled (sterilised)"@en , "Eingekocht"@de , "Stérilisé en bocaux"@fr .
+
+perma:SaveSeed a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Save seed"@en , "Saatgut ernten"@de , "Récolte des semences"@fr .
+
+perma:LifeCycles a skos:ConceptScheme ;
+    skos:prefLabel "Life cycles"@en , "Lebenszyklen"@de , "Cycles de vie"@fr ;
+    skos:hasTopConcept perma:Annual , perma:Biennial , perma:Perennial .
+perma:Annual a skos:Concept ; skos:inScheme perma:LifeCycles ; skos:topConceptOf perma:LifeCycles ;
+    skos:prefLabel "Annual"@en , "Einjährig"@de , "Annuelle"@fr .
+perma:Biennial a skos:Concept ; skos:inScheme perma:LifeCycles ; skos:topConceptOf perma:LifeCycles ;
+    skos:prefLabel "Biennial"@en , "Zweijährig"@de , "Bisannuelle"@fr ;
+    skos:definition "Sets seed in its second year: keep the best plants (or bulbs, roots) over winter and replant them."@en .
+perma:Perennial a skos:Concept ; skos:inScheme perma:LifeCycles ; skos:topConceptOf perma:LifeCycles ;
+    skos:prefLabel "Perennial"@en , "Mehrjährig"@de , "Vivace"@fr .
+
+perma:PollinationTypes a skos:ConceptScheme ;
+    skos:prefLabel "Pollination"@en , "Bestäubung"@de , "Pollinisation"@fr ;
+    skos:hasTopConcept perma:SelfPollinating , perma:InsectPollinated , perma:WindPollinated .
+perma:SelfPollinating a skos:Concept ; skos:inScheme perma:PollinationTypes ; skos:topConceptOf perma:PollinationTypes ;
+    skos:prefLabel "Mostly self-pollinating"@en , "Überwiegend selbstbestäubend"@de , "Surtout autogame"@fr .
+perma:InsectPollinated a skos:Concept ; skos:inScheme perma:PollinationTypes ; skos:topConceptOf perma:PollinationTypes ;
+    skos:prefLabel "Insect-pollinated"@en , "Insektenbestäubt"@de , "Pollinisation par les insectes"@fr .
+perma:WindPollinated a skos:Concept ; skos:inScheme perma:PollinationTypes ; skos:topConceptOf perma:PollinationTypes ;
+    skos:prefLabel "Wind-pollinated"@en , "Windbestäubt"@de , "Pollinisation par le vent"@fr .
+perma:Macerated a skos:Concept ; skos:inScheme perma:PreservationMethods ; skos:topConceptOf perma:PreservationMethods ;
+    skos:prefLabel "Macerated in alcohol"@en , "In Alkohol angesetzt"@de , "Macéré dans l'alcool"@fr .
+
+perma:PropagationMethods a skos:ConceptScheme ;
+    skos:prefLabel "Propagation methods"@en , "Vermehrungsarten"@de , "Modes de multiplication"@fr ;
+    skos:hasTopConcept perma:FromSeed , perma:FromCloves , perma:FromCuttings , perma:ByDivision , perma:ByGrafting .
+perma:FromSeed a skos:Concept ; skos:inScheme perma:PropagationMethods ; skos:topConceptOf perma:PropagationMethods ;
+    skos:prefLabel "From seed"@en , "Aus Samen"@de , "Par semis"@fr .
+perma:FromCloves a skos:Concept ; skos:inScheme perma:PropagationMethods ; skos:topConceptOf perma:PropagationMethods ;
+    skos:prefLabel "From cloves or bulbils"@en , "Aus Zehen oder Brutzwiebeln"@de , "Par caïeux"@fr .
+perma:FromCuttings a skos:Concept ; skos:inScheme perma:PropagationMethods ; skos:topConceptOf perma:PropagationMethods ;
+    skos:prefLabel "From cuttings"@en , "Aus Stecklingen"@de , "Par bouturage"@fr .
+perma:ByDivision a skos:Concept ; skos:inScheme perma:PropagationMethods ; skos:topConceptOf perma:PropagationMethods ;
+    skos:prefLabel "By division"@en , "Durch Teilung"@de , "Par division"@fr .
+perma:ByGrafting a skos:Concept ; skos:inScheme perma:PropagationMethods ; skos:topConceptOf perma:PropagationMethods ;
+    skos:prefLabel "By grafting"@en , "Durch Veredelung"@de , "Par greffage"@fr .
+
+perma:Flowering a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Flowering"@en , "Blüte"@de , "Floraison"@fr ;
+    skos:definition "Not work but a time to watch: a late frost now costs the year's fruit."@en .
+perma:WinterPrune a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Winter pruning"@en , "Winterschnitt"@de , "Taille d'hiver"@fr .
+perma:SummerPrune a skos:Concept ; skos:inScheme perma:GardenActivities ; skos:topConceptOf perma:GardenActivities ;
+    skos:prefLabel "Summer pruning"@en , "Sommerschnitt"@de , "Taille d'été"@fr ;
+    skos:definition "Stone fruit (plum, cherry) is pruned in summer only: winter cuts let in silver leaf and canker."@en .

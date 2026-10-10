@@ -1,4 +1,4 @@
-@prefix app:     <https://template.dlab5.net/ontology#> .
+@prefix app:     <https://permtek-5.digitalhome.cloud/ontology#> .
 @prefix owl:     <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
@@ -18,7 +18,7 @@
 # validate against the same file.
 # ============================================================
 
-<https://template.dlab5.net/ontology>
+<https://permtek-5.digitalhome.cloud/ontology>
     a owl:Ontology ;
     rdfs:label "Template ontology"@en , "Vorlagen-Ontologie"@de , "Ontologie du modèle"@fr ;
     dcterms:description "A placeholder: things a tenant knows about, of a type from a concept scheme, in a place."@en ;

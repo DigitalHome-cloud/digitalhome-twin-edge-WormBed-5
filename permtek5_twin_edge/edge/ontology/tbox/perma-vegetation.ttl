@@ -1,0 +1,109 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix geo:     <http://www.opengis.net/ont/geosparql#> .
+@prefix sosa:    <http://www.w3.org/ns/sosa/> .
+@prefix dwc:     <http://rs.tdwg.org/dwc/terms/> .
+
+# ============================================================
+# perma-core, vegetation module, v0.1
+#
+# The vegetation map of a site: what grows where, how tall, and whether it
+# casts a canopy. A sidecar to perma-core (ADR 0012): standard vocabularies
+# stay read-only (GeoSPARQL for geometry, SOSA for what is observed, Darwin
+# Core for taxa); this file adds only what they lack.
+#
+# Two kinds of unit, both mapped by people first and later suggested by the
+# rovers' observations (docs/workflow.md, stages 2 and 4):
+#   - a patch: an area with one dominant vegetation class (meadow, bramble ...)
+#   - a single plant drawn on the map (an oak, the walnut): perma:Plant from
+#     perma-core is also a perma:VegetationUnit
+#
+# Types are data: the classes of vegetation are SKOS concepts in
+# perma-vegetation-concepts.ttl, so a new one needs no schema change.
+# How a class behaves for a rover (drive cost, GNSS under canopy) is a
+# simulation parameter and lives in the twin, not here.
+#
+# Namespace: provisional (build plan, open decision "Namespaces"). It must
+# match perma-core's when that file joins this folder.
+# Labels: English is the master; German and French are given.
+# ============================================================
+
+<https://permaculture.digitalhome.cloud/ontology/vegetation>
+    a owl:Ontology ;
+    rdfs:label "perma-core: vegetation"@en , "perma-core: Vegetation"@de , "perma-core : végétation"@fr ;
+    dcterms:description "The vegetation map of a permaculture site: patches and single plants, their class, height, canopy and status."@en ;
+    owl:versionInfo "0.1.0" .
+
+# ------------------------------------------------------------ classes
+
+perma:VegetationUnit a owl:Class ;
+    rdfs:subClassOf geo:Feature , sosa:FeatureOfInterest ;
+    rdfs:label "Vegetation unit"@en , "Vegetationseinheit"@de , "Unité de végétation"@fr ;
+    rdfs:comment "Something growing on the site that is drawn on the vegetation map: a patch or a single plant. It has a geometry, a vegetation class and a status, and is what observations of vegetation are about."@en .
+
+perma:VegetationPatch a owl:Class ;
+    rdfs:subClassOf perma:VegetationUnit ;
+    rdfs:label "Vegetation patch"@en , "Vegetationsfläche"@de , "Parcelle de végétation"@fr ;
+    rdfs:comment "An area with one dominant vegetation class, e.g. a meadow, a bramble thicket, a hedge."@en .
+
+perma:Plant a owl:Class ;
+    rdfs:subClassOf perma:VegetationUnit ;
+    rdfs:label "Plant"@en , "Pflanze"@de , "Plante"@fr ;
+    rdfs:comment "Defined in perma-core as a dwc:Organism followed over years. Stated here only as a vegetation unit, so a single tree can be drawn on the vegetation map."@en .
+
+# ------------------------------------------------------------ properties
+
+perma:vegetationClass a owl:ObjectProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range skos:Concept ;
+    rdfs:label "vegetation class"@en , "Vegetationsklasse"@de , "classe de végétation"@fr ;
+    rdfs:comment "One concept from perma:VegetationClasses."@en .
+
+perma:vegetationStatus a owl:ObjectProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range skos:Concept ;
+    rdfs:label "vegetation status"@en , "Vegetationsstatus"@de , "statut de la végétation"@fr ;
+    rdfs:comment "One concept from perma:VegetationStatuses: there already, planted by us, or only planned."@en .
+
+perma:mapStatus a owl:ObjectProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range skos:Concept ;
+    rdfs:label "map status"@en , "Kartenstatus"@de , "statut sur la carte"@fr ;
+    rdfs:comment "How sure the map is: one concept from perma:MapStatuses. A unit traced from a plan or suggested by a rover stays ToConfirm until a person has looked."@en .
+
+perma:heightM a owl:DatatypeProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "height (m)"@en , "Höhe (m)"@de , "hauteur (m)"@fr ;
+    rdfs:comment "Typical height of the vegetation, metres."@en .
+
+perma:hasCanopy a owl:DatatypeProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "has canopy"@en , "hat ein Kronendach"@de , "a une canopée"@fr ;
+    rdfs:comment "True when the unit closes over the ground: it shades the soil and degrades satellite positioning beneath it."@en .
+
+perma:canopyRadiusM a owl:DatatypeProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "canopy radius (m)"@en , "Kronenradius (m)"@de , "rayon de la couronne (m)"@fr .
+
+perma:dominantTaxon a owl:ObjectProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range dwc:Taxon ;
+    rdfs:label "dominant taxon"@en , "vorherrschendes Taxon"@de , "taxon dominant"@fr ;
+    rdfs:comment "The taxon that makes up most of the unit, referenced by its GBIF or TAXREF IRI (perma-bio), never copied in."@en .
+
+perma:mapSource a owl:DatatypeProperty ;
+    rdfs:domain perma:VegetationUnit ;
+    rdfs:range xsd:string ;
+    rdfs:label "map source"@en , "Kartenquelle"@de , "source cartographique"@fr ;
+    rdfs:comment "Where the outline comes from: a plan, an aerial photo, a walk, a rover's observation."@en .
+
+# perma:observedInZone (perma-core) links a unit to its zone.
+# Geometry: geo:hasGeometry / geo:asWKT, in the site's local frame (metres,
+# x east, y north); the georeference lives in the private space (ADR 0009).

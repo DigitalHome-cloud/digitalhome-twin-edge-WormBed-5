@@ -1,0 +1,42 @@
+@prefix perma: <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+
+# ============================================================
+# perma-core, habitat concept schemes, v0.1. New kinds are data.
+# ============================================================
+
+perma:ZoneKinds a skos:ConceptScheme ;
+    skos:prefLabel "Kinds of zone"@en , "Arten von Bereichen"@de , "Types de zone"@fr ;
+    skos:hasTopConcept perma:RoofZone , perma:GroundZone , perma:BalconyZone , perma:GreenhouseZone .
+perma:RoofZone a skos:Concept ; skos:inScheme perma:ZoneKinds ; skos:topConceptOf perma:ZoneKinds ;
+    skos:prefLabel "Roof"@en , "Dach"@de , "Toit"@fr .
+perma:GroundZone a skos:Concept ; skos:inScheme perma:ZoneKinds ; skos:topConceptOf perma:ZoneKinds ;
+    skos:prefLabel "Garden ground"@en , "Gartenboden"@de , "Pleine terre"@fr .
+perma:BalconyZone a skos:Concept ; skos:inScheme perma:ZoneKinds ; skos:topConceptOf perma:ZoneKinds ;
+    skos:prefLabel "Balcony or terrace"@en , "Balkon oder Terrasse"@de , "Balcon ou terrasse"@fr .
+perma:GreenhouseZone a skos:Concept ; skos:inScheme perma:ZoneKinds ; skos:topConceptOf perma:ZoneKinds ;
+    skos:prefLabel "Greenhouse"@en , "Gewächshaus"@de , "Serre"@fr .
+
+perma:Exposures a skos:ConceptScheme ;
+    skos:prefLabel "Exposure"@en , "Lage"@de , "Exposition"@fr ;
+    skos:hasTopConcept perma:FullSun , perma:HalfShade , perma:Shade , perma:Windy .
+perma:FullSun a skos:Concept ; skos:inScheme perma:Exposures ; skos:topConceptOf perma:Exposures ;
+    skos:prefLabel "Full sun"@en , "Volle Sonne"@de , "Plein soleil"@fr .
+perma:HalfShade a skos:Concept ; skos:inScheme perma:Exposures ; skos:topConceptOf perma:Exposures ;
+    skos:prefLabel "Half shade"@en , "Halbschatten"@de , "Mi-ombre"@fr .
+perma:Shade a skos:Concept ; skos:inScheme perma:Exposures ; skos:topConceptOf perma:Exposures ;
+    skos:prefLabel "Shade"@en , "Schatten"@de , "Ombre"@fr .
+perma:Windy a skos:Concept ; skos:inScheme perma:Exposures ; skos:topConceptOf perma:Exposures ;
+    skos:prefLabel "Windy"@en , "Windig"@de , "Venté"@fr .
+
+perma:CellStatuses a skos:ConceptScheme ;
+    skos:prefLabel "Cell status"@en , "Zellstand"@de , "État de la case"@fr ;
+    skos:hasTopConcept perma:CellPlanned , perma:CellSown , perma:CellGrowing , perma:CellHarvested .
+perma:CellPlanned a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
+    skos:prefLabel "Planned"@en , "Geplant"@de , "Prévu"@fr .
+perma:CellSown a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
+    skos:prefLabel "Sown or planted"@en , "Gesät oder gepflanzt"@de , "Semé ou planté"@fr .
+perma:CellGrowing a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
+    skos:prefLabel "Growing"@en , "Wächst"@de , "En croissance"@fr .
+perma:CellHarvested a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
+    skos:prefLabel "Harvested"@en , "Geerntet"@de , "Récolté"@fr .

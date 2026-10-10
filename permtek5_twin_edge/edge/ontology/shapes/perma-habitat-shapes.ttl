@@ -1,0 +1,80 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix permash: <https://permaculture.digitalhome.cloud/shapes#> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# SHACL shapes for a habitat's A-Box, v0.1. Validate TOGETHER with
+# tbox/perma-habitat-concepts.ttl. The cloud checks every save with them
+# (ADR-0007), without the crop library: crops are checked by IRI. What SHACL
+# core cannot say (a cell inside its bed) packages/core checks before saving.
+# ============================================================
+
+permash:InZoneKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:ZoneKinds ] .
+permash:InExposures a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:Exposures ] .
+permash:InCellStatuses a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:CellStatuses ] .
+
+permash:LibraryCrop a sh:PropertyShape ;
+    sh:path perma:grows ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+    sh:pattern "^https://permaculture\\.digitalhome\\.cloud/id/crop-[a-z0-9-]+$" ;
+    sh:message "It grows one crop of the library (…/id/crop-…)."@en .
+
+permash:GardenZoneShape a sh:NodeShape ;
+    sh:targetClass perma:GardenZone ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A zone needs a name."@en ] ;
+    sh:property [ sh:path perma:zoneKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InZoneKinds ;
+                  sh:message "A zone is of one kind from perma:ZoneKinds."@en ] ;
+    sh:property [ sh:path perma:exposure ; sh:node permash:InExposures ;
+                  sh:message "Exposures come from perma:Exposures."@en ] ;
+    sh:property [ sh:path perma:areaM2 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ;
+                  sh:message "Area in m², at least 0."@en ] ;
+    sh:property [ sh:path perma:microclimateOffsetC ; sh:maxCount 1 ; sh:datatype xsd:decimal ;
+                  sh:minInclusive -5 ; sh:maxInclusive 5 ; sh:message "The microclimate offset is -5..5 °C."@en ] .
+
+permash:GrowingBedShape a sh:NodeShape ;
+    sh:targetClass perma:GrowingBed ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A bed needs a name."@en ] ;
+    sh:property [ sh:path perma:inZone ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:GardenZone ;
+                  sh:message "A bed lies in one zone of the habitat."@en ] ;
+    sh:property [ sh:path perma:lengthCm ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 10 ; sh:maxInclusive 3000 ; sh:message "A bed's length is 10..3000 cm."@en ] ;
+    sh:property [ sh:path perma:widthCm ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 10 ; sh:maxInclusive 1000 ; sh:message "A bed's width is 10..1000 cm."@en ] ;
+    sh:property [ sh:path perma:substrateDepthCm ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 0 ; sh:maxInclusive 300 ; sh:message "Substrate depth is 0..300 cm."@en ] ;
+    sh:property [ sh:path perma:cellSizeCm ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 5 ; sh:maxInclusive 100 ; sh:message "A bed's cells are 5..100 cm."@en ] .
+
+permash:PlantingCellShape a sh:NodeShape ;
+    sh:targetClass perma:PlantingCell ;
+    sh:property [ sh:path perma:inBed ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:GrowingBed ;
+                  sh:message "A cell belongs to one bed of the habitat."@en ] ;
+    sh:property [ sh:path perma:row ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ;
+                  sh:message "A cell's row is a whole number from 0."@en ] ;
+    sh:property [ sh:path perma:col ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ;
+                  sh:message "A cell's column is a whole number from 0."@en ] ;
+    sh:property permash:LibraryCrop ;
+    sh:property [ sh:path perma:cellStatus ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InCellStatuses ;
+                  sh:message "A cell's status is one concept from perma:CellStatuses."@en ] ;
+    sh:property [ sh:path perma:cellSowingDepthMm ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ; sh:maxInclusive 150 ;
+                  sh:message "Sowing depth is 0..150 mm."@en ] ;
+    sh:property [ sh:path perma:cellSeedsPerPoint ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 20 ;
+                  sh:message "Seeds per point is 1..20."@en ] ;
+    sh:property [ sh:path perma:sownOn ; sh:maxCount 1 ; sh:datatype xsd:date ;
+                  sh:message "Sown on is a date (YYYY-MM-DD)."@en ] .
+
+permash:GardenPlantShape a sh:NodeShape ;
+    sh:targetClass perma:GardenPlant ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A garden plant needs a name."@en ] ;
+    sh:property [ sh:path perma:inZone ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:GardenZone ;
+                  sh:message "A garden plant stands in one zone of the habitat."@en ] ;
+    sh:property permash:LibraryCrop ;
+    sh:property [ sh:path perma:plantedYear ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 1800 ; sh:maxInclusive 2200 ; sh:message "Planted in: a year."@en ] ;
+    sh:property [ sh:path perma:rootstock ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path perma:xM ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ;
+                  sh:message "x is metres from the zone's edge, at least 0."@en ] ;
+    sh:property [ sh:path perma:yM ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ;
+                  sh:message "y is metres from the zone's edge, at least 0."@en ] .
