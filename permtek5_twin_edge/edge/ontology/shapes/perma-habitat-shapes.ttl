@@ -15,6 +15,8 @@
 permash:InZoneKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:ZoneKinds ] .
 permash:InExposures a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:Exposures ] .
 permash:InCellStatuses a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:CellStatuses ] .
+permash:InGuildTypes a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:GuildTypes ] .
+permash:InRobotModels a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:RobotModels ] .
 permash:InSubstrateKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:SubstrateKinds ] .
 
 permash:LibraryCrop a sh:PropertyShape ;
@@ -34,8 +36,21 @@ permash:GardenZoneShape a sh:NodeShape ;
     sh:property [ sh:path perma:microclimateOffsetC ; sh:maxCount 1 ; sh:datatype xsd:decimal ;
                   sh:minInclusive -5 ; sh:maxInclusive 5 ; sh:message "The microclimate offset is -5..5 °C."@en ] .
 
+permash:GuildShape a sh:NodeShape ;
+    sh:targetClass perma:Guild ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A Perma5Guild needs a name."@en ] ;
+    sh:property [ sh:path perma:inZone ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:GardenZone ;
+                  sh:message "A Perma5Guild stands in one area of the site."@en ] ;
+    sh:property [ sh:path perma:guildType ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InGuildTypes ;
+                  sh:message "A Perma5Guild is of one type from perma:GuildTypes."@en ] ;
+    sh:property [ sh:path perma:robotModel ; sh:maxCount 1 ; sh:node permash:InRobotModels ;
+                  sh:message "A guild's robot is one concept from perma:RobotModels."@en ] ;
+    sh:property [ sh:path perma:wormsMayLeave ; sh:maxCount 1 ; sh:datatype xsd:boolean ] .
+
 permash:GrowingBedShape a sh:NodeShape ;
     sh:targetClass perma:GrowingBed ;
+    sh:property [ sh:path perma:inGuild ; sh:maxCount 1 ; sh:class perma:Guild ;
+                  sh:message "A bed belongs to at most one Perma5Guild of the site."@en ] ;
     sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A bed needs a name."@en ] ;
     sh:property [ sh:path perma:inZone ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:GardenZone ;
                   sh:message "A bed lies in one area of the site."@en ] ;

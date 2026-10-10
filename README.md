@@ -29,6 +29,17 @@ R2025a, and a source checkout (the ROS packages are built in `ros2/`):
 .venv/bin/python scripts/selftest-twin.py # the whole loop on CityDemo, end to end
 ```
 
+**One edge runs one Perma5Guild** (PermTek-5 ADR 0020): an area's working
+unit of bed, worm box, tank, sensors and robot. The first guild type is
+**WormBed5**, worked by a **Gantry5-gen1**. For a second guild, start the same
+software again with its own port; folder, gateway, Webots port and ROS domain
+follow from it, so the two simulations cannot disturb each other:
+
+```bash
+./run.sh                                      # the habitat's first guild, on 8772
+./run.sh --port 8782 --guild "Balcony guild"  # another guild, beside it
+```
+
 The bed is simulated **as a system** (PermTek-5 `docs/specs/roofbed-system.md`):
 tank pipes under the soil keep it moist from below while they hold water, a
 worm box takes the bed's far end, and the gantry feeds it from a hopper a

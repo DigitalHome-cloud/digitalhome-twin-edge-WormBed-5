@@ -53,3 +53,17 @@ perma:GardenSoil a skos:Concept ; skos:inScheme perma:SubstrateKinds ; skos:topC
 perma:PottingCompost a skos:Concept ; skos:inScheme perma:SubstrateKinds ; skos:topConceptOf perma:SubstrateKinds ;
     skos:prefLabel "Potting compost"@en , "Blumenerde"@de , "Terreau"@fr ;
     skos:definition "Peat-free potting mix: light, but it settles and has to be topped up."@en .
+
+perma:GuildTypes a skos:ConceptScheme ;
+    skos:prefLabel "Guild types"@en , "Gildentypen"@de , "Types de guilde"@fr ;
+    skos:hasTopConcept perma:WormBed5 .
+perma:WormBed5 a skos:Concept ; skos:inScheme perma:GuildTypes ; skos:topConceptOf perma:GuildTypes ;
+    skos:prefLabel "WormBed5"@en , "WormBed5"@de , "WormBed5"@fr ;
+    skos:definition "A flat growing bed with a worm compost box at one end, whose liquid reaches the plants from below, worked by a gantry robot (docs/specs/roofbed-system.md)."@en .
+
+perma:RobotModels a skos:ConceptScheme ;
+    skos:prefLabel "Robots"@en , "Roboter"@de , "Robots"@fr ;
+    skos:hasTopConcept perma:Gantry5Gen1 .
+perma:Gantry5Gen1 a skos:Concept ; skos:inScheme perma:RobotModels ; skos:topConceptOf perma:RobotModels ;
+    skos:prefLabel "Gantry5-gen1"@en , "Gantry5-gen1"@de , "Gantry5-gen1"@fr ;
+    skos:definition "Gantry5, first generation: three axes over a bed, with a seeder, a watering nozzle, a soil probe, a camera and a scoop for the worm box (docs/specs/roofbed-robot.md)."@en .

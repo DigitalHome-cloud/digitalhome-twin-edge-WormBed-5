@@ -32,9 +32,16 @@ BIN_HOT_C, BIN_COLD_C = 30.0, 5.0
 
 
 def workspace() -> Path:
-    """Where generated worlds and run data go: the person's folder, never the repository."""
+    """Where this guild's generated world and run data go: the person's folder, never the repository."""
+    from . import instance
     from .core import workspace as ws
-    return ws.base_dir(ws.USER) / "twin"
+    return instance.workspace(ws.base_dir(ws.USER))
+
+
+def shared_assets() -> Path:
+    """Blender meshes are the same for every guild: built once, beside the guilds' folders."""
+    from .core import workspace as ws
+    return ws.base_dir(ws.USER) / "twin" / "assets"
 
 
 def habitat_ttl(source: Optional[str] = None) -> str:
@@ -60,17 +67,19 @@ def check(ttl: str) -> List[str]:
     return errors
 
 
-def prepare(ttl: str, out: Optional[Path] = None, assets: Optional[Path] = None) -> Dict[str, Any]:
-    """Write the world and bed.json for the habitat's first bed. Raises ValueError with what is wrong."""
+def prepare(ttl: str, out: Optional[Path] = None, assets: Optional[Path] = None, guild: Optional[str] = None) -> Dict[str, Any]:
+    """Write the world and bed.json for one Perma5Guild of the habitat: the one this edge instance is for,
+    or the habitat's first. Raises ValueError with what is wrong."""
     from . import habitat as hb
     from . import world
     errors = check(ttl)
     if errors:
         raise ValueError("; ".join(errors))
+    from . import instance
     out = Path(out) if out else workspace()
-    if assets is None and (out / "assets").is_dir():
-        assets = out / "assets"
-    paths = world.generate(hb.load(ttl), hb.load_library(), out, assets=assets)
+    if assets is None:
+        assets = next((d for d in (out / "assets", shared_assets()) if d.is_dir()), None)
+    paths = world.generate(hb.load(ttl), hb.load_library(), out, guild=guild or instance.guild(), assets=assets)
     return {**paths, **summary(config(out))}
 
 
@@ -94,6 +103,7 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
                                       "cellCm": b["cell_cm"], "rows": b["rows"], "cols": b["cols"],
                                       "depthCm": b.get("depth_cm"), "tankLitres": (cfg.get("tank") or {}).get("litres", 0),
                                       "wormBinCm": b.get("worm_bin_cm", 0)},
+            "guild": cfg.get("guild"),
             "cells": len(cfg["cells"]), "byStatus": by, "meshes": cfg["world"].get("meshes", False)}
 
 
@@ -185,7 +195,8 @@ def main(argv: List[str] | None = None) -> int:
     p.add_argument("file", nargs="?", help="the habitat's Turtle (default: CityDemo)")
     p = sub.add_parser("world", help="write the Webots world and bed.json into the workspace")
     p.add_argument("file", nargs="?", help="the habitat's Turtle (default: CityDemo)")
-    p.add_argument("--out", help="folder to write into (default: the workspace's twin/)")
+    p.add_argument("--out", help="folder to write into (default: the workspace's guilds/main/)")
+    p.add_argument("--guild", help="which Perma5Guild of the habitat (default: its first)")
     p = sub.add_parser("jobs", help="the jobs proposed for the prepared bed")
     p.add_argument("--out", help="folder the world was written into")
     args = ap.parse_args(argv)
@@ -209,7 +220,7 @@ def main(argv: List[str] | None = None) -> int:
             return 1 if errors else 0
         if errors:
             return 1
-        json.dump(prepare(ttl, args.out), sys.stdout, indent=2)
+        json.dump(prepare(ttl, args.out, guild=args.guild), sys.stdout, indent=2)
         sys.stdout.write("\n")
         return 0
     except ValueError as exc:

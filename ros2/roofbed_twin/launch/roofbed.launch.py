@@ -28,7 +28,8 @@ def setup(context):
     for f in (world, bed):
         if not os.path.exists(f):
             raise RuntimeError(f"{f} is missing: generate the world first (permtek5-twin-edge world)")
-    cmd = ["webots", f"--mode={mode}", "--batch"]
+    webots_port = LaunchConfiguration("webots_port").perform(context)
+    cmd = ["webots", f"--mode={mode}", "--batch", f"--port={webots_port}"]
     if not gui:
         cmd += ["--no-rendering", "--stdout", "--stderr", "--minimize"]
     webots = ExecuteProcess(cmd=cmd + [world], output="screen", name="webots")
@@ -38,7 +39,7 @@ def setup(context):
         SetEnvironmentVariable("PERMTEK5_TWIN_OUT", out),
         SetEnvironmentVariable("PERMTEK5_TWIN_GATEWAY_PORT", LaunchConfiguration("port").perform(context)),
         webots,
-        WebotsController(robot_name="gantry", parameters=[{"robot_description": urdf}]),
+        WebotsController(robot_name="gantry", port=webots_port, parameters=[{"robot_description": urdf}]),
         Node(package="roofbed_twin", executable="bed_actions", output="screen"),
         Node(package="roofbed_twin", executable="gateway", output="screen"),
         RegisterEventHandler(OnProcessExit(target_action=webots, on_exit=[EmitEvent(event=Shutdown())])),
@@ -51,5 +52,6 @@ def generate_launch_description():
         DeclareLaunchArgument("mode", default_value="realtime", description="Webots mode: realtime or fast"),
         DeclareLaunchArgument("gui", default_value="false", description="true: open the Webots window"),
         DeclareLaunchArgument("port", default_value="8773", description="the gateway's port on 127.0.0.1"),
+        DeclareLaunchArgument("webots_port", default_value="1234", description="Webots' own port: one per guild on a computer"),
         OpaqueFunction(function=setup),
     ])

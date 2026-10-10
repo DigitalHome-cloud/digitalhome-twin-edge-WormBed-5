@@ -115,3 +115,26 @@ def test_a_plain_bed_has_no_tank_and_no_worm_box(demo, tmp_path):
     assert cfg["tank"]["litres"] == 0 and cfg["wormBin"]["cols"] == 0 and "dropX" not in cfg["wormBin"]
     wbt = (tmp_path / "roofbed.wbt").read_text()
     assert "# tank pipe" not in wbt and "# worm box" not in wbt
+
+
+def test_citydemo_roof_is_a_wormbed5_guild_and_a_guild_is_picked_by_name(demo, tmp_path):
+    h, lib = demo
+    assert [(g.name, g.type, g.robot_name, g.worms_may_leave) for g in h.guilds] == [("Roof guild", "WormBed5", "Gantry5-gen1", True)]
+    guild, bed = hb.pick_guild(h)
+    assert guild.name == "Roof guild" and bed.guild_id == guild.id
+    assert hb.pick_guild(h, "roof-guild")[0] is guild and hb.pick_guild(h, "Roof Guild")[0] is guild
+    with pytest.raises(ValueError, match="Roof guild"):
+        hb.pick_guild(h, "balcony")
+    out = world.generate(h, lib, tmp_path)
+    cfg = json.loads(open(out["config"]).read())
+    assert cfg["guild"]["type"] == "WormBed5" and cfg["guild"]["robotName"] == "Gantry5-gen1"
+    assert "Roof guild · WormBed5 · Gantry5-gen1" in (tmp_path / "roofbed.wbt").read_text()
+
+
+def test_a_habitat_from_before_guilds_runs_its_first_bed(demo, tmp_path):
+    h, lib = demo
+    old = hb.load_citydemo()
+    old.guilds, old.beds[0].guild_id = [], None
+    assert hb.pick_guild(old) == (None, old.beds[0])
+    cfg = json.loads(open(world.generate(old, lib, tmp_path)["config"]).read())
+    assert cfg["guild"] is None

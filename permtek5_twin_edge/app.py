@@ -26,6 +26,7 @@ from . import engine as engine
 from . import cloudsite
 from . import film
 from . import habitat_store as store
+from . import instance
 from . import scenarios
 from . import sim
 from .core import server
@@ -98,6 +99,7 @@ def _twin_state() -> dict:
             except Exception:                     # busy, or offline: the person syncs from Connections
                 pass
     return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
+            "instance": instance.describe(),
             "notices": engine.notices(cfg, twin.get("bed")) if status["running"] else [],
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": engine.proposals(cfg, twin.get("bed")) if status["running"] else engine.proposals(cfg)}
@@ -117,7 +119,7 @@ def twin_prepare():
     graph = data.get("graph") or None
     try:
         ttl = store.ttl_of(graph) if graph else (data.get("ttl") or engine.habitat_ttl(None))
-        out = engine.prepare(ttl)
+        out = engine.prepare(ttl)           # the guild this instance is for; ValueError names the guilds there are
     except ValueError as exc:
         return jsonify({"errors": str(exc).split("; ")}), 400
     store.remember_source(engine.workspace(), graph)
@@ -364,9 +366,13 @@ def main(argv: list | None = None) -> int:
     server.add_server_args(ap)
     ap.add_argument("--dir", default=ws.FOLDERS[ws.USER].name,
                     help="your own folder: generated worlds and run data go to its twin/ (default: ./mydocs)")
+    ap.add_argument("--guild", default=None,
+                    help="the Perma5Guild this edge runs, by name (default: the habitat's first). One edge per guild: "
+                         "start another with its own --port")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
 
     ws.configure(user_dir=args.dir)
+    instance.configure(guild=args.guild, port=args.port)
     lines = [f"  {f['label'].lower():<13} {f['path']}" for f in ws.folders()]
     edge_routes.start_background()  # edge layer
     sim.stop_leftover(engine.workspace())      # a simulation an earlier run of this app left behind

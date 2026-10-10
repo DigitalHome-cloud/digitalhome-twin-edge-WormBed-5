@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from rdflib import Graph, Namespace, URIRef
 from rdflib.namespace import RDF, RDFS
@@ -57,6 +57,24 @@ class Zone:
     area_m2: Optional[float] = None
 
 
+ROBOT_NAMES = {"Gantry5Gen1": "Gantry5-gen1"}
+
+
+@dataclass
+class Guild:
+    """A Perma5Guild (PermTek-5 ADR 0020): an area's working unit of bed, worm box, tank, sensors and robot."""
+    id: str
+    name: str
+    zone_id: str
+    type: str = "WormBed5"
+    robot: Optional[str] = None
+    worms_may_leave: bool = True
+
+    @property
+    def robot_name(self) -> str:
+        return ROBOT_NAMES.get(self.robot or "", self.robot or "")
+
+
 @dataclass
 class Bed:
     id: str
@@ -71,6 +89,7 @@ class Bed:
     tank_pipes: int = 0
     tank_pipe_mm: int = 110
     worm_bin_cm: int = 0
+    guild_id: Optional[str] = None
 
     @property
     def rows(self) -> int:
@@ -120,6 +139,7 @@ class GardenPlant:
 @dataclass
 class Habitat:
     zones: List[Zone] = field(default_factory=list)
+    guilds: List[Guild] = field(default_factory=list)
     beds: List[Bed] = field(default_factory=list)
     cells: List[Cell] = field(default_factory=list)
     plants: List[GardenPlant] = field(default_factory=list)
@@ -162,12 +182,17 @@ def load(ttl: str) -> Habitat:
     for s in sorted(g.subjects(RDF.type, PERMA.GardenZone)):
         h.zones.append(Zone(str(s), label(s), _local(g.value(s, PERMA.zoneKind)),
                             _num(g, s, "microclimateOffsetC") or 0.0, _num(g, s, "areaM2")))
+    for s in sorted(g.subjects(RDF.type, PERMA.Guild)):
+        leave = g.value(s, PERMA.wormsMayLeave)
+        h.guilds.append(Guild(str(s), label(s), str(g.value(s, PERMA.inZone) or ""), _local(g.value(s, PERMA.guildType)) or "WormBed5",
+                              _local(g.value(s, PERMA.robotModel)) or None, True if leave is None else bool(leave.toPython())))
     for s in sorted(g.subjects(RDF.type, PERMA.GrowingBed)):
         h.beds.append(Bed(str(s), label(s), str(g.value(s, PERMA.inZone) or ""),
                           _num(g, s, "lengthCm", int) or 0, _num(g, s, "widthCm", int) or 0,
                           _num(g, s, "cellSizeCm", int) or 10, _num(g, s, "substrateDepthCm", int),
                           _local(g.value(s, PERMA.substrateKind)) or None, _num(g, s, "tankPipeCount", int) or 0,
-                          _num(g, s, "tankPipeMm", int) or 110, _num(g, s, "wormBinCm", int) or 0))
+                          _num(g, s, "tankPipeMm", int) or 110, _num(g, s, "wormBinCm", int) or 0,
+                          str(g.value(s, PERMA.inGuild)) if g.value(s, PERMA.inGuild) is not None else None))
     for s in sorted(g.subjects(RDF.type, PERMA.PlantingCell)):
         sown = g.value(s, PERMA.sownOn)
         h.cells.append(Cell(str(s), str(g.value(s, PERMA.inBed) or ""), _num(g, s, "row", int) or 0,
@@ -243,6 +268,28 @@ def crop_rgb(crop_id: str):
     return colorsys.hls_to_rgb(hue / 360.0, 0.52, 0.45)
 
 
+def slug(name: str) -> str:
+    """A name as a folder or option name: lowercase letters, digits and dashes."""
+    import re
+    return re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:40] or "guild"
+
+
+def pick_guild(h: Habitat, wanted: Optional[str] = None) -> Tuple[Optional[Guild], Optional[Bed]]:
+    """The guild an edge instance runs, with its bed. `wanted` is a guild's name or slug; without it the
+    first guild. A habitat from before guilds existed has none: its first bed is run as a plain bed."""
+    guilds = [g for g in h.guilds if any(b.guild_id == g.id for b in h.beds)]
+    if wanted:
+        guild = next((g for g in guilds if slug(g.name) == slug(wanted)), None)
+        if guild is None:
+            raise ValueError(f"this habitat has no Perma5Guild named '{wanted}'"
+                             + (": it has " + ", ".join(g.name for g in guilds) if guilds else ""))
+    else:
+        guild = guilds[0] if guilds else None
+    if guild is None:
+        return None, (h.beds[0] if h.beds else None)
+    return guild, next(b for b in h.beds if b.guild_id == guild.id)
+
+
 def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]:
     """Everything the ROS side needs about one bed, as plain data (it reads no Turtle)."""
     cells = []
@@ -257,6 +304,9 @@ def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]
             "waterMlPerDay": water_ml_per_day(crop, bed) if crop else 0,
             "rgb": [round(v, 3) for v in crop_rgb(c.crop_id)],
         })
+    guild = next((g for g in h.guilds if g.id == bed.guild_id), None)
     return {"bed": {**asdict(bed), "rows": bed.rows, "cols": bed.cols}, "cells": cells,
+            "guild": ({"id": guild.id, "name": guild.name, "type": guild.type, "robot": guild.robot,
+                       "robotName": guild.robot_name, "wormsMayLeave": guild.worms_may_leave} if guild else None),
             "tank": {"pipes": bed.tank_pipes, "pipeMm": bed.tank_pipe_mm, "litres": bed.tank_litres},
             "wormBin": {"cm": bed.worm_bin_cm, "cols": bed.worm_bin_cols, "fromCol": bed.cols - bed.worm_bin_cols}}

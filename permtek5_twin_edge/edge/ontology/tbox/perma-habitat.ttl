@@ -12,6 +12,8 @@
 #   - a GARDEN ZONE, shown to people as an AREA of the site: the roof, the garden, a balcony. Its exposure and a
 #     microclimate offset adjust the area's climate (a roof is warmer and
 #     windier than the street).
+#   - a GUILD (Perma5Guild): an area's working unit of bed, worm box, tank,
+#     sensors and robot(s). Its type (WormBed5 ...) fixes the structure.
 #   - a GROWING BED in a zone, split into square cells: the grid a person
 #     plants by hand today and a gantry robot can work later.
 #   - a PLANTING CELL: where one plant or sowing point stands. Only planted
@@ -34,6 +36,10 @@
 perma:GardenZone a owl:Class ;
     rdfs:label "Area"@en , "Bereich"@de , "Zone"@fr ;
     rdfs:comment "An area of a site, with one microclimate: the roof, the garden, a balcony. People call it an area; the class keeps its first name."@en .
+
+perma:Guild a owl:Class ;
+    rdfs:label "Perma5Guild"@en , "Perma5Guild"@de , "Perma5Guild"@fr ;
+    rdfs:comment "An area's working unit: its bed, worm box, tank, sensors and robot(s), kept and run together. A guild TYPE (perma:guildType, e.g. WormBed5) fixes the structure: the parts, the jobs, the sensors. An instance sets the sizes and settings. One edge runs one guild (docs/adr/0020, docs/specs/perma5guild.md)."@en .
 
 perma:GrowingBed a owl:Class ;
     rdfs:label "Growing bed"@en , "Beet"@de , "Planche de culture"@fr ;
@@ -71,6 +77,28 @@ perma:microclimateOffsetC a owl:DatatypeProperty ;
 perma:inZone a owl:ObjectProperty ;
     rdfs:range perma:GardenZone ;
     rdfs:label "in area"@en , "im Bereich"@de , "dans la zone"@fr .
+
+# ------------------------------------------------------------ guilds
+
+perma:guildType a owl:ObjectProperty ;
+    rdfs:domain perma:Guild ; rdfs:range skos:Concept ;
+    rdfs:label "guild type"@en , "Gildentyp"@de , "type de guilde"@fr ;
+    rdfs:comment "One concept from perma:GuildTypes. The first is perma:WormBed5: a flat bed with a worm box at one end, worked by a gantry."@en .
+
+perma:robotModel a owl:ObjectProperty ;
+    rdfs:domain perma:Guild ; rdfs:range skos:Concept ;
+    rdfs:label "robot"@en , "Roboter"@de , "robot"@fr ;
+    rdfs:comment "The robot that works the guild: one concept from perma:RobotModels, e.g. perma:Gantry5Gen1 (Gantry5, first generation)."@en .
+
+perma:wormsMayLeave a owl:DatatypeProperty ;
+    rdfs:domain perma:Guild ; rdfs:range xsd:boolean ;
+    rdfs:label "worms may leave the box"@en , "Würmer dürfen die Kiste verlassen"@de , "les vers peuvent quitter le bac"@fr ;
+    rdfs:comment "True: the worm box has exits into the bed's soil, a refuge when the box turns too hot, cold or sour. False: a closed box, with cleaner measurements and no refuge."@en .
+
+perma:inGuild a owl:ObjectProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range perma:Guild ;
+    rdfs:label "in guild"@en , "in der Gilde"@de , "dans la guilde"@fr ;
+    rdfs:comment "The guild a bed belongs to. A bed without one is a plain bed, worked by hand."@en .
 
 # ------------------------------------------------------------ beds and cells
 

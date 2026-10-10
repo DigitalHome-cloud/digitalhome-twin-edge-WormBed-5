@@ -31,6 +31,9 @@ def test_launch_command_sources_ros_and_names_the_world_folder(monkeypatch):
     cmd = sim.launch_command(Path("/data/twin"), gui=False, port=8773)
     assert cmd[:2] == ["bash", "-c"]
     assert 'source "/opt/ros/x/setup.bash"' in cmd[2] and 'out:="/data/twin"' in cmd[2] and "gui:=false" in cmd[2] and "port:=8773" in cmd[2]
+    assert "webots_port:=1234" in cmd[2] and "ROS_DOMAIN_ID" not in cmd[2]
+    second = sim.launch_command(Path("/data/twin"), gui=False, port=8783, webots_port=1244, ros_domain=20)[2]
+    assert "export ROS_DOMAIN_ID=20" in second and "webots_port:=1244" in second and "port:=8783" in second
 
 
 def test_status_when_nothing_runs():
@@ -52,3 +55,18 @@ def test_a_leftover_simulation_is_stopped_by_its_remembered_group(tmp_path):
     assert sim.stop_leftover(tmp_path) is False                      # nothing left, nothing to do
     (tmp_path / "sim.pid").write_text("not a number")
     assert sim.stop_leftover(tmp_path) is False
+
+
+def test_two_guilds_on_one_computer_share_nothing(tmp_path):
+    from permtek5_twin_edge import instance
+    try:
+        instance.configure(None, 8772)
+        first = instance.describe()
+        assert (first["name"], first["gatewayPort"], first["webotsPort"], first["rosDomain"]) == ("main", 8773, 1234, 10)
+        assert instance.workspace(tmp_path) == tmp_path / "guilds" / "main"
+        instance.configure("Balcony guild", 8782)
+        second = instance.describe()
+        assert (second["name"], second["gatewayPort"], second["webotsPort"], second["rosDomain"]) == ("balcony-guild", 8783, 1244, 20)
+        assert all(first[k] != second[k] for k in ("name", "appPort", "gatewayPort", "webotsPort", "rosDomain"))
+    finally:
+        instance.configure(None, 8772)

@@ -28,7 +28,12 @@ from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 ROS_WS = ROOT / "ros2"
-GATEWAY_PORT = int(os.environ.get("PERMTEK5_TWIN_GATEWAY_PORT", "8773"))
+GATEWAY_PORT: Optional[int] = None      # tests set this; otherwise the instance's (app port + 1)
+
+
+def gateway_port() -> int:
+    from . import instance
+    return GATEWAY_PORT or instance.gateway_port()
 
 _child: Dict[str, Any] = {}
 
@@ -74,10 +79,13 @@ def build(log: Path) -> int:
                                cwd=ROS_WS, stdout=fh, stderr=subprocess.STDOUT, env=_env())
 
 
-def launch_command(out_dir: Path, gui: bool, port: int) -> List[str]:
+def launch_command(out_dir: Path, gui: bool, port: int, webots_port: int = 1234, ros_domain: Optional[int] = None) -> List[str]:
+    # its own ROS domain: two guilds' simulations on one computer must not hear each other
+    domain = f"export ROS_DOMAIN_ID={ros_domain} && " if ros_domain is not None else ""
     return ["bash", "-c",
-            f'source "{ros_setup()}" && source "{ROS_WS / "install" / "setup.bash"}" && '
-            f'exec ros2 launch roofbed_twin roofbed.launch.py out:="{out_dir}" gui:={"true" if gui else "false"} port:={port}']
+            f'source "{ros_setup()}" && source "{ROS_WS / "install" / "setup.bash"}" && {domain}'
+            f'exec ros2 launch roofbed_twin roofbed.launch.py out:="{out_dir}" gui:={"true" if gui else "false"} '
+            f'port:={port} webots_port:={webots_port}']
 
 
 def running() -> bool:
@@ -119,7 +127,7 @@ def stop_leftover(out_dir: Path, timeout: float = 15.0) -> bool:
     return stopped
 
 
-def start(out_dir: Path, gui: bool = False, port: int = GATEWAY_PORT) -> Dict[str, Any]:
+def start(out_dir: Path, gui: bool = False, port: Optional[int] = None) -> Dict[str, Any]:
     """Start the launch on the world in out_dir. Already running: says so, starts nothing."""
     if running():
         return status()
@@ -130,7 +138,9 @@ def start(out_dir: Path, gui: bool = False, port: int = GATEWAY_PORT) -> Dict[st
     stop_leftover(out_dir)
     log = out_dir / "sim.log"
     fh = open(log, "wb")
-    proc = subprocess.Popen(launch_command(out_dir, gui, port), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT,
+    from . import instance
+    port = port or gateway_port()
+    proc = subprocess.Popen(launch_command(out_dir, gui, port, instance.webots_port(), instance.ros_domain()), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT,
                             stdin=subprocess.DEVNULL, env=_env(), start_new_session=True)
     _child.update(proc=proc, log=log, fh=fh, port=port, out=out_dir, started=time.time(), gui=gui)
     (out_dir / "sim.pid").write_text(str(proc.pid))      # its process group, for stop_leftover()
@@ -172,7 +182,7 @@ def log_tail(lines: int = 30) -> List[str]:
 
 def gateway(path: str, body: Optional[dict] = None, timeout: float = 3.0) -> Any:
     """One call to the gateway. Raises RuntimeError with its message when it refuses or is not there."""
-    url = f"http://127.0.0.1:{_child.get('port', GATEWAY_PORT)}{path}"
+    url = f"http://127.0.0.1:{_child.get('port') or gateway_port()}{path}"
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, method="GET" if body is None else "POST",
                                  headers={"Content-Type": "application/json"})
@@ -189,7 +199,7 @@ def gateway(path: str, body: Optional[dict] = None, timeout: float = 3.0) -> Any
 
 
 def gateway_url(path: str) -> str:
-    return f"http://127.0.0.1:{_child.get('port', GATEWAY_PORT)}{path}"
+    return f"http://127.0.0.1:{_child.get('port') or gateway_port()}{path}"
 
 
 def status() -> Dict[str, Any]:

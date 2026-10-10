@@ -144,8 +144,11 @@ function draw(t) {
     : stopped ? "E-stop: the gantry holds its position."
     : S.busy ? "The gantry is working." : "The gantry waits for a job you confirm.";
   hero.className = "app-hero__title edge-hero__title " + (stopped ? "hero--next" : !t.prepared || !t.running ? "hero--next" : S.busy || !ready ? "hero--working" : "hero--done");
-  $("#hero-eyebrow").textContent = `Roof-bed twin · ${t.source === "citydemo" ? "CityDemo (invented)" : t.source}${t.meshes ? " · Blender meshes" : ""}`;
-  $("#shell-meta").textContent = t.prepared ? `${t.bed.name} · ${t.cells} planted cells` : "";
+  // one edge runs one Perma5Guild: its name, its type (WormBed5) and its robot (Gantry5-gen1)
+  const guild = t.guild;
+  $("#hero-eyebrow").textContent = (guild ? `${guild.name} · ${guild.type} · ${guild.robotName}` : "Roof-bed twin")
+    + ` · ${t.source === "citydemo" ? "CityDemo (invented)" : t.source}${t.meshes ? " · Blender meshes" : ""}`;
+  $("#shell-meta").textContent = t.prepared ? `${guild ? "Perma5Guild · " : ""}${t.bed.name} · ${t.cells} planted cells` : "";
   $("#badge-sim").hidden = !ready;
   $("#badge-estop").hidden = !stopped;
   const miss = $("#twin-missing");

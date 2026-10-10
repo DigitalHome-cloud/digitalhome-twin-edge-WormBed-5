@@ -5,7 +5,7 @@
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 
 # CityDemo: an INVENTED city habitat, like everything in this public repository.
-# A small flat roof with one wicking bed (3 m x 1.2 m, 10 cm cells: 12 rows, 30 columns; eight tank
+# A small flat roof with one Perma5Guild of type WormBed5: a wicking bed (3 m x 1.2 m, 10 cm cells: 12 rows, 30 columns; eight tank
 # pipes under 15 cm of lightweight substrate; a worm box on its last 40 cm)
 # and a small back garden with three fruit trees. Positions are metres inside
 # each zone, never geographic.
@@ -18,7 +18,10 @@ id:zone-z-citygarden a perma:GardenZone ; rdfs:label "Back garden" ;
     perma:zoneKind perma:GroundZone ; perma:exposure perma:HalfShade ;
     perma:areaM2 60.0 ; perma:microclimateOffsetC 0.0 .
 
-id:bed-b-citybed a perma:GrowingBed ; rdfs:label "Roof bed" ; perma:inZone id:zone-z-cityroof ;
+id:guild-g-cityroof a perma:Guild ; rdfs:label "Roof guild" ; perma:inZone id:zone-z-cityroof ;
+    perma:guildType perma:WormBed5 ; perma:robotModel perma:Gantry5Gen1 ; perma:wormsMayLeave true .
+
+id:bed-b-citybed a perma:GrowingBed ; rdfs:label "Roof bed" ; perma:inZone id:zone-z-cityroof ; perma:inGuild id:guild-g-cityroof ;
     perma:lengthCm 300 ; perma:widthCm 120 ; perma:substrateDepthCm 15 ; perma:cellSizeCm 10 ;
     perma:substrateKind perma:LightweightRoofSubstrate ; perma:tankPipeCount 8 ; perma:tankPipeMm 110 ; perma:wormBinCm 40 .
 
