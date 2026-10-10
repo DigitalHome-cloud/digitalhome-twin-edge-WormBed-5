@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -108,15 +109,27 @@ def test_the_worm_box_takes_the_last_columns_and_the_world_shows_the_system(demo
     assert any("worm box" in p for p in hb.problems(bad, lib))
 
 
-def test_a_plain_bed_has_no_tank_and_no_worm_box(demo, tmp_path):
+def test_a_bed_drawn_without_box_and_tank_gets_the_wormbed5_parts_and_says_so(demo, tmp_path):
     h, lib = demo
     plain = hb.load_citydemo()
     plain.beds[0].tank_pipes, plain.beds[0].worm_bin_cm = 0, 0
     out = world.generate(plain, lib, tmp_path)
     cfg = json.loads(open(out["config"]).read())
-    assert cfg["tank"]["litres"] == 0 and cfg["wormBin"]["cols"] == 0 and "dropX" not in cfg["wormBin"]
+    assert cfg["tank"]["litres"] == 202 and cfg["wormBin"]["cols"] == 4 and "dropX" in cfg["wormBin"]
+    assert len(cfg["assumed"]) == 2 and "worm box of 40 cm" in cfg["assumed"][0] and "8 tank pipes" in cfg["assumed"][1]
     wbt = (tmp_path / "roofbed.wbt").read_text()
-    assert "# tank pipe" not in wbt and "# worm box" not in wbt
+    assert "# tank pipe" in wbt and "# worm box" in wbt
+    full = world.generate(hb.load_citydemo(), lib, tmp_path)
+    assert json.loads(open(full["config"]).read())["assumed"] == [], "a complete map is taken as it is"
+
+
+def test_a_worm_box_is_not_assumed_over_planted_cells(demo, tmp_path):
+    h, lib = demo
+    planted = hb.load_citydemo()
+    planted.beds[0].worm_bin_cm = 0
+    planted.cells[0].col = 28
+    cfg = json.loads(open(world.generate(planted, lib, tmp_path)["config"]).read())
+    assert cfg["wormBin"]["cols"] == 0 and "planted on your map" in cfg["assumed"][0]
 
 
 def test_citydemo_roof_is_a_wormbed5_guild_and_a_guild_is_picked_by_name(demo, tmp_path):
@@ -140,3 +153,15 @@ def test_a_habitat_from_before_guilds_runs_its_first_bed(demo, tmp_path):
     assert hb.pick_guild(old) == (None, old.beds[0])
     cfg = json.loads(open(world.generate(old, lib, tmp_path)["config"]).read())
     assert cfg["guild"] is None
+
+
+def test_the_shape_library_ships_with_the_app_and_lists_every_shape_the_world_uses():
+    import re
+    from permtek5_twin_edge import engine
+    folder = engine.shared_assets()
+    lib = json.loads((folder / "library.json").read_text())["shapes"]
+    for name, shape in lib.items():
+        assert (folder / shape["file"]).stat().st_size > 200 and shape["what"], name
+    used = set(re.findall(r'_mesh\(assets, "([a-z_]+)"\)', Path(world.__file__).read_text())) | {"plant_grown", "plant_seedling"}
+    assert used <= set(lib), used - set(lib)
+    assert sum((folder / s["file"]).stat().st_size for s in lib.values()) < 300_000, "the library stays small"

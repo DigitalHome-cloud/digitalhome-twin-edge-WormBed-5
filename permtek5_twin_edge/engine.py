@@ -38,9 +38,9 @@ def workspace() -> Path:
 
 
 def shared_assets() -> Path:
-    """Blender meshes are the same for every guild: built once, beside the guilds' folders."""
-    from .core import workspace as ws
-    return ws.base_dir(ws.USER) / "twin" / "assets"
+    """The shape library that ships with the app (shapes/library.json): the same for every guild.
+    Made once with Blender (assets/build.py); nothing is built when the twin runs."""
+    return Path(__file__).resolve().parent / "shapes"
 
 
 def habitat_ttl(source: Optional[str] = None) -> str:
@@ -102,6 +102,7 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
                                       "cellCm": b["cell_cm"], "rows": b["rows"], "cols": b["cols"],
                                       "depthCm": b.get("depth_cm"), "tankLitres": (cfg.get("tank") or {}).get("litres", 0),
                                       "wormBinCm": b.get("worm_bin_cm", 0)},
+            "assumed": cfg.get("assumed") or [],
             "guild": cfg.get("guild"),
             "cells": len(cfg["cells"]), "byStatus": by, "meshes": cfg["world"].get("meshes", False)}
 

@@ -290,6 +290,27 @@ def pick_guild(h: Habitat, wanted: Optional[str] = None) -> Tuple[Optional[Guild
     return guild, next(b for b in h.beds if b.guild_id == guild.id)
 
 
+#: What a WormBed5 guild has when the map does not say (PermTek-5 docs/specs/roofbed-system.md, the reference bed)
+WORMBED5 = {"worm_bin_cm": 40, "tank_pipes": 8, "tank_pipe_mm": 110}
+
+
+def as_wormbed5(h: Habitat, bed: Bed) -> List[str]:
+    """Give the bed the parts a WormBed5 guild always has, where the map lacks them. Changes `bed` in
+    place and returns what was assumed, in plain words. A worm box is not assumed over planted cells."""
+    assumed: List[str] = []
+    if not bed.worm_bin_cm:
+        cols = -(-WORMBED5["worm_bin_cm"] // bed.cell_cm)
+        if any(c.bed_id == bed.id and c.col >= bed.cols - cols for c in h.cells):
+            assumed.append(f"no worm box: the last {WORMBED5['worm_bin_cm']} cm of the bed are planted on your map")
+        else:
+            bed.worm_bin_cm = WORMBED5["worm_bin_cm"]
+            assumed.append(f"a worm box of {bed.worm_bin_cm} cm at the bed's far end")
+    if not bed.tank_pipes:
+        bed.tank_pipes, bed.tank_pipe_mm = WORMBED5["tank_pipes"], WORMBED5["tank_pipe_mm"]
+        assumed.append(f"{bed.tank_pipes} tank pipes of {bed.tank_pipe_mm} mm under the bed ({bed.tank_litres} l)")
+    return assumed
+
+
 def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]:
     """Everything the ROS side needs about one bed, as plain data (it reads no Turtle)."""
     cells = []

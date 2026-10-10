@@ -42,7 +42,7 @@ packages = ["permtek5_twin_edge", "permtek5_twin_edge.core", "permtek5_twin_edge
 # skill over without the repository. tests/test_core.py checks this list.
 [tool.setuptools.package-data]
 "permtek5_twin_edge.edge" = ["static/*", "ontology/*/*.ttl", "ontology/*.ttl"]  # edge layer
-permtek5_twin_edge = ["VERSION", "templates/*.html", "static/*", "skill/*.md", "shared/*.json", "data/*.ttl", "scenarios/*.json"]
+permtek5_twin_edge = ["VERSION", "templates/*.html", "static/*", "skill/*.md", "shared/*.json", "data/*.ttl", "scenarios/*.json", "shapes/*.obj", "shapes/library.json"]
 "permtek5_twin_edge.core" = ["static/*", "templates/core/*.html"]
 
 # the drawing's browser-check screenshots are evidence for the repository, not part of the tool

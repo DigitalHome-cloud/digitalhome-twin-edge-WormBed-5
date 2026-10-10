@@ -263,7 +263,9 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
     _, bed = hb.pick_guild(h, guild)
     if bed is None:
         raise ValueError("the habitat has no growing bed to simulate")
+    assumed = hb.as_wormbed5(h, bed)                        # a WormBed5 guild always has its box and its tank
     cfg = hb.bed_config(h, bed, library)
+    cfg["assumed"] = assumed
     length, width, cell_m = bed.length_cm / 100.0, bed.width_cm / 100.0, bed.cell_cm / 100.0
     depth = min((bed.depth_cm or 25) / 100.0, SOIL_Z - 0.02)
     zmax = (TIP_HOME - SOIL_Z) + min(0.15, depth)

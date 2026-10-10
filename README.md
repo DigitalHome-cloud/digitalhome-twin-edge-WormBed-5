@@ -49,13 +49,23 @@ hopper, and has the person's two buttons: *Hopper filled*, *Tank refilled*.
 The page says what is missing. Without a linked habitat it runs **CityDemo**,
 an invented roof bed and three fruit trees.
 
-**Blender meshes are optional.** `bpy` on PyPI is built for one Python version
-(3.13 today) and ROS 2 needs the system's 3.12, so it has an environment of
-its own and is used only to build mesh files:
+**Shapes come from a library, not from Blender at run time.** The plants, the
+raked soil, the gantry's profile, the trees and the worm box are mesh files in
+`permtek5_twin_edge/shapes/` (listed in `shapes/library.json`). They ship with
+the app; Webots loads them, and nothing is built when the twin runs.
+
+| Blender does | When | Who |
+|---|---|---|
+| the shape library | once, and again when a shape is changed or added | a developer |
+| the film | when you ask for it on the Film tab | you |
+
+Blender is needed only for those two. `bpy` on PyPI is built for one Python
+version (3.13 today) and ROS 2 needs the system's 3.12, so it has an
+environment of its own:
 
 ```bash
 scripts/setup-bpy.sh                      # once: uv, Python 3.13, bpy (about 400 MB)
-.venv-bpy/bin/python assets/build.py      # writes mydocs/twin/assets/*.obj
+.venv-bpy/bin/python assets/build.py      # rewrites permtek5_twin_edge/shapes/ after a change to a shape
 ```
 
 The **Film** tab renders the prepared bed as a short turntable with Blender
@@ -67,8 +77,8 @@ laptop, so 72 frames take a quarter of an hour; `ffmpeg` makes the MP4):
 .venv-bpy/bin/python assets/demo.py                # poster.png and film.mp4 in mydocs/twin/demo/
 ```
 
-Prepare the world again and it uses them for looks. Without them it draws
-boxes and spheres; motion and jobs are the same either way.
+A habitat whose bed has no worm box or tank on the map still gets them here: a
+WormBed5 guild always has both, and the page says what was assumed.
 
 **How it works** is a drawing behind the rail's link (`/how`), made with
 Archify from `docs/how-it-works.architecture.json`:

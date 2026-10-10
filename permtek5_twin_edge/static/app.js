@@ -163,6 +163,10 @@ function draw(t) {
   const notes = $("#twin-notices");
   notes.hidden = !(t.notices || []).length;
   notes.innerHTML = (t.notices || []).map((m) => `<li>${core.esc(m)}</li>`).join("");
+  const assumed = $("#twin-assumed");               // parts a WormBed5 guild has that the map does not show yet
+  assumed.hidden = !(t.assumed || []).length;
+  assumed.textContent = assumed.hidden ? "" : `Not on your map yet, so assumed here: ${t.assumed.join("; ")}. `
+    + "Add them to the bed on the Map in PermTek-5 to set your own sizes.";
   drawEnv(t);
   drawBox(t, ready);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
@@ -313,11 +317,8 @@ async function pollShell() {
 function drawBox(t, ready) {
   const box = t.twin && t.twin.bed && t.twin.bed.wormBin;
   const panel = $("#box-panel");
-  const none = t.running && t.prepared && t.bed && !t.bed.wormBinCm;       // this habitat's bed was drawn without one
-  panel.hidden = !none && !(box && "weightKg" in box);
-  $("#box-none").hidden = !none;
-  $("#box-has").hidden = none;
-  if (panel.hidden || none) return;
+  panel.hidden = !(box && "weightKg" in box);
+  if (panel.hidden) return;
   const r = (v, unit, digits) => typeof v === "number" ? `${v.toFixed(digits || 0)}${unit}` : "no reading";
   const rows = [[r(box.tempC, " °C", 1), "core"], [r(box.edgeC, " °C", 1), "edge"], [r(box.moisture, " %"), "moisture"],
     [r(box.weightKg, " kg", 2), "weight"], [r(box.gas, ""), "gas, 0 fresh to 100"], [box.lidOpen ? "open" : "closed", "lid"],

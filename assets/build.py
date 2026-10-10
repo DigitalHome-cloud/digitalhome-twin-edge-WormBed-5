@@ -3,7 +3,7 @@
 """
 build.py — the twin's meshes, made with Blender as a Python module (bpy).
 
-    .venv-bpy/bin/python assets/build.py [--out mydocs/twin/assets] [--force]
+    .venv-bpy/bin/python assets/build.py [--out permtek5_twin_edge/shapes] [--force]
 
 Runs ONLY in the bpy environment (scripts/setup-bpy.sh): bpy needs its own
 Python version, and neither the app nor the simulation imports it. It writes
@@ -23,6 +23,7 @@ the output folder lets a second run skip the work.
 """
 import argparse
 import hashlib
+import json
 import math
 import random
 import sys
@@ -70,6 +71,7 @@ def leaf(bm, length, width, angle, tilt, curl, base=0.0):
 
 
 def plant_grown():
+    """A grown leafy plant: a rosette of leaves about 0.2 m across, standing on z = 0."""
     rng = random.Random(SEED)
     bm = bmesh.new()
     golden = math.radians(137.5)
@@ -81,6 +83,7 @@ def plant_grown():
 
 
 def plant_seedling():
+    """A seedling: a short stem with two seed leaves, modelled 0.2 m across (scaled down in the world)."""
     bm = bmesh.new()
     bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=0.006, radius2=0.004, depth=0.06,
                           matrix=Matrix.Translation((0, 0, 0.03)))
@@ -95,7 +98,7 @@ def plant_seedling():
 def bed_soil():
     """A unit square of raked soil: low ridges along the length and fine clods, flat at the edges."""
     bm = bmesh.new()
-    nx, ny = 120, 40
+    nx, ny = 60, 20
     grid = []
     for j in range(ny + 1):
         line = []
@@ -135,6 +138,7 @@ def gantry_bridge():
 
 
 def tree_trunk():
+    """The trunk of a tree 1 m tall, standing on z = 0."""
     bm = bmesh.new()
     bmesh.ops.create_cone(bm, cap_ends=True, segments=12, radius1=0.045, radius2=0.022, depth=0.55,
                           matrix=Matrix.Translation((0, 0, 0.275)))
@@ -204,7 +208,7 @@ def export(obj, out: Path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
-    ap.add_argument("--out", default="mydocs/twin/assets")
+    ap.add_argument("--out", default="permtek5_twin_edge/shapes")
     ap.add_argument("--force", action="store_true", help="build even when nothing changed")
     args = ap.parse_args()
     out = Path(args.out)
@@ -216,10 +220,16 @@ def main():
         print(f"  meshes are up to date in {out}")
         return 0
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    library = {}
     for build in BUILDERS:
         obj = build()
         export(obj, out)
+        library[obj.name] = {"file": f"{obj.name}.obj", "what": " ".join((build.__doc__ or "").split()),
+                             "vertices": len(obj.data.vertices), "builtBy": f"assets/build.py:{build.__name__}"}
         print(f"  {obj.name}.obj  {len(obj.data.vertices)} vertices")
+    (out / "library.json").write_text(json.dumps({"about": "The twin's shape library. Made once with Blender (assets/build.py); "
+                                                  "Webots loads these files, Blender is not needed to run the twin.",
+                                                  "shapes": library}, indent=2) + "\n", encoding="utf-8")
     stamp.write_text(digest)
     print(f"  -> {out}")
     return 0

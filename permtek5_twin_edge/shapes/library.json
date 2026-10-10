@@ -1,0 +1,53 @@
+{
+  "about": "The twin's shape library. Made once with Blender (assets/build.py); Webots loads these files, Blender is not needed to run the twin.",
+  "shapes": {
+    "plant_grown": {
+      "file": "plant_grown.obj",
+      "what": "A grown leafy plant: a rosette of leaves about 0.2 m across, standing on z = 0.",
+      "vertices": 520,
+      "builtBy": "assets/build.py:plant_grown"
+    },
+    "plant_seedling": {
+      "file": "plant_seedling.obj",
+      "what": "A seedling: a short stem with two seed leaves, modelled 0.2 m across (scaled down in the world).",
+      "vertices": 96,
+      "builtBy": "assets/build.py:plant_seedling"
+    },
+    "bed_soil": {
+      "file": "bed_soil.obj",
+      "what": "A unit square of raked soil: low ridges along the length and fine clods, flat at the edges.",
+      "vertices": 1281,
+      "builtBy": "assets/build.py:bed_soil"
+    },
+    "gantry_bridge": {
+      "file": "gantry_bridge.obj",
+      "what": "A slotted aluminium profile, 60 x 40 mm, 1 m long along y.",
+      "vertices": 40,
+      "builtBy": "assets/build.py:gantry_bridge"
+    },
+    "tree_trunk": {
+      "file": "tree_trunk.obj",
+      "what": "The trunk of a tree 1 m tall, standing on z = 0.",
+      "vertices": 72,
+      "builtBy": "assets/build.py:tree_trunk"
+    },
+    "tree_canopy": {
+      "file": "tree_canopy.obj",
+      "what": "A lumpy crown: an icosphere pushed in and out by noise, flatter underneath.",
+      "vertices": 162,
+      "builtBy": "assets/build.py:tree_canopy"
+    },
+    "worm_box": {
+      "file": "worm_box.obj",
+      "what": "A slatted box, open at the top, in a unit cube: x and y 0..1, standing on z = 0. Its lid is worm_box_lid.",
+      "vertices": 120,
+      "builtBy": "assets/build.py:worm_box"
+    },
+    "worm_box_lid": {
+      "file": "worm_box_lid.obj",
+      "what": "The box's lid, overhanging against rain, with a handle. Its hinge is the y axis at x = 0, z = 0: the lid lies from x = -1.06 to 0, so turning it about y opens it.",
+      "vertices": 16,
+      "builtBy": "assets/build.py:worm_box_lid"
+    }
+  }
+}
