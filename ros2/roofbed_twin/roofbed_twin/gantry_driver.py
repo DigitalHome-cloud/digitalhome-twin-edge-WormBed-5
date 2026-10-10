@@ -1,0 +1,171 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Webots driver plugin of the roof-bed gantry: its axes, cameras and the bed, as ROS 2 topics.
+
+It knows nothing about jobs. On the real gantry a hardware driver offers the
+same topics, under /gantry/:
+
+  out  position                     geometry_msgs/PointStamped  x, y in bed metres; z = how far the tool is lowered (m)
+       tool_camera/compressed       sensor_msgs/CompressedImage  looking down from the carriage, a few frames a second
+       overview_camera/compressed   sensor_msgs/CompressedImage  the whole bed
+  in   target                       geometry_msgs/Point          where the axes should go (same units as position)
+       estop                        std_msgs/Bool                true: hold where it is and ignore targets
+
+and the bed itself, which the simulation has to play (a real bed just is):
+
+  out  /bed/state   std_msgs/String  JSON {"time": s, "cells": {"row_col": {"status", "moisture", "crop"}}}
+  in   /bed/event   std_msgs/String  JSON {"op": "sow", "row", "col", "crop"} | {"op": "water", "row", "col", "ml"}
+
+A sown cell gets a seedling in the world. Soil moisture is a simple number per
+cell (percent): watering raises it, time lowers it.
+"""
+import json
+import os
+
+import numpy as np
+import rclpy
+from geometry_msgs.msg import Point, PointStamped
+from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import Bool, String
+
+from .spin import Drain
+
+CAMERAS = ("tool_camera", "overview_camera")
+CAMERA_EVERY_MS = 200
+STATE_EVERY_MS = 500
+MOISTURE_START = 35.0
+MOISTURE_PER_ML = 0.08          # 250 ml on one plant: +20 %
+MOISTURE_LOSS_PER_S = 0.01
+SOIL_TEMP_C = 14.0
+
+
+def load_bed():
+    path = os.environ.get("PERMTEK5_TWIN_BED", "")
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+class GantryDriver:
+    def init(self, webots_node, properties):
+        self.robot = webots_node.robot
+        self.ts = int(self.robot.getBasicTimeStep())
+        self.cfg = load_bed()
+        dev = self.robot.getDevice
+        self.motors = {a: dev(f"{a}_motor") for a in "xyz"}
+        self.sensors = {a: dev(f"{a}_sensor") for a in "xyz"}
+        for s in self.sensors.values():
+            s.enable(self.ts)
+        self.cams = {}
+        for name in CAMERAS:
+            cam = dev(name)
+            cam.enable(CAMERA_EVERY_MS)
+            self.cams[name] = cam
+        self.stopped = False
+        self.cells = {f'{c["row"]}_{c["col"]}': {"status": c["status"], "crop": c["crop"], "moisture": MOISTURE_START}
+                      for c in self.cfg["cells"]}
+        self.rgb = {c["crop"]: c.get("rgb", [0.3, 0.6, 0.3]) for c in self.cfg["cells"]}
+        self.elapsed_ms = 0
+
+        if not rclpy.ok():
+            rclpy.init(args=None)
+        self.node = n = rclpy.create_node("driver", namespace="/gantry")
+        self.drain = Drain(n)
+        self.pub_pos = n.create_publisher(PointStamped, "position", 10)
+        self.pub_cam = {name: n.create_publisher(CompressedImage, f"{name}/compressed", 2) for name in CAMERAS}
+        self.pub_bed = n.create_publisher(String, "/bed/state", 10)
+        n.create_subscription(Point, "target", self.drain.wrap(self.on_target), 10)
+        n.create_subscription(Bool, "estop", self.drain.wrap(self.on_estop), 10)
+        n.create_subscription(String, "/bed/event", self.drain.wrap(self.on_event), 50)
+
+    # -- axes ------------------------------------------------------------------
+
+    def where(self):
+        return {a: self.sensors[a].getValue() for a in "xyz"}
+
+    def on_target(self, msg):
+        if self.stopped:
+            return
+        for a, v in (("x", msg.x), ("y", msg.y), ("z", msg.z)):
+            m = self.motors[a]
+            m.setPosition(min(max(v, m.getMinPosition()), m.getMaxPosition()))
+
+    def on_estop(self, msg):
+        self.stopped = bool(msg.data)
+        if self.stopped:
+            now = self.where()
+            for a in "xyz":
+                if now[a] == now[a]:                      # not NaN (before the first step)
+                    self.motors[a].setPosition(now[a])
+
+    # -- the bed ---------------------------------------------------------------
+
+    def cell(self, row, col, crop=""):
+        return self.cells.setdefault(f"{row}_{col}", {"status": "CellPlanned", "crop": crop, "moisture": MOISTURE_START})
+
+    def on_event(self, msg):
+        try:
+            e = json.loads(msg.data)
+            row, col = int(e["row"]), int(e["col"])
+        except (ValueError, KeyError, TypeError):
+            return
+        b = self.cfg["bed"]
+        if not (0 <= row < b["rows"] and 0 <= col < b["cols"]):
+            return
+        c = self.cell(row, col, e.get("crop", ""))
+        if e.get("op") == "water":
+            c["moisture"] = min(100.0, c["moisture"] + float(e.get("ml", 0)) * MOISTURE_PER_ML)
+        elif e.get("op") == "sow":
+            c["crop"] = e.get("crop") or c["crop"]
+            c["status"] = "CellSown"
+            self.seedling(row, col, c["crop"])
+
+    def seedling(self, row, col, crop):
+        old = self.robot.getFromDef(f"CELL_{row}_{col}")
+        if old is not None:
+            old.remove()
+        w = self.cfg["world"]
+        x, y = (col + 0.5) * w["cellM"], (row + 0.5) * w["cellM"]
+        r, g, b = self.rgb.get(crop, [0.3, 0.6, 0.3])
+        self.robot.getRoot().getField("children").importMFNodeFromString(-1, (
+            f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {w['soilZ'] + 0.012:.4f} children [ Shape {{ "
+            f"appearance PBRAppearance {{ baseColor {r:.3f} {g:.3f} {b:.3f} roughness 0.9 metalness 0 }} "
+            "geometry Sphere { radius 0.012 subdivision 2 } } ] }"))
+
+    # -- one step --------------------------------------------------------------
+
+    def step(self):
+        self.drain()
+        self.elapsed_ms += self.ts
+        now = self.where()
+        if now["x"] != now["x"]:
+            return
+        stamp = self.node.get_clock().now().to_msg()
+        msg = PointStamped()
+        msg.header.stamp = stamp
+        msg.header.frame_id = "bed"
+        msg.point.x, msg.point.y, msg.point.z = now["x"], now["y"], now["z"]
+        self.pub_pos.publish(msg)
+
+        if self.elapsed_ms % CAMERA_EVERY_MS < self.ts:
+            for name, cam in self.cams.items():
+                raw = cam.getImage()
+                if not raw:
+                    continue
+                import cv2
+                img = np.frombuffer(raw, np.uint8).reshape((cam.getHeight(), cam.getWidth(), 4))
+                ok, jpg = cv2.imencode(".jpg", img[:, :, :3], [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if ok:
+                    out = CompressedImage()
+                    out.header.stamp = stamp
+                    out.header.frame_id = name
+                    out.format = "jpeg"
+                    out.data = jpg.tobytes()
+                    self.pub_cam[name].publish(out)
+
+        if self.elapsed_ms % STATE_EVERY_MS < self.ts:
+            loss = MOISTURE_LOSS_PER_S * STATE_EVERY_MS / 1000.0
+            for c in self.cells.values():
+                c["moisture"] = max(5.0, c["moisture"] - loss)
+            self.pub_bed.publish(String(data=json.dumps({
+                "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
+                "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1)}
+                          for k, c in self.cells.items()}})))

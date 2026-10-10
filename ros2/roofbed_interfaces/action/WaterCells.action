@@ -1,0 +1,9 @@
+# Water cells, each with its own amount.
+int32[] rows
+int32[] cols
+float32[] millilitres
+---
+float32[] given_ml
+string message
+---
+int32 index

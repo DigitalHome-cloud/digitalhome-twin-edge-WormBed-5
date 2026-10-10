@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<robot name="gantry">
+  <webots>
+    <!-- The plugin publishes the cameras itself (JPEG, a few frames a second):
+         raw frames at every step are more than a page needs. -->
+    <device reference="tool_camera" type="Camera"><ros><enabled>false</enabled></ros></device>
+    <device reference="overview_camera" type="Camera"><ros><enabled>false</enabled></ros></device>
+    <plugin type="roofbed_twin.gantry_driver.GantryDriver" />
+  </webots>
+</robot>

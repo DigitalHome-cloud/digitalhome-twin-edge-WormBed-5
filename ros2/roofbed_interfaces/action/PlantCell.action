@@ -1,0 +1,12 @@
+# Sow one cell of the bed. Cells are 0-based: row across the width, col along the length.
+int32 row
+int32 col
+string crop
+float32 depth_mm
+int32 seeds
+---
+bool sown
+int32 seeds_dropped
+string message
+---
+string phase

@@ -1,0 +1,10 @@
+# One picture per cell, taken from above with the tool camera.
+int32[] rows
+int32[] cols
+---
+int32[] rows
+int32[] cols
+sensor_msgs/CompressedImage[] images
+string message
+---
+int32 index

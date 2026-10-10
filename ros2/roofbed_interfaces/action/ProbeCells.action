@@ -1,0 +1,9 @@
+# Push the soil probe into each cell.
+int32[] rows
+int32[] cols
+---
+float32[] moisture_pct
+float32[] temperature_c
+string message
+---
+int32 index

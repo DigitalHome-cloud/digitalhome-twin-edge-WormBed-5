@@ -211,6 +211,15 @@ def problems(h: Habitat, library: Dict[str, Crop]) -> List[str]:
     return out
 
 
+def crop_rgb(crop_id: str):
+    """A stable colour per crop: the same hue rule as the PermTek-5 map."""
+    import colorsys
+    hue = 0
+    for ch in crop_id:
+        hue = (hue * 31 + ord(ch)) % 360
+    return colorsys.hls_to_rgb(hue / 360.0, 0.52, 0.45)
+
+
 def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]:
     """Everything the ROS side needs about one bed, as plain data (it reads no Turtle)."""
     cells = []
@@ -223,5 +232,6 @@ def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]
             "cropName": crop.name() if crop else c.crop_id, "status": c.status, "sownOn": c.sown_on,
             "job": sowing_job(h, c, library),
             "waterMlPerDay": water_ml_per_day(crop, bed) if crop else 0,
+            "rgb": [round(v, 3) for v in crop_rgb(c.crop_id)],
         })
     return {"bed": {**asdict(bed), "rows": bed.rows, "cols": bed.cols}, "cells": cells}

@@ -237,3 +237,8 @@ temp/
 
 # the user's own documents never belong in the repository
 /mydocs/
+
+# ROS 2 build outputs
+/ros2/build/
+/ros2/install/
+/ros2/log/
