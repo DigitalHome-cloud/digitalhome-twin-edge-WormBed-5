@@ -330,16 +330,22 @@ async function refreshScenarios() {
   $("#scenario-title").textContent = run.title;
   $("#scenario-count").textContent = `step ${run.index + 1} of ${run.total}`;
   $("#scenario-step").textContent = run.step.title;
-  $("#scenario-why").textContent = run.index === 0 ? `${run.about} ${run.step.why}` : run.step.why;
+  $("#scenario-about").hidden = run.index !== 0;          // what the scenario is about, on its first step
+  $("#scenario-about").textContent = run.about;
+  $("#scenario-why").textContent = run.step.why;
   $("#scenario-checks").innerHTML = run.checks.map((c) => `<li class="${c.ok ? "ok" : ""}">${core.esc(c.say)}</li>`).join("");
   const doBtn = $("#btn-scenario-do"), nextBtn = $("#btn-scenario-next");
   doBtn.hidden = run.step.type === "none";
   doBtn.textContent = run.step.label || "";
-  doBtn.disabled = run.did || SC.acting;
+  // done and as expected: nothing more to do. Done but not as expected (something else changed the
+  // bed meanwhile): the action can be repeated, or the step skipped.
+  doBtn.disabled = SC.acting || run.busy || (run.did && run.ready);
+  if (run.did && !run.ready && !run.busy && run.step.label) doBtn.textContent = `${run.step.label} again`;
+  $("#btn-scenario-skip").hidden = run.ready || run.last;
   nextBtn.textContent = run.last ? "Finish" : "Next step";
   nextBtn.disabled = !run.ready || SC.acting;
   if ($("#chk-scenario-auto").checked && !SC.acting) {             // your one confirmation for the whole scenario
-    if (!run.did && run.step.type !== "none") scenarioDo();
+    if (!run.did && run.step.type !== "none" && !run.busy) scenarioDo();
     else if (run.ready) scenarioNext();
   }
 }
@@ -361,6 +367,7 @@ async function scenarioNext() {
 
 $("#btn-scenario-do").addEventListener("click", scenarioDo);
 $("#btn-scenario-next").addEventListener("click", scenarioNext);
+$("#btn-scenario-skip").addEventListener("click", async () => { await post("/api/twin/scenario/next", { skip: true }); refreshScenarios(); });
 $("#btn-scenario-stop").addEventListener("click", async () => { await post("/api/twin/scenario/stop"); refreshScenarios(); });
 refreshScenarios();
 setInterval(refreshScenarios, 1000);

@@ -19,9 +19,15 @@
       "expect": [
         {
           "read": "bed.tank.litres",
-          "is": ">",
-          "value": 50,
+          "is": "<=",
+          "value": 100.5,
           "say": "tank: {v} l"
+        },
+        {
+          "read": "driest",
+          "is": ">=",
+          "value": 30,
+          "say": "driest planted cell: {v} %"
         }
       ]
     },

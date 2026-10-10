@@ -136,12 +136,14 @@
                 </div>
                 <div id="scenario-run" hidden>
                   <p class="scenario-progress"><span id="scenario-title"></span> <span class="tag" id="scenario-count"></span></p>
+                  <p class="scenario-about" id="scenario-about" hidden></p>
                   <h3 id="scenario-step"></h3>
                   <p class="scenario-why" id="scenario-why"></p>
                   <ul class="scenario-checks" id="scenario-checks"></ul>
                   <div class="hero-controls">
                     <button id="btn-scenario-do" class="primary"></button>
                     <button id="btn-scenario-next">Next step</button>
+                    <button id="btn-scenario-skip" class="ghost" title="Go on although this step's readings did not come out as expected">Skip step</button>
                     <button id="btn-scenario-stop" class="ghost">End</button>
                   </div>
                   <label class="hero-check" title="Your one confirmation for the whole scenario: every step's action is done for you, one after the other">
