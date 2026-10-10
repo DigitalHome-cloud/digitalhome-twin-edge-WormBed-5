@@ -165,6 +165,7 @@ def test_how_it_works_is_served_and_the_shell_links_it(client):
     assert how.status_code == 200 and b"How the PermTek-5 twin edge works" in how.data
     page = client.get("/").get_data(as_text=True)
     assert 'href="/how"' in page and 'id="rail"' in page and 'id="tab-connections"' in page
+    assert "/edge-static/edge.js" in page and "/edge-static/edge.css" in page, "the edge layer's panels need their script"
     assert client.get("/favicon.ico").status_code == 200
     model = client.get("/model")
     assert model.status_code == 200 and b"The PermTek-5 data model" in model.data and 'href="/model"' in page

@@ -8,6 +8,7 @@
 {% set ico = 'width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' %}
 
 {% block head %}
+<link rel="stylesheet" href="/edge-static/edge.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 {% endblock %}
 
@@ -189,6 +190,8 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='app.js') }}"></script>
-{% endblock %}
-<link rel="stylesheet" href="/edge-static/edge.css">
+{#- The edge layer's own panel code (connections, jobs, chat). scripts/edge-wire.py
+    appends these two lines after the last block, where a template that
+    extends another drops them; they belong inside the blocks. -#}
 <script src="/edge-static/edge.js" defer></script>
+{% endblock %}
