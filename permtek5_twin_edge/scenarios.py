@@ -25,7 +25,8 @@ Readings: bed.<path> (the twin's /bed/state), job.state, last.<kind>.state
 notices (how many), keeper.<rule> (true while that reaction is in force),
 holds.<kind> (true while jobs of that kind are on hold), lockout (true while
 the gantry is locked out), feeder.<key> (the feeder's advice: state, grams,
-eatsPerDay, uneatenG, offPct). A scenario marked "fresh": true starts from a settled worm box, calm weather
+eatsPerDay, uneatenG, offPct), composted (cells that got compost).
+A "proposal" step may carry "factor": the clock is set to it before the job starts. A scenario marked "fresh": true starts from a settled worm box, calm weather
 and the normal clock. A step marked "scored": true counts towards the
 run's score: how many scored steps came out as expected.
 
@@ -126,6 +127,8 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
         return sum(1 for p in proposals if p["id"].startswith(path.split(".", 1)[1]))
     if path.startswith("count."):
         return sum(1 for c in cells if c.get("status") == path.split(".", 1)[1])
+    if path == "composted":
+        return sum(1 for c in cells if (c.get("compostG") or 0) > 0)
     if path == "driest":
         planted = [c["moisture"] for c in cells if c.get("status") in ("CellSown", "CellGrowing") and "moisture" in c]
         return min(planted) if planted else None
@@ -197,7 +200,7 @@ def action(proposals: List[Dict[str, Any]]) -> Dict[str, Any]:
         spec = dict(p["spec"])
         if do.get("limit") and isinstance(spec.get("cells"), list):
             spec["cells"] = spec["cells"][: int(do["limit"])]
-        return {"job": spec}
+        return {"job": spec, **({"factor": float(do["factor"])} if "factor" in do else {})}
     return {}
 
 

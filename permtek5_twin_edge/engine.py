@@ -108,7 +108,8 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None,
-              holds: Optional[List[str]] = None, advice: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+              holds: Optional[List[str]] = None, advice: Optional[Dict[str, Any]] = None,
+              guide: Optional[Dict[str, Any]] = None, active: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """The jobs the gantry could do now. Proposals only: a person confirms each before anything moves.
 
     Sowing: every planned cell not sown yet. Watering: planted cells whose soil
@@ -116,11 +117,69 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
     pass over what is planted. `bed_state` is the running twin's /bed/state.
     `holds` are the kinds of job the keeper has on hold (keeper.py): they are not proposed.
     `advice` is the feeder's (feeder.py): how much to feed; without it a fixed portion.
+    `guide` is the feeding guide's view (app._follow_guide): how much dry bedding is due.
+    `active` are the keeper's reactions in force. From these come the box's care: bedding,
+    water, draining the sump, resting one half for harvest, and compost back to the cells.
     Whether this is the right MONTH to sow is PermTek-5's calendar, not decided here.
     """
     if not cfg:
         return []
-    return [p for p in _proposals(cfg, bed_state, advice) if p["kind"] not in (holds or [])]
+    found = _box_care(cfg, bed_state or {}, guide or {}, active or []) + _proposals(cfg, bed_state, advice)
+    return [p for p in found if p["kind"] not in (holds or [])]
+
+
+REST_FROM_KG = 6.0          # a box this heavy has castings worth harvesting
+TOPDRESS_CELLS, TOPDRESS_G = 6, 50
+
+
+def next_spot(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]]) -> int:
+    """Where the next portion goes: the spots in rotation, leaving out the half that rests for harvest."""
+    box = (bed_state or {}).get("wormBin") or {}
+    spots = int((cfg.get("wormBin") or {}).get("spots", 1))
+    side = (box.get("harvest") or {}).get("side")
+    fed = [s for s in range(spots) if side is None or spots < 2 or (s * 2 // spots) != side] or [0]
+    return fed[int(box.get("feedings", 0)) % len(fed)]
+
+
+def _box_care(cfg: Dict[str, Any], state: Dict[str, Any], guide: Dict[str, Any], active: List[str]) -> List[Dict[str, Any]]:
+    """What the worm box needs besides food. The robot does the routine part; a person confirms."""
+    box, hopper, tank = state.get("wormBin") or {}, state.get("hopper") or {}, state.get("tank") or {}
+    if not (cfg.get("wormBin") or {}).get("cols") or "harvest" not in box:
+        return []
+    out: List[Dict[str, Any]] = []
+    spot = next_spot(cfg, state)
+    due, have = int(guide.get("brownsDue") or 0), int(hopper.get("brownsGrams") or 0)
+    if due > 0 and have > 0:
+        grams = min(due, have, 500)
+        out.append({"id": "bedding", "kind": "care", "title": f"Add {grams} g of dry bedding to the worm box",
+                    "detail": f"the feeding guide wants one part of browns to three of scraps; {have} g in the bedding compartment",
+                    "spec": {"kind": "care", "what": "bedding", "grams": grams, "spot": spot}})
+    if "box-dry" in active:
+        out.append({"id": "moisten", "kind": "care", "title": "Sprinkle half a litre of water over the worm box",
+                    "detail": f'its moisture reads {box.get("moisture")} %; worms stop in a dry box',
+                    "spec": {"kind": "care", "what": "moisten", "ml": 500}})
+    sump, cap = box.get("sumpL"), box.get("sumpCapacity")
+    room = float(tank.get("capacity") or 0) - float(tank.get("litres") or 0)
+    if sump is not None and cap and sump >= 0.5 * cap and room >= 1.0:
+        out.append({"id": "tap", "kind": "tap", "title": f"Open the tap: let the sump's {sump:.0f} l into the tank",
+                    "detail": f"the sump is over half full; the tank has room for {room:.0f} l", "spec": {"kind": "tap"}})
+    harvest = box.get("harvest") or {}
+    if harvest.get("side") is None and (box.get("weightKg") or 0) >= REST_FROM_KG and "box-full" not in active:
+        side = int(harvest.get("nextSide", 1))
+        out.append({"id": "rest", "kind": "rest", "title": "Start a compost harvest: rest one half of the worm box",
+                    "detail": f'no food goes to that half; the worms move to the other, and in about {harvest.get("readyAfterDays", 10):.0f} days '
+                              "its castings are finished and go back to the bed",
+                    "spec": {"kind": "rest", "side": side}})
+    if harvest.get("ready"):
+        live = state.get("cells") or {}
+        growing = sorted(((c.get("compostG", 0), k) for k, c in live.items() if c.get("status") in ("CellSown", "CellGrowing")))
+        cells = [[int(v) for v in k.split("_")] for _, k in growing[:TOPDRESS_CELLS]]
+        if cells:
+            out.append({"id": "topdress", "kind": "topdress",
+                        "title": f"Top-dress {len(cells)} cells with finished compost, {TOPDRESS_G} g each",
+                        "detail": "from the rested half of the worm box, to the cells that have had least",
+                        "spec": {"kind": "topdress", "cells": cells, "grams": TOPDRESS_G}})
+    return out
 
 
 def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],
@@ -137,7 +196,7 @@ def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],
     box = cfg.get("wormBin") or {}
     grams = min(int(advice["grams"]) if advice else PORTION_G, int(hopper))
     if box.get("cols") and grams > 0:
-        spot = int((state.get("wormBin") or {}).get("feedings", 0)) % int(box.get("spots", 1))
+        spot = next_spot(cfg, state)
         out.append({"id": "feed", "kind": "feed", "title": f"Feed the worms: {grams} g from the hopper",
                     "detail": f'spot {spot + 1} of {box.get("spots", 1)} across the box, in rotation; {int(hopper)} g in the hopper'
                               + (f'. Why this much: {advice["why"]}' if advice else ""),

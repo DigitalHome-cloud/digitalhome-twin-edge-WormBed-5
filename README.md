@@ -77,6 +77,22 @@ laptop, so 72 frames take a quarter of an hour; `ffmpeg` makes the MP4):
 .venv-bpy/bin/python assets/demo.py                # poster.png and film.mp4 in mydocs/twin/demo/
 ```
 
+**The worm box** is two bins: a working bin above the soil on a sump that
+catches the liquid. Its sensors (two temperatures, moisture, weight, gas,
+acidity, sump level, lid) read with noise and can fail. Around it:
+
+| Part | What it does |
+|---|---|
+| `wormbox.py` | the box as a living model: eating, heat, air, acidity, health, the sump, a resting half for harvest |
+| `feeder.py` | how much to feed, from the box's weight |
+| `feeding_guide.py` | the WormBed5 feeding guide (PermTek-5's data), enforced: what, how much, where, when |
+| `keeper.py` | the rules that hold jobs, lock the gantry out and tell the person what to do |
+| jobs | `feed_worms`, `care_box` (dry bedding, water), `top_dress` (finished compost back to cells); the sump's tap and the resting half are switches |
+
+The robot does the routine part (feeding, bedding, water, draining, compost
+back to the bed); a person fills the hopper's two compartments, says what
+went in, wraps the box against frost, and confirms every job.
+
 A habitat whose bed has no worm box or tank on the map still gets them here: a
 WormBed5 guild always has both, and the page says what was assumed.
 

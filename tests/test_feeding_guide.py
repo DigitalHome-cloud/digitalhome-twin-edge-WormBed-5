@@ -63,7 +63,7 @@ def test_browns_keep_pace_with_scraps():
     r = fg.check_feed(G, 400, 0, diary, now, spots=4)
     assert r["rule"] == "browns", "the box's starting bedding is used up"
     due = fg.browns_due(G, 400, diary, now)
-    assert due == 200 and fg.check_feed(G, 400, 0, diary, now, spots=4, with_browns_g=due)["ok"]
+    assert due == 450 and fg.check_feed(G, 400, 0, diary, now, spots=4, with_browns_g=due)["ok"]
     diary.append({"t": now, "what": "bedding", "grams": 500})
     assert fg.check_feed(G, 400, 0, diary, now, spots=4)["ok"] and fg.browns_due(G, 400, diary, now) == 0
     line = fg.week_line(G, diary + [{"t": now, "what": "load", "verdict": "never"}], now)

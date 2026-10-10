@@ -342,3 +342,44 @@ def test_the_page_can_say_what_went_into_the_hopper(client, twin):
     assert calls[-1] == ("/event", {"op": "hopper", "mix": {"vegetable": 600.0, "fruit": 300.0}, "grams": 900.0})
     g = client.get("/api/twin/guide").get_json()
     assert {"vegetable", "citrus", "meat", "paper"} <= {k["id"] for k in g["kinds"]} and any("12 hours" in r for r in g["rules"])
+
+
+def _care_state(**box):
+    return {"cells": {"1_1": {"status": "CellGrowing", "crop": "crop-lettuce", "moisture": 45.0, "compostG": 0},
+                      "1_4": {"status": "CellGrowing", "crop": "crop-lettuce", "moisture": 45.0, "compostG": 50},
+                      "5_13": {"status": "CellPlanned", "crop": "crop-rocket", "moisture": 35.0, "compostG": 0}},
+            "tank": {"litres": 120.0, "capacity": 202.0}, "hopper": {"grams": 0, "brownsGrams": 800},
+            "wormBin": {"weightKg": 6.2, "moisture": 70.0, "sumpL": 1.0, "sumpCapacity": 14.4, "feedings": 3,
+                        "harvest": {"side": None, "ready": False, "readyAfterDays": 10.0, "nextSide": 1}, **box}}
+
+
+def test_the_box_gets_its_care_proposed_bedding_water_the_tap_a_rest_and_compost_back(tmp_path):
+    engine.prepare(engine.habitat_ttl(None), tmp_path)
+    cfg = engine.config(tmp_path)
+    ids = lambda state, **kw: {p["id"]: p for p in engine.proposals(cfg, state, **kw)}   # noqa: E731
+    calm = ids(_care_state())
+    assert "rest" in calm and calm["rest"]["spec"] == {"kind": "rest", "side": 1}
+    assert not {"bedding", "moisten", "tap", "topdress"} & set(calm)
+    due = ids(_care_state(), guide={"brownsDue": 450})
+    assert due["bedding"]["spec"] == {"kind": "care", "what": "bedding", "grams": 450, "spot": 3}
+    assert "moisten" in ids(_care_state(), active=["box-dry"])
+    assert "tap" in ids(_care_state(sumpL=8.0)) and "tap" not in ids({**_care_state(sumpL=8.0), "tank": {"litres": 202.0, "capacity": 202.0}})
+    resting = _care_state(harvest={"side": 1, "ready": True, "readyAfterDays": 10.0, "nextSide": 1})
+    found = ids(resting)
+    assert "rest" not in found and found["topdress"]["spec"]["cells"] == [[1, 1], [1, 4]], "the cell that has had least comes first"
+    # while one half rests, food goes only to the other half's spots
+    assert [engine.next_spot(cfg, {"wormBin": {"feedings": n, "harvest": {"side": 1}}}) for n in range(4)] == [0, 1, 0, 1]
+    assert [engine.next_spot(cfg, {"wormBin": {"feedings": n, "harvest": {"side": None}}}) for n in range(4)] == [0, 1, 2, 3]
+    assert "bedding" not in {p["id"] for p in engine.proposals(cfg, _care_state(), guide={"brownsDue": 450}, holds=["care"])}
+
+
+def test_the_tap_and_the_resting_half_are_switches_not_gantry_jobs(client, twin):
+    _, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    assert client.post("/api/twin/job", json={"spec": {"kind": "tap"}}).status_code == 200
+    assert calls[-1] == ("/event", {"op": "box", "do": "tap"})
+    assert client.post("/api/twin/job", json={"spec": {"kind": "rest", "side": 1}}).status_code == 200
+    assert calls[-1] == ("/event", {"op": "box", "do": "rest", "side": 1})
+    assert client.post("/api/twin/hopper", json={"browns": 1000}).status_code == 200
+    assert calls[-1] == ("/event", {"op": "hopper", "browns": 1000.0})

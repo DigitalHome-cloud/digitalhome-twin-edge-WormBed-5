@@ -1,0 +1,9 @@
+# Finished compost from the resting half of the worm box goes back to the bed: a small portion at each cell.
+int32[] rows
+int32[] cols
+float32 grams_each
+---
+float32[] given_g
+string message
+---
+int32 index

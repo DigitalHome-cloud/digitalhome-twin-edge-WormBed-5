@@ -18,6 +18,8 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "feed", "grams", "spot"} the worm box gets a portion from the hopper
                                      {"op": "hopper", "grams" | "mix": {kind: grams}} a person filled the hopper, and with what
                                      {"op": "tank", "litres"}  a person refilled (or emptied) the tank
+                                     {"op": "care", "what": "bedding", "grams"} | {"what": "moisten", "ml"}  the robot cared for the box
+                                     {"op": "topdress", "row", "col", "grams"}  finished compost from the box onto a cell
                                      {"op": "dry", "percent" | "to"}  hot, dry days in one go (scenarios)
                                      {"op": "box", "do": "insulate", "on"} | {"do": "bedding", "grams"} | {"do": "moisten", "ml"}
                                        | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}
@@ -62,6 +64,7 @@ MOISTURE_LOSS_PER_MIN = 0.01    # at an evaporation of 1.0 (a mild, still, overc
 WICK_TO = 45.0                  # the moisture the wick holds the soil at while the tank has water
 WICK_GAIN_PER_MIN = 0.4         # how fast a drier cell is brought back up (percent per minute)
 WICK_L_PER_CELL_MIN = 0.00002   # what that costs the tank, per planted cell and minute
+COMPOST_FROM_G, COMPOST_KEEPS = 30.0, 0.85   # from this much compost on a cell, its soil loses this share of the usual
 TANK_DEAD_L = 1.0               # under a litre the wick does not reach the water (the worm box's liquid trickles in)
 RAIN_TO_TANK = 0.5              # the share of rain on the bed that reaches the tank pipes
 RAIN_WETS_PER_MM = 2.0          # percent of soil moisture a millimetre of rain adds
@@ -154,6 +157,10 @@ class GantryDriver:
         op = e.get("op")
         try:
             if op == "hopper":                                # a person filled it, and says with what: {"mix": {kind: grams}}
+                if "browns" in e:                             # the second compartment: dry bedding
+                    self.hopper_browns_g = max(0.0, min(float(e["browns"]), 3000.0))
+                    if "mix" not in e and "grams" not in e:
+                        return
                 mix = {str(k): max(0.0, float(g)) for k, g in (e.get("mix") or {}).items()}
                 if not mix:
                     mix = {"vegetable": max(0.0, float(e.get("grams", 0)))}
@@ -210,6 +217,25 @@ class GantryDriver:
                 self.last_feed = {"n": self.box.feedings, "grams": round(grams), "spot": int(e.get("spot", 0)),
                                   "mix": {k: round(g) for k, g in part.items() if g >= 0.5}, "atMin": round(self.env.minutes, 1)}
                 return
+            if op == "care":                                  # the robot gave the box bedding or water
+                if not self.has_bin:
+                    return
+                if e.get("what") == "bedding":
+                    grams = max(0.0, min(float(e.get("grams", 0)), self.hopper_browns_g))
+                    self.hopper_browns_g -= grams
+                    self.box.add_bedding(grams)
+                    self.robot_bedding_g += grams
+                    self.care_n += 1
+                    self.last_care = {"n": self.care_n, "what": "bedding", "amount": round(grams), "atMin": round(self.env.minutes, 1)}
+                elif e.get("what") == "moisten":
+                    self.box.moisten(max(0.0, float(e.get("ml", 0))))
+                return
+            if op == "topdress":                              # finished compost from the box, onto a cell
+                row, col = int(e["row"]), int(e["col"])
+                if self.has_bin and f"{row}_{col}" in self.cells:
+                    c = self.cells[f"{row}_{col}"]
+                    c["compostG"] = c.get("compostG", 0.0) + self.box.take_castings(max(0.0, float(e.get("grams", 0))))
+                return
             if op == "box":                                   # what a person did at the worm box
                 if not self.has_bin:
                     return
@@ -228,6 +254,8 @@ class GantryDriver:
                     self.box.feed(min(float(e.get("grams", 0)), 10000.0), by_robot=False)
                 elif do == "lid":
                     self.lid_left_open = bool(e.get("open", True))
+                elif do == "rest":                            # start a harvest: no food for one half; None ends it
+                    self.box.rest(e.get("side"))
                 elif do == "tap":                             # the sump runs on into the tank, as far as there is room
                     self.tank_l += self.box.drain(self.tank_cap - self.tank_l)
                 return
@@ -271,6 +299,7 @@ class GantryDriver:
         self.probes = Sensors(seed=self.seed)
         self.lid_left_open = False       # by a person; a disturbance can open it too
         self.hopper_g, self.hopper_mix, self.last_feed = 0.0, {}, None
+        self.hopper_browns_g, self.robot_bedding_g, self.care_n, self.last_care = 0.0, 0.0, 0, None
 
     def show_box(self, x):
         """Open or shut the lid and put the wrapping on or off in the world, when that changed. The feed
@@ -329,7 +358,8 @@ class GantryDriver:
             rain_mm = env.rain_mm_h() * dmin / 60.0
             wicking = self.tank_cap > 0 and self.tank_l >= TANK_DEAD_L
             for c in self.cells.values():
-                c["moisture"] = max(5.0, c["moisture"] - loss)
+                # a top-dressing of compost shades the soil a little: it dries more slowly
+                c["moisture"] = max(5.0, c["moisture"] - loss * (COMPOST_KEEPS if c.get("compostG", 0) >= COMPOST_FROM_G else 1.0))
                 if rain_mm:
                     c["moisture"] = min(60.0, c["moisture"] + rain_mm * RAIN_WETS_PER_MM)
                 if wicking and c["status"] != "CellPlanned" and c["moisture"] < WICK_TO:
@@ -351,10 +381,12 @@ class GantryDriver:
                 "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1), "overflowing": self.overflowing},
                 "wormBin": ({**self.probes.read(box, env.sensor),
                              "fillPct": round(100.0 * box.weight_g() / FULL_G, 1), "fedGrams": round(box.fed_g),
-                             "feedings": box.feedings, "wormsMayLeave": box.may_leave, "insulated": box.insulated, "sumpCapacity": round(box.sump_cap_l, 1), "lastFeed": self.last_feed,
+                             "feedings": box.feedings, "wormsMayLeave": box.may_leave, "insulated": box.insulated, "sumpCapacity": round(box.sump_cap_l, 1), "lastFeed": self.last_feed, "lastCare": self.last_care,
+                             "beddingGrams": round(self.robot_bedding_g), "takenGrams": round(box.taken_g), "harvest": box.harvest(),
                              "sim": box.truth()}
                             if self.has_bin else None),
-                "hopper": {"grams": round(self.hopper_g), "jammed": env.flag("hopperJam"),
+                "hopper": {"grams": round(self.hopper_g), "jammed": env.flag("hopperJam"), "brownsGrams": round(self.hopper_browns_g),
                            "mix": {k: round(g) for k, g in self.hopper_mix.items() if g >= 0.5}},
-                "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1)}
+                "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1),
+                              "compostG": round(c.get("compostG", 0.0))}
                           for k, c in self.cells.items()}})))

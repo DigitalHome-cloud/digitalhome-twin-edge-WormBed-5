@@ -5,8 +5,10 @@
     .venv/bin/python scripts/selftest-twin.py [--gui]
 
 Generates the world, starts the simulation, sows, waters, probes and
-photographs cells through the gateway, feeds the worm box, watches the tank
-and the soil, checks what came back, stops it.
+photographs cells through the gateway, feeds the worm box, gives it bedding,
+takes compost back to cells, drains the sump, watches the tank and the soil,
+checks what came back, stops it. It uses ports of its own (8790 and up), so it
+can run beside an edge that is in use.
 Not part of ./test.sh (which must pass on a machine without ROS or Webots).
 """
 import sys
@@ -15,7 +17,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from permtek5_twin_edge import habitat as hb, sim, world  # noqa: E402
+from permtek5_twin_edge import engine, habitat as hb, instance, sim, world  # noqa: E402
 
 
 def check(what, ok, detail=""):
@@ -25,8 +27,9 @@ def check(what, ok, detail=""):
 
 
 def main():
+    instance.configure(port=8790)          # its own ports, so it can run beside an edge that is in use
     out = Path(tempfile.mkdtemp(prefix="twin-selftest-"))
-    world.generate(hb.load_citydemo(), hb.load_library(), out)
+    world.generate(hb.load_citydemo(), hb.load_library(), out, assets=engine.shared_assets())
     check("nothing missing to start", sim.missing() == [], sim.missing())
     sim.start(out, gui="--gui" in sys.argv)
     try:
@@ -70,6 +73,49 @@ def main():
         check("the head is over the worm box", abs(g["x"] - 2.8) < 0.005, g)
         job = sim.run_job({"kind": "plant", "row": 5, "col": 27, "crop": "crop-rocket"})
         check("nothing is sown in the worm box", job["state"] == "failed" and "worm box" in job["message"], job)
+        # the box's care: bedding from the second compartment, the sump's tap, and compost back to the bed
+        job = sim.run_job({"kind": "care", "what": "bedding", "grams": 200, "spot": 0})
+        check("an empty bedding compartment is refused", job["state"] == "failed" and "compartment is empty" in job["message"], job)
+        sim.gateway("/event", {"op": "hopper", "browns": 500})
+        time.sleep(1.2)
+        job = sim.run_job({"kind": "care", "what": "bedding", "grams": 200, "spot": 0})
+        check("care_box adds dry bedding", job["state"] == "done" and job["result"]["amount"] == 200, job)
+        time.sleep(1.2)
+        bed = sim.gateway("/state")["bed"]
+        check("the compartment is lighter and the robot knows what it added",
+              bed["hopper"]["brownsGrams"] == 300 and bed["wormBin"]["beddingGrams"] == 200, bed["hopper"])
+        job = sim.run_job({"kind": "topdress", "cells": [[1, 1]], "grams": 50})
+        check("no compost is taken from a box that has not rested", job["state"] == "failed" and "rested" in job["message"], job)
+        sim.gateway("/event", {"op": "box", "do": "rest", "side": 1})
+        sim.gateway("/event", {"op": "time", "factor": 600})     # ten days at ten hours a second
+        deadline = time.time() + 60
+        while time.time() < deadline and not sim.gateway("/state")["bed"]["wormBin"]["harvest"]["ready"]:
+            time.sleep(1.0)
+        sim.gateway("/event", {"op": "time", "factor": 1})
+        check("the rested half is ready after ten days", sim.gateway("/state")["bed"]["wormBin"]["harvest"]["ready"])
+        job = sim.run_job({"kind": "topdress", "cells": [[1, 1], [1, 4]], "grams": 50})
+        check("top_dress carries compost to the cells", job["state"] == "done" and job["result"]["givenG"] == [50, 50], job)
+        time.sleep(1.2)
+        bed = sim.gateway("/state")["bed"]
+        check("the cells have it and the box is lighter by it",
+              bed["cells"]["1_1"]["compostG"] == 50 and bed["cells"]["1_4"]["compostG"] == 50 and bed["wormBin"]["takenGrams"] == 100, bed["wormBin"])
+        sim.gateway("/event", {"op": "tank", "litres": 100})
+        sim.gateway("/event", {"op": "box", "do": "lid", "open": True})
+        sim.gateway("/event", {"op": "disturb", "id": "cloudburst", "effect": {"rainMmH": 60.0}, "minutes": 60})
+        sim.gateway("/event", {"op": "time", "factor": 30})
+        time.sleep(4)
+        sim.gateway("/event", {"op": "calm"})
+        sim.gateway("/event", {"op": "time", "factor": 1})
+        sim.gateway("/event", {"op": "box", "do": "lid", "open": False})
+        sim.gateway("/event", {"op": "tank", "litres": 100})
+        time.sleep(1.2)
+        full = sim.gateway("/state")["bed"]["wormBin"]["sumpL"]
+        sim.gateway("/event", {"op": "box", "do": "tap"})
+        time.sleep(1.2)
+        bed = sim.gateway("/state")["bed"]
+        check("rain through an open lid fills the sump, and the tap lets it into the tank",
+              full > 10 and bed["wormBin"]["sumpL"] < 1 and bed["tank"]["litres"] > 108, (full, bed["tank"]))
+        sim.gateway("/event", {"op": "tank", "litres": 100})
         # with water in the tank the soil is kept moist from below; an empty tank lets it dry
         time.sleep(6)
         wet = sim.gateway("/state")["bed"]

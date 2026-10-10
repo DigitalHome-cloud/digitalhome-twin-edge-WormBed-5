@@ -29,6 +29,10 @@ EACH SIMULATED MINUTE
   sump       the lower bin catches the liquid, and rain that falls through
              an open lid. Full, it backs up and soaks the working bin. A tap
              lets it on to the tank (`drain`).
+  harvest    the box has two halves. When one is RESTED (no food goes there)
+             the worms move to the fed half; after about ten days the
+             resting half's castings are finished and can be scooped out, a
+             little at a time. When they are gone the halves swap roles.
   health     0..1. Frost, heat, drought, a soaked or airless box wear it
              down. When worms may leave into the soil (the guild's setting)
              they dodge half the harm and come back when it is good again; in
@@ -57,6 +61,7 @@ DRIES_PER_MIN, DRIES_OPEN_PER_MIN = 0.002, 0.01
 FOOD_AIRLESS_G = (1500.0, 4000.0)              # uneaten food: air starts to run short, is gone
 WET_AIRLESS_PCT = (85.0, 95.0)
 FULL_G = 20000.0
+READY_AFTER_MIN = 10 * 1440.0                  # a rested half is finished after about ten days
 ACID_BUFFER_MIN = 5 * 1440.0                   # acid fades over about five days
 BEDDING_BUFFERS_PER_KG = 0.3
 BACKS_UP_PCT_PER_L = 4.0                       # percent of moisture a litre the sump cannot take adds to the bin
@@ -92,6 +97,11 @@ class WormBox:
         self.insulated = False
         self.lid_open = False
         self.acid = 0.3                  # 0: neutral (pH 7); 3: sour (pH 5.5)
+        self.rest_side = None            # the half that is rested for harvest: 0 or 1; None: both are fed
+        self.rest_min = 0.0
+        self.next_side = 1               # the half to rest at the next harvest: they take turns
+        self.ready_g = 0.0               # finished castings that can be scooped from the resting half
+        self.taken_g = 0.0               # castings taken out, in all
         self.fed_g = 0.0                 # what the robot dropped in, in all
         self.feedings = 0
         self.eaten_g = 0.0
@@ -120,6 +130,31 @@ class WormBox:
 
     def moisten(self, ml):
         self.moisture = min(98.0, self.moisture + max(0.0, ml) / 100.0)
+
+    def rest(self, side):
+        """Stop feeding one half (0 or 1) so the worms leave it; None feeds both again."""
+        self.rest_side = None if side is None else int(side) % 2
+        self.rest_min, self.ready_g = 0.0, 0.0
+
+    def ready(self):
+        return self.rest_side is not None and self.rest_min >= READY_AFTER_MIN
+
+    def take_castings(self, grams):
+        """Scoop finished castings from the resting half. Returns what came out; when the half is empty it
+        becomes the fed half and the other can be rested next."""
+        out = max(0.0, min(grams, self.ready_g)) if self.ready() else 0.0
+        self.ready_g -= out
+        self.castings_g -= out
+        self.taken_g += out
+        if self.ready() and self.ready_g < 25.0:
+            self.next_side = 1 - self.rest_side
+            self.rest(None)
+        return out
+
+    def harvest(self):
+        """What the robot knows about the harvest: which half rests, for how long, and whether it is ready."""
+        return {"side": self.rest_side, "restDays": round(self.rest_min / MINUTES_PER_DAY, 1), "ready": self.ready(),
+                "readyAfterDays": READY_AFTER_MIN / MINUTES_PER_DAY, "nextSide": self.next_side}
 
     def drain(self, room_l=1e9):
         """Open the tap: the sump's liquid runs on (to the tank), as far as there is room. Returns the litres."""
@@ -197,6 +232,11 @@ class WormBox:
             self.health = min(1.0, self.health + 0.2 * days)       # they come back from the soil
         if eaten > 0:
             self.worms_g *= 1.0 + 0.008 * days * self.activity()   # a well-fed population doubles in about three months
+        if self.rest_side is not None:
+            was = self.ready()
+            self.rest_min += minutes
+            if self.ready() and not was:                           # the worms have left: that half's castings are finished
+                self.ready_g = self.castings_g * 0.5
         liquid = eaten * TO_LIQUID / 1000.0
         self.sump_l += liquid + rain_l
         if self.sump_l > self.sump_cap_l:                          # a full sump backs up into the working bin
@@ -208,7 +248,7 @@ class WormBox:
         """What is really going on: only a simulation can show this, a real box cannot."""
         return {"activity": round(self.activity(), 2), "health": round(self.health, 2), "wormsG": round(self.worms_g),
                 "foodG": round(self.food_g), "castingsG": round(self.castings_g), "eatsPerDay": round(self.eats_per_day()),
-                "eatenG": round(self.eaten_g), "air": round(self.air, 2), "acid": round(self.acid, 2)}
+                "eatenG": round(self.eaten_g), "air": round(self.air, 2), "acid": round(self.acid, 2), "readyG": round(self.ready_g)}
 
 
 NOISE = {"wormBin.pH": 0.03, "wormBin.sumpL": 0.03, "wormBin.tempC": 0.1, "wormBin.edgeC": 0.1, "wormBin.moisture": 0.3, "wormBin.weightKg": 0.015, "wormBin.gas": 1.0}

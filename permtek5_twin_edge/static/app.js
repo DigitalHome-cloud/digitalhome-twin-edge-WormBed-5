@@ -92,7 +92,7 @@ function drawJobs(t) {
   $("#history").innerHTML = hist.length ? hist.map((j) => {
     const r = j.result || {};
     const what = r.moisture ? `soil ${r.moisture.join(", ")} %` : r.givenMl ? `${r.givenMl.reduce((a, b) => a + b, 0)} ml`
-      : r.grams ? `${r.grams} g`
+      : r.grams ? `${r.grams} g` : r.givenG ? `${r.givenG.reduce((a, b) => a + b, 0)} g of compost`
       : r.photos ? `${r.photos.length} pictures` : "";
     return `<div class="${j.state === "done" ? "" : "bad"}">${core.esc(j.kind)} · ${core.esc(j.state)}`
       + `${j.message ? " · " + core.esc(j.message) : ""}${what ? " · " + core.esc(what) : ""}</div>`;
@@ -128,7 +128,7 @@ function stats(t) {
     // a dead probe gives no reading: say so instead of showing a number
     const temp = box && typeof box.tempC === "number" ? `${box.tempC.toFixed(0)} °C` : "no reading";
     rows.push([box ? `${temp} · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, "worm box"]);
-    if (hopper) rows.push([`${hopper.grams} g`, "hopper"]);
+    if (hopper) rows.push([`${hopper.grams} g${hopper.brownsGrams ? ` · ${hopper.brownsGrams} g` : ""}`, hopper.brownsGrams ? "hopper: scraps · bedding" : "hopper"]);
   }
   $("#overview").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
 }
@@ -170,7 +170,7 @@ function draw(t) {
   drawEnv(t);
   drawBox(t, ready);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
-  $("#btn-hopper-empty").disabled = $("#btn-hopper-mix").disabled = $("#btn-hopper").disabled;
+  $("#btn-hopper-empty").disabled = $("#btn-hopper-mix").disabled = $("#btn-browns").disabled = $("#btn-hopper").disabled;
   $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
   $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
   $("#btn-stop").disabled = !t.running;
@@ -216,6 +216,7 @@ try { $("#chk-window").checked = localStorage.getItem("permtek5-twin-edge-window
 $("#btn-stop").addEventListener("click", async () => { views(false); await post("/api/twin/stop"); refresh(); });
 const fillHopper = async (mix, said) => { if (await post("/api/twin/hopper", mix ? { mix } : { grams: 0 })) core.toast(said); refresh(); };
 $("#btn-hopper").addEventListener("click", () => fillHopper({ vegetable: 600, fruit: 300, coffee: 100 }, "Hopper: 1 kg, the usual mix"));
+$("#btn-browns").addEventListener("click", async () => { if (await post("/api/twin/hopper", { browns: 1000 })) core.toast("Bedding compartment: 1 kg"); refresh(); });
 $("#btn-hopper-empty").addEventListener("click", () => fillHopper(null, "Hopper emptied"));
 $("#btn-hopper-mix").addEventListener("click", () => {
   const mix = {};
@@ -357,6 +358,12 @@ function drawBox(t, ready) {
     + `This week: ${week.scrapsG} g of scraps in ${week.feedings} feeding(s), ${week.brownsG} g of dry bedding`
     + (week.refusedLoads ? `, ${week.refusedLoads} hopper load(s) refused` : "") + "."
     + (guide.brownsDue ? ` Dry bedding due with the next feeding: ${guide.brownsDue} g.` : "");
+  // the compost harvest: which half rests, and what has gone back to the bed
+  const h = box.harvest, cells = Object.values((t.twin.bed.cells) || {}).filter((c) => c.compostG > 0).length;
+  $("#box-harvest").textContent = !h ? "" : "Compost: "
+    + (h.side === null ? "both halves are fed. " : h.ready ? `half ${h.side + 1} has rested ${h.restDays} days: its castings are ready to go to the bed. `
+      : `half ${h.side + 1} rests (${h.restDays} of ${h.readyAfterDays} days); the worms are moving to the other half. `)
+    + (box.takenGrams ? `${box.takenGrams} g taken so far, onto ${cells} cell(s).` : "");
   const sim = box.sim;
   $("#box-sim").textContent = !sim ? "" : `Simulation only: worms ${sim.wormsG} g, health ${Math.round(sim.health * 100)} %, `
     + `working at ${Math.round(sim.activity * 100)} %, eat ${sim.eatsPerDay} g a day, ${sim.foodG} g uneaten, ${sim.castingsG} g castings`

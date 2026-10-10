@@ -1,0 +1,107 @@
+{
+  "title": "Compost goes back to the bed",
+  "about": "What the worms make is for this bed. Taking it out by hand means tipping the box and sorting worms from castings. The robot does it nature's way: it stops feeding one half of the box, the worms move to where the food is, and after about ten days the resting half holds finished castings without worms. It carries them to the plants a spoonful at a time.",
+  "fresh": true,
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "Start a harvest: rest one half",
+      "why": "Nothing moves: from now on the robot feeds only the other half's spots. This is a decision, so it is a proposal you confirm.",
+      "do": {
+        "type": "proposal",
+        "id": "rest",
+        "label": "Confirm: rest one half"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.harvest.side",
+          "is": ">=",
+          "value": 0,
+          "say": "resting half: {v}"
+        },
+        {
+          "read": "proposals.rest",
+          "is": "==",
+          "value": 0,
+          "say": "harvests proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Ten days pass",
+      "why": "The clock runs at 10 hours a second. The worms follow the food; the resting half finishes.",
+      "do": {
+        "type": "time",
+        "factor": 600,
+        "label": "Run the clock: 10 hours a second"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.harvest.ready",
+          "is": "==",
+          "value": true,
+          "say": "resting half ready: {v}"
+        },
+        {
+          "read": "proposals.topdress",
+          "is": "==",
+          "value": 1,
+          "say": "top-dressing proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: compost to six plants",
+      "why": "The scoop takes 50 g from the resting half and sets it down beside a plant, six times, at the cells that have had least. Watch the overview camera.",
+      "do": {
+        "type": "proposal",
+        "id": "topdress",
+        "factor": 1,
+        "label": "Confirm: top-dress six cells"
+      },
+      "expect": [
+        {
+          "read": "last.topdress.state",
+          "is": "==",
+          "value": "done",
+          "say": "top-dress job: {v}"
+        },
+        {
+          "read": "composted",
+          "is": ">=",
+          "value": 6,
+          "say": "cells with compost: {v}"
+        },
+        {
+          "read": "bed.wormBin.takenGrams",
+          "is": ">=",
+          "value": 250,
+          "say": "compost taken from the box: {v} g"
+        }
+      ]
+    },
+    {
+      "title": "What it did to the box",
+      "why": "The load cells saw 300 g leave. The feeder knows the robot took it, so it does not mistake it for eating. More portions follow on later days until the half is empty; then the halves swap.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "feeder.state",
+          "is": "!=",
+          "value": "blind",
+          "say": "feeder: {v}"
+        },
+        {
+          "read": "bed.wormBin.harvest.ready",
+          "is": "==",
+          "value": true,
+          "say": "more to take: {v}"
+        }
+      ]
+    }
+  ]
+}

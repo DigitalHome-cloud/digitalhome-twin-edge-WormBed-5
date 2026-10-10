@@ -124,3 +124,17 @@ def test_kinds_of_food_differ_citrus_sours_the_box_and_eggshell_and_bedding_brin
     hot = WormBox()
     hot.feed(1000, heat=3.0)                                      # meat heats three times as much
     assert hot.heat_c() > 2.5 * plain.heat_c() - 1.0 and hot.heat_c() > plain.heat_c() + 4.0
+
+
+def test_a_rested_half_is_ready_after_ten_days_and_its_castings_go_out_in_portions():
+    box = WormBox()
+    assert box.take_castings(100) == 0.0, "nothing is taken from a box that is not rested"
+    box.rest(1)
+    run(box, 24 * 5)
+    assert not box.ready() and box.take_castings(100) == 0.0 and box.harvest()["restDays"] == 5.0
+    run(box, 24 * 5 + 1)
+    assert box.ready() and box.ready_g == pytest.approx(box.castings_g * 0.5)
+    weight, ready = box.weight_g(), box.ready_g
+    assert box.take_castings(300) == 300 and box.weight_g() == pytest.approx(weight - 300) and box.taken_g == 300
+    assert box.take_castings(10_000) == pytest.approx(ready - 300)
+    assert box.harvest() == {"side": None, "restDays": 0.0, "ready": False, "readyAfterDays": 10.0, "nextSide": 0}, "the halves swap: both are fed again"

@@ -6,6 +6,8 @@
     /bed/probe_cells  roofbed_interfaces/action/ProbeCells
     /bed/photo_pass   roofbed_interfaces/action/PhotoPass
     /bed/feed_worms   roofbed_interfaces/action/FeedWorms
+    /bed/care_box     roofbed_interfaces/action/CareBox     dry bedding, or water, for the worm box
+    /bed/top_dress    roofbed_interfaces/action/TopDress    finished compost from the box back to cells
 
 It talks to the gantry only through its driver's topics (/gantry/target,
 /gantry/position, the tool camera) and tells the bed what happened
@@ -29,7 +31,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
-from roofbed_interfaces.action import FeedWorms, PhotoPass, PlantCell, ProbeCells, WaterCells
+from roofbed_interfaces.action import CareBox, FeedWorms, PhotoPass, PlantCell, ProbeCells, TopDress, WaterCells
 
 TOLERANCE_M = 0.002
 MOVE_TIMEOUT_S = 90.0
@@ -39,6 +41,11 @@ FLOW_ML_PER_S = 40.0
 MAX_ML_PER_CELL = 1000.0
 MAX_PORTION_G = 500.0       # what the scoop carries in one go
 SCOOP_INTO_M = 0.08         # how far the tool dips into the hopper
+BEDDING_DY_M = 0.08         # the hopper's second compartment (dry bedding) lies this far beside the first
+MAX_BEDDING_G = 500.0
+MAX_MOISTEN_ML = 2000.0
+MAX_TOPDRESS_CELLS = 8
+MAX_TOPDRESS_G = 100.0      # per cell: a spoonful, not a layer
 
 
 class Aborted(Exception):
@@ -65,7 +72,8 @@ class BedActions(Node):
         self.create_subscription(Bool, "/gantry/estop", lambda m: setattr(self, "stopped", bool(m.data)), 10, callback_group=g)
         for name, kind, run in (("plant_cell", PlantCell, self.plant), ("water_cells", WaterCells, self.water),
                                 ("probe_cells", ProbeCells, self.probe), ("photo_pass", PhotoPass, self.photo),
-                                ("feed_worms", FeedWorms, self.feed)):
+                                ("feed_worms", FeedWorms, self.feed), ("care_box", CareBox, self.care),
+                                ("top_dress", TopDress, self.topdress)):
             ActionServer(self, kind, f"/bed/{name}", execute_callback=self.guarded(run, kind), callback_group=g,
                          goal_callback=self.accept, cancel_callback=lambda _goal: CancelResponse.ACCEPT)
 
@@ -247,6 +255,72 @@ class BedActions(Node):
         self.pause(gh, 0.5)
         self.event(op="feed", grams=grams, spot=spot)
         result.fed, result.grams_dropped, result.message = True, grams, f"{grams:.0f} g at spot {spot + 1} of {spots}"
+
+    def care(self, gh, result):
+        """What the worm box needs besides food: dry bedding from the hopper's second compartment, or water."""
+        g = gh.request
+        box, hopper = self.cfg.get("wormBin") or {}, self.cfg.get("hopper") or {}
+        if not box.get("cols"):
+            raise Aborted("this bed has no worm box")
+        spots = int(box.get("spots", 1))
+        y = self.w["y"][1] * (int(g.spot) % spots + 0.5) / spots
+        say = lambda phase: gh.publish_feedback(CareBox.Feedback(phase=phase))   # noqa: E731
+        if g.what == "bedding":
+            have = float((self.bed_state.get("hopper") or {}).get("brownsGrams", 0))
+            grams = min(max(0.0, float(g.amount)), MAX_BEDDING_G, have)
+            if grams <= 0:
+                raise Aborted("the bedding compartment is empty: a person fills it first")
+            say("to the bedding compartment")
+            self.lift(gh)
+            self.move(gh, x=hopper["x"], y=hopper["y"] + BEDDING_DY_M)
+            say("scooping")
+            self.move(gh, z=SCOOP_INTO_M)
+            self.pause(gh, 0.5)
+            self.lift(gh)
+            say("to the worm box")
+            self.move(gh, x=box["dropX"], y=y)
+            say("dropping")
+            self.pause(gh, 0.5)
+            self.event(op="care", what="bedding", grams=grams)
+            result.done, result.amount_given, result.message = True, grams, f"{grams:.0f} g of dry bedding"
+        elif g.what == "moisten":
+            ml = min(max(0.0, float(g.amount)), MAX_MOISTEN_ML)
+            say("to the worm box")
+            self.lift(gh)
+            self.move(gh, x=box["dropX"], y=self.w["y"][1] / 2)
+            say("sprinkling")
+            self.pause(gh, ml / FLOW_ML_PER_S / 4)
+            self.event(op="care", what="moisten", ml=ml)
+            result.done, result.amount_given, result.message = True, ml, f"{ml:.0f} ml sprinkled over the box"
+        else:
+            raise Aborted("what is bedding or moisten")
+
+    def topdress(self, gh, result):
+        """Finished compost from the worm box's resting half, a small portion to each cell."""
+        g = gh.request
+        box = self.cfg.get("wormBin") or {}
+        harvest = (self.bed_state.get("wormBin") or {}).get("harvest") or {}
+        if not box.get("cols"):
+            raise Aborted("this bed has no worm box")
+        if not harvest.get("ready"):
+            raise Aborted("no half of the worm box is rested and ready: there is no finished compost to take")
+        cells = self.pairs(g.rows, g.cols)[:MAX_TOPDRESS_CELLS]
+        grams = min(max(0.0, float(g.grams_each)), MAX_TOPDRESS_G)
+        side_y = self.w["y"][1] * (0.25 if int(harvest.get("side") or 0) == 0 else 0.75)
+        for i, (row, col) in enumerate(cells):
+            gh.publish_feedback(TopDress.Feedback(index=i))
+            self.cell_xy(row, col)                                   # refuse a cell outside the soil before fetching for it
+            self.lift(gh)
+            self.move(gh, x=box["dropX"], y=side_y)
+            self.move(gh, z=SCOOP_INTO_M)
+            self.pause(gh, 0.4)
+            self.over(gh, row, col)
+            self.move(gh, z=(self.w["tipHome"] - self.w["soilZ"]) - WATER_ABOVE_M)
+            self.pause(gh, 0.3)
+            self.event(op="topdress", row=row, col=col, grams=grams)
+            result.given_g.append(grams)
+        self.lift(gh)
+        result.message = f"{len(cells)} cells top-dressed, {grams:.0f} g each"
 
     def photo(self, gh, result):
         g = gh.request

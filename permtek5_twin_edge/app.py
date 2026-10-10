@@ -154,8 +154,12 @@ def _follow_guide(cfg, bed, out, kept: dict) -> None:
         _guide_seen["load"] = "seen"
         _note(out, {"t": now, "what": "load", "mix": mix, "verdict": "ok" if load["ok"] else load["rule"]})
     advice = kept.get("feeder") or {}
+    care = box.get("lastCare")
+    if care and care["n"] != _guide_seen.get("careN") and care.get("what") == "bedding":   # the robot added bedding
+        _note(out, {"t": care.get("atMin", now), "what": "bedding", "grams": care["amount"], "by": "robot"})
+    _guide_seen["careN"] = care["n"] if care else 0
     spots = int(cfg["wormBin"].get("spots", 1))
-    spot = int(box.get("feedings", 0)) % spots
+    spot = engine.next_spot(cfg, bed)
     grams = advice.get("grams") if advice else engine.PORTION_G
     feed = feeding_guide.check_feed(_guide, float(grams or 0), spot, _diary, now, core_c=box.get("tempC"),
                                     eats_per_day=advice.get("eatsPerDay"), uneaten_g=advice.get("uneatenG"), spots=spots)
@@ -208,7 +212,8 @@ def _twin_state() -> dict:
             "feeder": kept.get("feeder"), "guide": kept.get("guide"),
             "env": (bed or {}).get("env"),
             "habitats": store.habitats(), "recorded": recorded,
-            "proposals": engine.proposals(cfg, bed, kept["holds"], kept.get("feeder")) if not kept["lockout"] else []}
+            "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"])
+                          if not kept["lockout"] else [])}
 
 
 @app.get("/api/twin")
@@ -269,16 +274,28 @@ def twin_job():
     if why_not:                                   # a hold or a lockout: the keeper's word stands over a click
         return jsonify({"errors": [why_not]}), 409
     try:
-        return jsonify(sim.gateway("/job", spec))
+        return jsonify(_run(spec))
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
+
+
+def _run(spec: dict) -> dict:
+    """Carry out a confirmed job. Most are the gantry's; the tap and the resting half are switches, not movements."""
+    if spec.get("kind") == "tap":
+        return {**_event({"op": "box", "do": "tap"}), "done": "the tap was opened"}
+    if spec.get("kind") == "rest":
+        return {**_event({"op": "box", "do": "rest", "side": spec.get("side")}), "done": "one half of the box now rests"}
+    return sim.gateway("/job", spec)
 
 
 @app.post("/api/twin/hopper")
 def twin_hopper():
     """A person filled the hopper, and says with what: {"mix": {kind: grams}} (the feeding guide's kinds),
-    or just {"grams"} of vegetable scraps. {"grams": 0} empties it. The guide's verdict comes with the twin's state."""
+    or just {"grams"} of vegetable scraps. {"grams": 0} empties it. {"browns": grams} fills the second
+    compartment with dry bedding. The guide's verdict comes with the twin's state."""
     try:
+        if "browns" in body():                    # the second compartment: dry bedding for the robot to add
+            return jsonify(sim.gateway("/event", {"op": "hopper", "browns": max(0.0, min(float(body()["browns"]), 3000.0))}))
         mix = body().get("mix")
         if isinstance(mix, dict):
             mix = {str(k): max(0.0, float(g)) for k, g in mix.items() if float(g) > 0}
@@ -468,7 +485,7 @@ def scenario_start():
             sim.gateway("/event", event)
         _feeder_memory.clear()
         _diary.clear()
-        _guide_seen.update(feedN=0, load=None)
+        _guide_seen.update(feedN=0, load=None, careN=0)
         _offline["until"] = 0.0
     return jsonify(_scenario_view())
 
@@ -492,7 +509,7 @@ def scenario_do():
         if "estop" in act:
             sim.gateway("/estop", {"on": act["estop"]})
         if "job" in act:
-            sim.gateway("/job", act["job"])
+            _run(act["job"])
     except ValueError as exc:
         return jsonify({"errors": [str(exc)]}), 400
     except RuntimeError as exc:

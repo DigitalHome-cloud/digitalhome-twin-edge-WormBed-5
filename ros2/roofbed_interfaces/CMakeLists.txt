@@ -12,6 +12,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/ProbeCells.action"
   "action/PhotoPass.action"
   "action/FeedWorms.action"
+  "action/CareBox.action"
+  "action/TopDress.action"
   DEPENDENCIES sensor_msgs
 )
 

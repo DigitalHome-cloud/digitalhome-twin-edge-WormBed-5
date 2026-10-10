@@ -1,0 +1,12 @@
+# Something the worm box needs that a person used to do by hand.
+# what: "bedding" (amount in grams of dry bedding, from the hopper's second compartment, dropped at a spot)
+#       "moisten" (amount in millilitres of clean water, through the feed hatch)
+string what
+float32 amount
+int32 spot
+---
+bool done
+float32 amount_given
+string message
+---
+string phase

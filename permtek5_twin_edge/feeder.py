@@ -7,8 +7,8 @@ Worms do not say when they are hungry, but the box gets lighter as they eat:
 of every gram eaten about 0.6 g leaves it, as liquid to the tank and as gas
 and vapour (a rule of thumb; PermTek-5 docs/specs/perma5guild.md). So:
 
-    1. Take the box's weight at every look, minus what the robot has fed
-       so far. That series only falls, and it falls as fast as the worms eat.
+    1. Take the box's weight at every look, minus what the robot has put in
+       so far (food, bedding) and plus the compost it took out. That series only falls, and it falls as fast as the worms eat.
     2. Fit a straight line through the last day of it (least squares, so the
        load cells' noise averages out). Slope / 0.6 = grams eaten per day.
     3. Worms eat less when it is cold: scale that rate from the temperatures
@@ -49,6 +49,11 @@ def _now(bed: Dict[str, Any]) -> float:
     return (env.get("day", 1) - 1) * 1440.0 + env.get("hour", 0.0) * 60.0
 
 
+def _known(box: Dict[str, Any]) -> float:
+    """Weight the robot itself put in or took out: food and bedding in, finished compost out. Not eating."""
+    return float(box.get("fedGrams") or 0) + float(box.get("beddingGrams") or 0) - float(box.get("takenGrams") or 0)
+
+
 def observe(memory: Dict[str, Any], bed: Optional[Dict[str, Any]]) -> None:
     """Take one reading of the box into the memory (at most one every ten simulated minutes)."""
     box = (bed or {}).get("wormBin") or {}
@@ -63,7 +68,7 @@ def observe(memory: Dict[str, Any], bed: Optional[Dict[str, Any]]) -> None:
     if samples and now - samples[-1][0] < SAMPLE_EVERY_MIN:
         return
     fed = float(box.get("fedGrams") or 0)
-    y = weight * 1000.0 - fed
+    y = weight * 1000.0 - _known(box)
     if samples:
         gap = now - samples[-1][0]
         change = y - samples[-1][1]

@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional
 
 GUIDE = Path(__file__).resolve().parent / "data" / "wormbed5-feeding.json"
 #: A settled box starts with bedding in it: this much counts as browns before the diary has any.
-BROWNS_CREDIT_G = 500.0
+BROWNS_CREDIT_G = 250.0
 DEFAULT_MIX_KIND = "vegetable"
 
 

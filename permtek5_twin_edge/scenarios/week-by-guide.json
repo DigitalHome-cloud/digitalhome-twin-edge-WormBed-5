@@ -1,0 +1,199 @@
+{
+  "title": "Feeding by the guide: scraps and browns",
+  "about": "A worm box needs two things in balance: wet kitchen scraps (the greens) and dry paper, cardboard or leaves (the browns), about one part browns to three of scraps. The hopper has a compartment for each. You fill both; the robot feeds what the worms can eat, waits half a day between feedings, and adds bedding when the balance asks for it.",
+  "fresh": true,
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "You: fill both compartments",
+      "why": "3 kg of scraps by the guide (vegetable, fruit, coffee grounds, a little eggshell) and 1 kg of torn cardboard in the second compartment.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "hopper",
+            "mix": {
+              "vegetable": 1800,
+              "fruit": 750,
+              "coffee": 300,
+              "eggshell": 150
+            }
+          },
+          {
+            "op": "hopper",
+            "browns": 1000
+          }
+        ],
+        "label": "Fill scraps and bedding"
+      },
+      "expect": [
+        {
+          "read": "bed.hopper.grams",
+          "is": ">=",
+          "value": 2900,
+          "say": "scraps: {v} g"
+        },
+        {
+          "read": "bed.hopper.brownsGrams",
+          "is": ">=",
+          "value": 1000,
+          "say": "dry bedding: {v} g"
+        }
+      ]
+    },
+    {
+      "title": "Robot: a first, small portion",
+      "why": "The feeder does not know these worms yet, so the first portion is small.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "label": "Confirm: feed the worms"
+      },
+      "expect": [
+        {
+          "read": "last.feed.state",
+          "is": "==",
+          "value": "done",
+          "say": "feed job: {v}"
+        }
+      ]
+    },
+    {
+      "title": "A day and a half pass",
+      "why": "The clock runs at 2 hours a second. The guide lets the next feeding through after 12 hours; the feeder waits until it has a day of weights.",
+      "do": {
+        "type": "time",
+        "factor": 120,
+        "label": "Run the clock: 2 hours a second"
+      },
+      "expect": [
+        {
+          "read": "feeder.state",
+          "is": "==",
+          "value": "known",
+          "say": "feeder: {v}"
+        },
+        {
+          "read": "bed.env.day",
+          "is": ">=",
+          "value": 3,
+          "say": "day {v}"
+        },
+        {
+          "read": "proposals.feed",
+          "is": ">=",
+          "value": 1,
+          "say": "the next feeding is proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: one day's food",
+      "why": "Now the portion is what the worms eat in a day, on the next spot.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "factor": 1,
+        "label": "Confirm: feed the worms"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.feedings",
+          "is": ">=",
+          "value": 2,
+          "say": "worm box fed {v} times"
+        },
+        {
+          "read": "last.feed.state",
+          "is": "==",
+          "value": "done",
+          "say": "feed job: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The browns fall behind",
+      "why": "A day later the worms are ready for more, but the week's scraps have outrun the bedding the box started with. The guide holds the feeding and the robot proposes the bedding instead.",
+      "do": {
+        "type": "time",
+        "factor": 120,
+        "label": "Run the clock: 2 hours a second"
+      },
+      "expect": [
+        {
+          "read": "keeper.guide-browns",
+          "is": "==",
+          "value": true,
+          "say": "browns are due: {v}"
+        },
+        {
+          "read": "proposals.bedding",
+          "is": "==",
+          "value": 1,
+          "say": "bedding proposed: {v}"
+        },
+        {
+          "read": "proposals.feed",
+          "is": "==",
+          "value": 0,
+          "say": "feedings proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: dry bedding",
+      "why": "From the second compartment, with the same scoop, to the spot the next feeding will go to.",
+      "do": {
+        "type": "proposal",
+        "id": "bedding",
+        "factor": 1,
+        "label": "Confirm: add dry bedding"
+      },
+      "expect": [
+        {
+          "read": "last.care.state",
+          "is": "==",
+          "value": "done",
+          "say": "bedding job: {v}"
+        },
+        {
+          "read": "keeper.guide-browns",
+          "is": "==",
+          "value": false,
+          "say": "browns are due: {v}"
+        },
+        {
+          "read": "proposals.feed",
+          "is": "==",
+          "value": 1,
+          "say": "feedings proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: and the feeding",
+      "why": "With the balance right the feeding goes ahead. The Worm box panel shows the week: scraps, bedding, feedings.",
+      "do": {
+        "type": "proposal",
+        "id": "feed",
+        "label": "Confirm: feed the worms"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.feedings",
+          "is": ">=",
+          "value": 3,
+          "say": "worm box fed {v} times"
+        },
+        {
+          "read": "last.feed.state",
+          "is": "==",
+          "value": "done",
+          "say": "feed job: {v}"
+        }
+      ]
+    }
+  ]
+}

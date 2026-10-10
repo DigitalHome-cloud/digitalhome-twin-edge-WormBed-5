@@ -95,3 +95,21 @@ def test_a_portion_just_dropped_counts_at_once():
     rig.box.feed(advice["grams"])                      # the robot drops it; no new weight sample yet
     again = feeder.advise(rig.memory, rig.bed())
     assert again["grams"] < 100, "it does not propose the same portion twice"
+
+
+def test_bedding_the_robot_adds_and_compost_it_takes_do_not_look_like_eating():
+    rig = Rig()
+    rig.box.feed(600)
+    before, _ = rig.run(24)
+    rig.box.add_bedding(300)
+    rig.box.rest(0)
+    rig.box.rest_min = 20 * 1440.0
+    rig.box.ready_g = 400.0
+    took = rig.box.take_castings(250)
+    known = {"beddingGrams": 300, "takenGrams": took}
+    bed = rig.bed()
+    bed["wormBin"].update(known)
+    feeder.observe(rig.memory, bed)
+    after = feeder.advise(rig.memory, bed)
+    assert after["state"] == "known", "it did not start over"
+    assert abs(after["eatsPerDay"] - before["eatsPerDay"]) < 0.2 * before["eatsPerDay"]
