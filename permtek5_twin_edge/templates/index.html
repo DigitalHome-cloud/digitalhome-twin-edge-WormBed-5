@@ -25,6 +25,7 @@
       <h2 class="app-rail__sectionlabel">Twin</h2>
       <ul class="app-rail__items">
         <li><a class="app-rail__item tab" href="#twin" data-tab="twin"><svg {{ ico|safe }}><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M9 6v12M15 6v12M3 12h18"/></svg><span>Simulation</span></a></li>
+        <li><a class="app-rail__item tab" href="#film" data-tab="film"><svg {{ ico|safe }}><rect x="3" y="5" width="18" height="14" rx="1.6"/><path d="m10 9 5 3-5 3z"/></svg><span>Film</span></a></li>
         <li><a class="app-rail__item tab" href="#connections" data-tab="connections"><svg {{ ico|safe }}><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg><span>PermTek-5 link</span><span class="app-rail__dot" id="dot-linked" hidden></span></a></li>
         <li><a class="app-rail__item tab" href="#chat" data-tab="chat"><svg {{ ico|safe }}><path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M8 10h8M8 13h5"/></svg><span>Chat</span></a></li>
       </ul>
@@ -133,6 +134,24 @@
               </div>
             </aside>
           </div>
+        </div>
+      </section>
+
+      <section id="tab-film" class="tabpane view" hidden>
+        <div class="app-panel">
+          <h2 class="app-panel__title">Film of the bed</h2>
+          <p class="app-panel__hint">Blender renders the prepared bed as a short film: the soil, every planted cell in its
+            crop's colour, the gantry travelling along the bed, the garden's trees behind, and a camera that circles once.
+            It is rendered on this PC's processor, so it takes several minutes; the simulation keeps priority.</p>
+          <div class="hero-controls">
+            <button id="btn-film" class="primary">Render film</button>
+            <button id="btn-film-cancel" hidden>Cancel</button>
+            <span id="film-status" class="note"></span>
+          </div>
+          <ul id="film-missing" class="missing" hidden></ul>
+          <progress id="film-progress" max="1" value="0" hidden></progress>
+          <video id="film-video" class="film" controls loop muted playsinline hidden></video>
+          <img id="film-poster" class="film" alt="A still of the rendered bed" hidden>
         </div>
       </section>
 

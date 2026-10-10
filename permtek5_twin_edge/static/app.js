@@ -190,7 +190,7 @@ $("#btn-estop").addEventListener("click", async () => {
 /* ---------------------------------------------------------------- shell -- */
 // The rail's own buttons call core's (its header stays in the page, hidden).
 
-const TABS = ["twin", "connections", "chat"];
+const TABS = ["twin", "film", "connections", "chat"];
 
 function showTab(name) {
   const tab = TABS.includes(name) ? name : "twin";
@@ -234,6 +234,49 @@ async function pollShell() {
     $("#dot-linked").hidden = !linked;
   } catch (_) { $("#dot-linked").hidden = true; }
 }
+
+/* ----------------------------------------------------------------- film -- */
+
+const F = { shown: "", job: null };
+
+async function refreshFilm() {
+  let f;
+  try { f = await core.api("GET", "/api/twin/film"); } catch (_) { return; }
+  const job = f.job && ["queued", "running"].includes(f.job.state) ? f.job : null;
+  F.job = job;
+  const miss = $("#film-missing");
+  miss.hidden = !f.missing.length;
+  miss.innerHTML = f.missing.map((m) => `<li>${core.esc(m)}</li>`).join("");
+  $("#btn-film").disabled = !!job || f.missing.length > 0 || !f.prepared;
+  $("#btn-film").textContent = f.film ? "Render again" : "Render film";
+  $("#btn-film-cancel").hidden = !job;
+  $("#film-progress").hidden = !job;
+  if (job) $("#film-progress").value = job.progress || 0;
+  const last = f.job && !job ? f.job : null;
+  $("#film-status").textContent = job ? `rendering · ${job.phase}`
+    : last && last.state === "failed" ? `failed: ${last.error}`
+    : last && last.state === "cancelled" ? "cancelled"
+    : f.film ? `rendered ${new Date(f.film.modified * 1000).toLocaleString()}`
+    : !f.prepared ? "prepare a world first" : "not rendered yet";
+  // show the film when there is one, else the still; reload only when the file changed
+  const want = f.film ? `film:${f.film.modified}` : f.poster ? `poster:${f.poster.modified}` : "";
+  if (want === F.shown) return;
+  F.shown = want;
+  const video = $("#film-video"), poster = $("#film-poster");
+  video.hidden = !f.film; poster.hidden = !!f.film || !f.poster;
+  if (f.film) {
+    video.poster = f.poster ? `/api/twin/film/poster.png?t=${f.poster.modified}` : "";
+    video.src = `/api/twin/film/film.mp4?t=${f.film.modified}`;
+    video.play().catch(() => { /* autoplay refused: the controls are there */ });
+  } else if (f.poster) {
+    poster.src = `/api/twin/film/poster.png?t=${f.poster.modified}`;
+  }
+}
+
+$("#btn-film").addEventListener("click", async () => { await post("/api/twin/film", {}); refreshFilm(); });
+$("#btn-film-cancel").addEventListener("click", async () => { if (F.job) await post(`/api/jobs/${F.job.id}/cancel`); refreshFilm(); });
+refreshFilm();
+setInterval(refreshFilm, 2000);
 
 window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 $("#rail-toggle").addEventListener("click", () => railOpen($("#rail").classList.contains("app-rail--closed"), true));

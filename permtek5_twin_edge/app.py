@@ -20,9 +20,10 @@ import sys
 import urllib.error
 import urllib.request
 
-from flask import Response, abort, jsonify, render_template, request
+from flask import Response, abort, jsonify, render_template, request, send_file
 
 from . import engine as engine
+from . import film
 from . import habitat_store as store
 from . import sim
 from .core import server
@@ -158,6 +159,52 @@ def twin_estop():
         return jsonify(sim.gateway("/estop", {"on": bool(body().get("on", True))}))
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
+
+
+# ------------------------------------------------------------------ film ----
+#
+# A rendered turntable of the prepared bed, made with Blender in its own
+# environment (film.py, assets/demo.py). A background job with progress.
+
+def _film_out():
+    return engine.workspace() / "demo"
+
+
+def _film_job(spec, progress, cancelled):
+    return film.render(engine.workspace() / "bed.json", _film_out(), spec.get("frames", 72), progress, cancelled)
+
+
+edge_routes.JOBS.register("film", _film_job)
+
+
+@app.get("/api/twin/film")
+def film_status():
+    job = next((j for j in edge_routes.JOBS.list() if j["kind"] == "film"), None)
+    return jsonify({**film.status(_film_out()), "prepared": engine.config() is not None, "job": job})
+
+
+@app.post("/api/twin/film")
+def film_start():
+    if engine.config() is None:
+        return jsonify({"errors": ["prepare a world first: the film shows the prepared bed"]}), 400
+    bad = film.missing()
+    if bad:
+        return jsonify({"errors": bad}), 400
+    frames = max(24, min(int(body().get("frames") or 72), film.MAX_FRAMES))
+    try:
+        return jsonify(edge_routes.JOBS.submit("film", {"frames": frames})), 202
+    except Exception as exc:                      # the same film is already queued or running
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+@app.get("/api/twin/film/<name>")
+def film_file(name: str):
+    if name not in ("poster.png", "film.mp4"):
+        abort(404)
+    path = _film_out() / name
+    if not path.exists():
+        abort(404)
+    return send_file(path, conditional=True, max_age=0)      # conditional: the player seeks with Range
 
 
 @app.get("/api/twin/camera/<name>.<ext>")

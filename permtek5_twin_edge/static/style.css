@@ -274,3 +274,7 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
 .history .bad { color: var(--app-danger); }
 .rail-job { padding: 0 var(--app-space-4); font-size: 0.75rem; color: var(--app-text-muted); overflow-wrap: anywhere; }
 .hero-check { display: inline-flex; align-items: center; gap: var(--app-space-1); font-size: 0.8rem; color: var(--app-text-muted); }
+.film { display: block; width: 100%; max-width: 60rem; aspect-ratio: 16 / 9; border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm); background: var(--app-bg-sunken); }
+.film[hidden] { display: none; }
+#film-progress { width: 100%; max-width: 60rem; accent-color: var(--app-accent); }

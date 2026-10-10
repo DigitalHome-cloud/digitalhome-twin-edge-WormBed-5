@@ -41,6 +41,15 @@ scripts/setup-bpy.sh                      # once: uv, Python 3.13, bpy (about 40
 .venv-bpy/bin/python assets/build.py      # writes mydocs/twin/assets/*.obj
 ```
 
+The **Film** tab renders the prepared bed as a short turntable with Blender
+(`assets/demo.py`, Cycles on the CPU: about 12 s a frame on an 8-thread
+laptop, so 72 frames take a quarter of an hour; `ffmpeg` makes the MP4):
+
+```bash
+.venv-bpy/bin/python assets/demo.py --still-only   # one still, half a minute
+.venv-bpy/bin/python assets/demo.py                # poster.png and film.mp4 in mydocs/twin/demo/
+```
+
 Prepare the world again and it uses them for looks. Without them it draws
 boxes and spheres; motion and jobs are the same either way.
 

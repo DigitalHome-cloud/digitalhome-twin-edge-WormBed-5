@@ -177,3 +177,16 @@ def test_the_drawing_and_its_source_agree():
     html = (root / "static" / "how.html").read_text(encoding="utf-8")
     for c in spec["components"]:
         assert c["label"] in html, c["label"]
+
+
+def test_the_film_needs_a_prepared_world_and_serves_only_its_two_files(client, tmp_path):
+    f = client.get("/api/twin/film").get_json()
+    assert f["prepared"] is False and f["film"] is None and f["job"] is None
+    assert client.post("/api/twin/film", json={}).status_code == 400
+    assert client.get("/api/twin/film/film.mp4").status_code == 404
+    assert client.get("/api/twin/film/other.txt").status_code == 404
+    out = engine.workspace() / "demo"
+    out.mkdir(parents=True)
+    (out / "poster.png").write_bytes(b"png")
+    assert client.get("/api/twin/film/poster.png").data == b"png"
+    assert client.get("/api/twin/film").get_json()["poster"]["bytes"] == 3
