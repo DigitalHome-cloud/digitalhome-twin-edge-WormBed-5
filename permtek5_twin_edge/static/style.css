@@ -273,3 +273,4 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
 .history { display: grid; gap: 3px; font-size: 0.75rem; color: var(--app-text-muted); }
 .history .bad { color: var(--app-danger); }
 .rail-job { padding: 0 var(--app-space-4); font-size: 0.75rem; color: var(--app-text-muted); overflow-wrap: anywhere; }
+.hero-check { display: inline-flex; align-items: center; gap: var(--app-space-1); font-size: 0.8rem; color: var(--app-text-muted); }

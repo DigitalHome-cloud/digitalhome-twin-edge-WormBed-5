@@ -142,6 +142,7 @@ function draw(t) {
   }
   $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
   $("#btn-stop").disabled = !t.running;
+  $("#chk-window").disabled = t.running;
   $("#btn-prepare").disabled = t.running;
   $("#btn-estop").disabled = !ready;
   $("#btn-estop").textContent = stopped ? "Release e-stop" : "E-stop";
@@ -173,7 +174,13 @@ $("#btn-prepare").addEventListener("click", async () => {
   if (await post("/api/twin/prepare", graph ? { graph } : {})) core.toast("World written from the habitat");
   refresh();
 });
-$("#btn-start").addEventListener("click", async () => { await post("/api/twin/start"); refresh(); });
+$("#btn-start").addEventListener("click", async () => {
+  const gui = $("#chk-window").checked;
+  try { localStorage.setItem("permtek5-twin-edge-window", gui ? "1" : ""); } catch (_) { /* private window */ }
+  await post("/api/twin/start", { gui });
+  refresh();
+});
+try { $("#chk-window").checked = localStorage.getItem("permtek5-twin-edge-window") === "1"; } catch (_) { /* private window */ }
 $("#btn-stop").addEventListener("click", async () => { views(false); await post("/api/twin/stop"); refresh(); });
 $("#btn-estop").addEventListener("click", async () => {
   await post("/api/twin/estop", { on: $("#btn-estop").textContent === "E-stop" });
