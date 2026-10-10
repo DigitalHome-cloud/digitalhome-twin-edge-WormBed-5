@@ -60,7 +60,7 @@ CHAT_ALLOWED: List[Tuple[str, str]] = [
     ("POST", r"/api/cloud/use"),
     ("POST", r"/api/knowledge/sync"),
     ("POST", r"/api/ros2/publish"),
-    ("POST", r"/api/twin/(prepare|start|stop|job|cancel|film|hopper|tank)"),
+    ("POST", r"/api/twin/(prepare|start|stop|job|cancel|film|hopper|tank|disturb|calm|time|chaos)"),
     ("POST", r"/api/twin/scenario(/do|/next|/stop)?"),
 ]
 

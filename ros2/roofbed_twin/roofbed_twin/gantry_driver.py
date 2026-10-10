@@ -21,13 +21,19 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "dry", "percent"}  hot, dry days in one go (scenarios)
 
 A sown cell gets a seedling in the world. Soil moisture is a simple number per
-cell (percent): watering raises it, time lowers it. With tank pipes under the
+cell (percent): watering and rain raise it; sun, warmth and wind lower it
+(environment.py: a clock that runs faster than the wall, a day and a night,
+weather, and disturbances laid over it). With tank pipes under the
 bed and water in them, the soil is kept moist from below and the tank slowly
 empties (a wicking bed). The worm box has a temperature, a moisture and a
 fill level; feeding it warms it a little and sends liquid down into the tank.
-/bed/state carries "tank", "wormBin" and "hopper" beside the cells.
+The worm box follows the air's temperature with a delay; rain fills the tank up
+to its overflow. /bed/state carries "env", "tank", "wormBin" and "hopper"
+beside the cells. Further events: {"op": "disturb", "id", "effect", "minutes"},
+{"op": "calm"}, {"op": "time", "factor"}, {"op": "chaos", "rate", "pool"}.
 """
 import json
+import math
 import os
 
 import numpy as np
@@ -36,6 +42,7 @@ from geometry_msgs.msg import Point, PointStamped
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
+from .environment import Environment
 from .spin import Drain
 
 CAMERAS = ("tool_camera", "overview_camera")
@@ -43,14 +50,19 @@ CAMERA_EVERY_MS = 200
 STATE_EVERY_MS = 500
 MOISTURE_START = 35.0
 MOISTURE_PER_ML = 0.08          # 250 ml on one plant: +20 %
-MOISTURE_LOSS_PER_S = 0.01
 SOIL_TEMP_C = 14.0
+# Rates are per SIMULATED minute; the environment's time factor says how many pass in a real second.
+MOISTURE_LOSS_PER_MIN = 0.01    # at an evaporation of 1.0 (a mild, still, overcast hour)
 WICK_TO = 45.0                  # the moisture the wick holds the soil at while the tank has water
-WICK_GAIN_PER_S = 0.4           # how fast a drier cell is brought back up (percent per second)
-WICK_L_PER_CELL_S = 0.00002     # what that costs the tank, per planted cell and second
+WICK_GAIN_PER_MIN = 0.4         # how fast a drier cell is brought back up (percent per minute)
+WICK_L_PER_CELL_MIN = 0.00002   # what that costs the tank, per planted cell and minute
+BIN_LAG_MIN = 180.0             # the worm box follows the air with this delay (its mass and insulation)
+BIN_ABOVE_AIR_C = 2.0           # a working box runs a little warmer than the air
+RAIN_TO_TANK = 0.5              # the share of rain on the bed that reaches the tank pipes
+RAIN_WETS_PER_MM = 2.0          # percent of soil moisture a millimetre of rain adds
 LIQUID_L_PER_G = 0.0003         # liquid a portion of food sends down to the tank
 BIN_FULL_G = 20000.0            # the worm box is "full" at this much food and bedding
-AIR_TEMP_C = 16.0
+
 
 
 def load_bed():
@@ -83,8 +95,14 @@ class GantryDriver:
         self.tank_cap = float(tank.get("litres") or 0)
         self.tank_l = self.tank_cap * 0.6                       # starts partly filled
         self.has_bin = bool((self.cfg.get("wormBin") or {}).get("cols"))
-        self.bin = {"tempC": AIR_TEMP_C + 2.0, "moisture": 70.0, "grams": 6000.0, "fedGrams": 0.0, "feedings": 0}
+        self.bin = {"tempC": 18.0, "moisture": 70.0, "grams": 6000.0, "fedGrams": 0.0, "feedings": 0}
         self.hopper_g = 0.0
+        self.env = Environment(seed=int(os.environ.get("PERMTEK5_TWIN_SEED", "5")))
+        self.bin["tempC"] = self.env.air_c() + BIN_ABOVE_AIR_C
+        self.overflowing = False
+        self.frozen = {}                 # a stuck sensor repeats the value it had when it stuck
+        b = self.cfg["bed"]
+        self.bed_m2 = b["length_cm"] * b["width_cm"] / 10000.0
 
         if not rclpy.ok():
             rclpy.init(args=None)
@@ -134,6 +152,21 @@ class GantryDriver:
             if op == "hopper":
                 self.hopper_g = max(0.0, min(float(e.get("grams", 0)), 5000.0))
                 return
+            if op == "disturb":                               # a chaos monkey: an effect over the weather, for a while
+                self.env.apply(str(e["id"]), dict(e.get("effect") or {}), float(e.get("minutes", 60)), e.get("title"))
+                return
+            if op == "calm":
+                self.env.calm(e.get("id"))
+                self.frozen.clear()
+                return
+            if op == "time":
+                self.env.factor = max(0.1, min(float(e.get("factor", 1)), 600.0))
+                return
+            if op == "chaos":
+                self.env.chaos_rate = max(0.0, float(e.get("rate", 0)))
+                self.env.chaos_pool = [(p["id"], p.get("title"), dict(p.get("effect") or {}), float(p.get("minutes", 60)))
+                                       for p in e.get("pool") or []]
+                return
             if op == "dry":                                   # a scenario's hot, dry days in one go
                 for c in self.cells.values():
                     c["moisture"] = max(5.0, c["moisture"] - float(e.get("percent", 0)))
@@ -144,6 +177,8 @@ class GantryDriver:
             if op == "feed":
                 if not self.has_bin:
                     return
+                if self.env.flag("hopperJam"):
+                    return                                    # the scoop came back empty
                 grams = max(0.0, min(float(e.get("grams", 0)), self.hopper_g))
                 self.hopper_g -= grams
                 self.bin["grams"] = min(BIN_FULL_G, self.bin["grams"] + grams)
@@ -185,6 +220,16 @@ class GantryDriver:
         self.robot.getRoot().getField("children").importMFNodeFromString(
             -1, f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {z:.4f} children [ {shape} ] }}")
 
+    def sense(self, path, value):
+        """A reading as its sensor gives it: the value, None from a dead sensor, the old value from a stuck one."""
+        mode = self.env.sensor(path)
+        if mode == "dead":
+            return None
+        if mode == "stuck":
+            return self.frozen.setdefault(path, value)
+        self.frozen.pop(path, None)
+        return value
+
     # -- one step --------------------------------------------------------------
 
     def step(self):
@@ -217,23 +262,34 @@ class GantryDriver:
                     self.pub_cam[name].publish(out)
 
         if self.elapsed_ms % STATE_EVERY_MS < self.ts:
-            dt = STATE_EVERY_MS / 1000.0
-            loss = MOISTURE_LOSS_PER_S * dt
+            dmin = self.env.step(STATE_EVERY_MS / 1000.0)        # simulated minutes since the last look
+            env = self.env
+            loss = MOISTURE_LOSS_PER_MIN * env.evaporation() * dmin
+            rain_mm = env.rain_mm_h() * dmin / 60.0
             wicking = self.tank_cap > 0 and self.tank_l > 0.0
             for c in self.cells.values():
                 c["moisture"] = max(5.0, c["moisture"] - loss)
+                if rain_mm:
+                    c["moisture"] = min(60.0, c["moisture"] + rain_mm * RAIN_WETS_PER_MM)
                 if wicking and c["status"] != "CellPlanned" and c["moisture"] < WICK_TO:
-                    c["moisture"] = min(WICK_TO, c["moisture"] + WICK_GAIN_PER_S * dt)
-                    self.tank_l = max(0.0, self.tank_l - WICK_L_PER_CELL_S * dt)
-            b = self.bin                                            # the worm box drifts back to the air's temperature
-            b["tempC"] += (AIR_TEMP_C + 2.0 - b["tempC"]) * min(1.0, 0.02 * dt)
-            b["moisture"] = max(40.0, b["moisture"] - 0.002 * dt)
+                    c["moisture"] = min(WICK_TO, c["moisture"] + WICK_GAIN_PER_MIN * dmin)
+                    self.tank_l = max(0.0, self.tank_l - WICK_L_PER_CELL_MIN * dmin)
+            if self.tank_cap > 0:
+                self.tank_l -= env.effect("tankLeakLPerMin") * dmin
+                self.tank_l += rain_mm * self.bed_m2 * RAIN_TO_TANK              # 1 mm on 1 m² is a litre
+                self.overflowing = self.tank_l >= self.tank_cap and rain_mm > 0  # the rest leaves by the overflow
+                self.tank_l = max(0.0, min(self.tank_l, self.tank_cap))
+            b = self.bin                                # the worm box follows the air, slowly
+            b["tempC"] += (env.air_c() + BIN_ABOVE_AIR_C - b["tempC"]) * (1.0 - math.exp(-dmin / BIN_LAG_MIN))
+            b["moisture"] = max(40.0, b["moisture"] - 0.002 * dmin)
             self.pub_bed.publish(String(data=json.dumps({
                 "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
-                "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1)},
-                "wormBin": ({"tempC": round(b["tempC"], 1), "moisture": round(b["moisture"], 1),
+                "env": env.snapshot(),
+                "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1), "overflowing": self.overflowing},
+                "wormBin": ({"tempC": self.sense("wormBin.tempC", round(b["tempC"], 1)), "moisture": round(b["moisture"], 1),
                              "fillPct": round(100.0 * b["grams"] / BIN_FULL_G, 1), "fedGrams": round(b["fedGrams"]),
-                             "feedings": b["feedings"]} if self.has_bin else None),
-                "hopper": {"grams": round(self.hopper_g)},
+                             "feedings": b["feedings"], "wormsMayLeave": bool((self.cfg.get("guild") or {}).get("wormsMayLeave", True))}
+                            if self.has_bin else None),
+                "hopper": {"grams": round(self.hopper_g), "jammed": env.flag("hopperJam")},
                 "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1)}
                           for k, c in self.cells.items()}})))

@@ -223,15 +223,42 @@ def test_with_water_in_the_tank_only_what_was_just_sown_is_watered_from_above(tm
     assert sorted(c[:2] for c in water["spec"]["cells"]) == [[1, 1], [10, 10]]
 
 
-def test_notices_are_for_the_person_not_jobs(tmp_path):
+def test_a_kind_of_job_the_keeper_holds_is_not_proposed(tmp_path):
     engine.prepare(engine.habitat_ttl(None), tmp_path)
     cfg = engine.config(tmp_path)
-    assert engine.notices(cfg, LIVE) == []
-    assert any("low" in n for n in engine.notices(cfg, {**LIVE, "tank": {"litres": 10.0, "capacity": 202.0}}))
-    assert any("empty" in n for n in engine.notices(cfg, {**LIVE, "tank": {"litres": 0.0, "capacity": 202.0}}))
-    assert any("hot" in n for n in engine.notices(cfg, {**LIVE, "wormBin": {**LIVE["wormBin"], "tempC": 32.0}}))
-    assert any("cold" in n for n in engine.notices(cfg, {**LIVE, "wormBin": {**LIVE["wormBin"], "tempC": 3.0}}))
-    assert engine.notices(cfg, None) == []
+    kinds = {p["kind"] for p in engine.proposals(cfg, LIVE)}
+    assert "water" in kinds
+    assert "water" not in {p["kind"] for p in engine.proposals(cfg, LIVE, holds=["water"])}
+
+
+def test_chaos_from_the_page_goes_to_the_twin(client, twin):
+    state, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    assert client.post("/api/twin/disturb", json={"id": "storm"}).status_code == 200
+    assert calls[-1][0] == "/event" and calls[-1][1]["op"] == "disturb" and calls[-1][1]["id"] == "storm"
+    assert client.post("/api/twin/disturb", json={"id": "locusts"}).status_code == 400
+    assert client.post("/api/twin/time", json={"factor": 30}).status_code == 200
+    assert calls[-1] == ("/event", {"op": "time", "factor": 30.0})
+    assert client.post("/api/twin/chaos", json={"rate": 4}).status_code == 200
+    assert calls[-1][1]["op"] == "chaos"
+    assert client.post("/api/twin/calm", json={}).status_code == 200
+    assert calls[-1] == ("/event", {"op": "calm"})
+    listed = client.get("/api/twin/chaos").get_json()["disturbances"]
+    assert {"cold-snap", "storm", "network-loss"} <= {d["id"] for d in listed}
+
+
+def test_network_loss_is_the_apps_own_trouble(client, twin):
+    _, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    before = len(calls)
+    assert client.post("/api/twin/disturb", json={"id": "network-loss"}).status_code == 200
+    assert len(calls) == before, "nothing is sent to the simulation"
+    t = client.get("/api/twin").get_json()
+    assert "offline" in t["keeper"]["active"]
+    client.post("/api/twin/calm", json={})
+    assert "offline" not in client.get("/api/twin").get_json()["keeper"]["active"]
 
 
 def test_the_persons_buttons_tell_the_twin_what_was_done(client, twin):
@@ -244,3 +271,17 @@ def test_the_persons_buttons_tell_the_twin_what_was_done(client, twin):
     assert calls == [("/event", {"op": "hopper", "grams": 800.0}), ("/event", {"op": "tank", "litres": 202.0}),
                      ("/event", {"op": "tank", "litres": 202.0})], "the tank never holds more than its pipes"
     assert client.post("/api/twin/hopper", json={"grams": "many"}).status_code == 400
+
+
+def test_a_job_is_refused_while_the_wind_locks_the_gantry_out(client, twin):
+    state, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    state["twin"]["bed"]["env"] = {"airC": 15.0, "windMs": 21.0, "rainMmH": 0.0, "clock": "day 1 · 10:00", "disturbances": []}
+    before = len(calls)
+    r = client.post("/api/twin/job", json={"spec": {"kind": "photo"}})
+    assert r.status_code == 409 and "wind" in r.get_json()["errors"][0].lower()
+    assert len(calls) == before, "nothing reached the gantry"
+    assert client.get("/api/twin").get_json()["proposals"] == []
+    state["twin"]["bed"]["env"]["windMs"] = 2.0
+    assert client.post("/api/twin/job", json={"spec": {"kind": "photo"}}).status_code == 200

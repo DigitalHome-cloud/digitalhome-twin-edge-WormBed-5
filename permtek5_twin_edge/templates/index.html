@@ -128,8 +128,32 @@
             </div>
 
             <aside class="twin-main">
+              <div class="app-panel" id="chaos-panel" hidden>
+                <h2 class="app-panel__title">Weather and trouble</h2>
+                <p class="note" id="env-line"></p>
+                <ul class="scenario-checks" id="env-active"></ul>
+                <div class="chaos-controls">
+                  <label>Clock
+                    <select id="sel-factor" title="How fast the simulated day runs">
+                      <option value="1">1 min per second</option>
+                      <option value="10">10 min per second</option>
+                      <option value="30">30 min per second</option>
+                      <option value="120">2 h per second</option>
+                    </select></label>
+                  <label>Random trouble
+                    <select id="sel-chaos" title="Disturbances thrown in at random, per simulated day">
+                      <option value="0">off</option>
+                      <option value="2">2 a day</option>
+                      <option value="6">6 a day</option>
+                    </select></label>
+                  <button id="btn-calm" class="ghost" title="End every disturbance">Calm down</button>
+                </div>
+                <div id="chaos-list" class="proposals"></div>
+              </div>
+
               <div class="app-panel" id="scenario-panel" hidden>
                 <h2 class="app-panel__title">Scenarios</h2>
+                <p class="scenario-score" id="scenario-score" hidden></p>
                 <div id="scenario-pick">
                   <p class="app-panel__hint">A guided walk through one thing the bed does: each step says what happens and why, and shows the readings to watch.</p>
                   <div id="scenario-list" class="proposals"></div>

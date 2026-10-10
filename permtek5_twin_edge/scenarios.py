@@ -12,6 +12,9 @@ names the readings to watch with what they should become:
          | {"type": "events",   "events": [...], "label": "..."}
          | {"type": "proposal", "id": "feed", "label": "...", "limit": 3}    a robot job, as proposed (id or its prefix)
          | {"type": "estop",    "on": true, "label": "..."}
+         | {"type": "disturb",  "id": "cold-snap", "calmFirst": true, "label": "..."}   a chaos monkey (disturbances.py)
+         | {"type": "calm",     "label": "..."}                             end every disturbance
+         | {"type": "time",     "factor": 30, "label": "..."}               simulated minutes per real second
          | {"type": "none"},
      "expect": [{"read": "bed.hopper.grams", "is": ">=", "value": 1000, "say": "hopper: {v} g"}],
      "noWait": true}                       the step is complete while its job still runs
@@ -19,7 +22,10 @@ names the readings to watch with what they should become:
 Readings: bed.<path> (the twin's /bed/state), job.state, last.<kind>.state
 (the latest job of that kind since the step began), proposals.<id prefix>
 (how many), count.<cell status>, driest (planted cells' lowest moisture, %),
-notices (how many).
+notices (how many), keeper.<rule> (true while that reaction is in force),
+holds.<kind> (true while jobs of that kind are on hold), lockout (true while
+the gantry is locked out). A step marked "scored": true counts towards the
+run's score: how many scored steps came out as expected.
 
 Starting a scenario is the person's choice; doing a step is a click (or, with
 "run every step", their one confirmation for the whole scenario). The runner
@@ -36,9 +42,10 @@ from typing import Any, Dict, List, Optional
 
 FOLDER = Path(__file__).resolve().parent / "scenarios"
 OPS = {">=": operator.ge, "<=": operator.le, ">": operator.gt, "<": operator.lt, "==": operator.eq, "!=": operator.ne}
-DO_TYPES = ("event", "events", "proposal", "estop", "none")
+DO_TYPES = ("event", "events", "proposal", "estop", "disturb", "calm", "time", "none")
 
 _run: Dict[str, Any] = {}
+_score: Dict[str, Any] = {}
 
 
 def problems(s: Any) -> List[str]:
@@ -88,8 +95,16 @@ def available(s: Dict[str, Any], cfg: Optional[Dict[str, Any]]) -> Optional[str]
 
 # ------------------------------------------------------------------ readings --
 
-def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notices: List[str], since: float) -> Any:
+def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notices: List[str], since: float,
+         kept: Optional[Dict[str, Any]] = None) -> Any:
     bed = twin.get("bed") or {}
+    kept = kept or {}
+    if path.startswith("keeper."):
+        return path.split(".", 1)[1] in kept.get("active", [])
+    if path.startswith("holds."):
+        return path.split(".", 1)[1] in kept.get("holds", [])
+    if path == "lockout":
+        return bool(kept.get("lockout"))
     cells = [c for c in (bed.get("cells") or {}).values()]
     if path.startswith("bed."):
         v: Any = bed
@@ -115,10 +130,10 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
     return None
 
 
-def checks(step: Dict[str, Any], twin, proposals, notices, since: float) -> List[Dict[str, Any]]:
+def checks(step: Dict[str, Any], twin, proposals, notices, since: float, kept=None) -> List[Dict[str, Any]]:
     out = []
     for e in step.get("expect") or []:
-        v = read(e["read"], twin, proposals, notices, since)
+        v = read(e["read"], twin, proposals, notices, since, kept)
         try:
             ok = v is not None and bool(OPS[e["is"]](v, e["value"]))
         except TypeError:
@@ -138,7 +153,8 @@ def start(scenario_id: str, cfg: Optional[Dict[str, Any]]) -> None:
     if why:
         raise ValueError(why)
     _run.clear()
-    _run.update(id=scenario_id, index=0, did=False, since=time.time())
+    _run.update(id=scenario_id, index=0, did=False, since=time.time(), results=[])
+    _score.clear()
 
 
 def stop() -> None:
@@ -163,6 +179,12 @@ def action(proposals: List[Dict[str, Any]]) -> Dict[str, Any]:
         return {"events": list(do["events"])}
     if do["type"] == "estop":
         return {"estop": bool(do.get("on", True))}
+    if do["type"] == "disturb":
+        return {"disturb": do["id"], "calm": bool(do.get("calmFirst")), **({"minutes": do["minutes"]} if "minutes" in do else {})}
+    if do["type"] == "calm":
+        return {"calm": True}
+    if do["type"] == "time":
+        return {"factor": float(do.get("factor", 1))}
     if do["type"] == "proposal":
         p = next((p for p in proposals if p["id"] == do["id"] or (do["id"].endswith("-") and p["id"].startswith(do["id"]))), None)
         if p is None:
@@ -178,31 +200,44 @@ def mark_done() -> None:
     _run.update(did=True, since=_run.get("since", time.time()))
 
 
-def state(twin: Optional[Dict[str, Any]], proposals: List[Dict[str, Any]], notices: List[str]) -> Optional[Dict[str, Any]]:
+def state(twin: Optional[Dict[str, Any]], proposals: List[Dict[str, Any]], notices: List[str],
+          kept: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """The run for the page: the step, whether it was done, its checks, and whether the next step may follow."""
     run = current()
     if run is None:
         return None
     twin = twin or {}
     step, s = run["step"], run["scenario"]
-    found = checks(step, twin, proposals, notices, run["since"])
+    found = checks(step, twin, proposals, notices, run["since"], kept)
     nothing_to_do = step["do"]["type"] == "none"
     busy = (twin.get("job") or {}).get("state") == "running" and not step.get("noWait")
     did = run["did"] or nothing_to_do
     return {"id": run["id"], "title": s["title"], "about": s["about"], "index": run["index"], "total": len(s["steps"]),
             "step": {"title": step["title"], "why": step["why"], "label": step["do"].get("label"), "type": step["do"]["type"]},
-            "did": did, "checks": found, "busy": busy,
+            "did": did, "checks": found, "busy": busy, "scored": bool(step.get("scored")),
             "ready": did and not busy and all(c["ok"] for c in found),
             "last": run["index"] == len(s["steps"]) - 1}
 
 
-def advance() -> bool:
-    """To the next step; False when that was the last one (the run ends)."""
+def last_score() -> Optional[Dict[str, Any]]:
+    """The finished run's score, for scenarios with scored steps: {"title", "passed", "of", "failed": [titles]}."""
+    return dict(_score) if _score else None
+
+
+def advance(ok: bool = True) -> bool:
+    """To the next step; False when that was the last one (the run ends). `ok`: the step came out as
+    expected (False when it was skipped); scored steps are counted."""
     run = current()
     if run is None:
         return False
+    if run["step"].get("scored"):
+        _run.setdefault("results", []).append({"title": run["step"]["title"], "ok": bool(ok)})
     if run["index"] + 1 >= len(run["scenario"]["steps"]):
+        results = _run.get("results") or []
         stop()
+        if results:
+            _score.update(title=run["scenario"]["title"], passed=sum(1 for r in results if r["ok"]), of=len(results),
+                          failed=[r["title"] for r in results if not r["ok"]])
         return False
     _run.update(index=run["index"] + 1, did=False, since=time.time())
     return True

@@ -70,3 +70,10 @@ def test_two_guilds_on_one_computer_share_nothing(tmp_path):
         assert all(first[k] != second[k] for k in ("name", "appPort", "gatewayPort", "webotsPort", "rosDomain"))
     finally:
         instance.configure(None, 8772)
+
+
+def test_a_guilds_workspace_is_run_by_one_edge(tmp_path, monkeypatch):
+    from permtek5_twin_edge import instance
+    assert instance.claim(tmp_path) is None and instance.claim(tmp_path) is None, "our own mark does not stop us"
+    (tmp_path / "edge.pid").write_text("999999999 8790")
+    assert instance.claim(tmp_path) is None, "a mark left by an edge that is gone is taken over"

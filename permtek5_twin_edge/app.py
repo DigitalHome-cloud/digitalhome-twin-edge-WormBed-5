@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 
@@ -24,9 +26,11 @@ from flask import Response, abort, jsonify, render_template, request, send_file
 
 from . import engine as engine
 from . import cloudsite
+from . import disturbances
 from . import film
 from . import habitat_store as store
 from . import instance
+from . import keeper
 from . import scenarios
 from . import sim
 from .core import server
@@ -83,26 +87,51 @@ def favicon():
 # person confirms one (POST /api/twin/job). The simulation runs on the ROS
 # side; these routes only pass data between the browser, engine and sim.
 
+_keeper_memory: dict = {}
+_keeper_lock = threading.Lock()     # the page and a scenario ask at the same moment: one of them writes the log
+_offline = {"until": 0.0, "queued": 0}
+
+
+def _is_offline() -> bool:
+    return time.time() < _offline["until"]
+
+
+def _keep(cfg, bed, out, offline: bool) -> dict:
+    kept = keeper.evaluate(bed, _keeper_memory, offline=offline)
+    if cfg and bed:
+        keeper.log_changes(out, kept, _keeper_memory, ((cfg.get("guild") or {}).get("id") or cfg["bed"]["id"]),
+                           (bed.get("env") or {}).get("clock", ""))
+    return kept
+
+
 def _twin_state() -> dict:
     status = sim.status()
     cfg = engine.config()
     twin = status.get("twin") or {}
+    bed = twin.get("bed") if status["running"] else None
     out = engine.workspace()
     src = store.source(out)
+    offline = _is_offline()
+    # the keeper: the rules that hold jobs back, lock the gantry out, and tell the person what to do
+    with _keeper_lock:
+        kept = _keep(cfg, bed, out, offline)
     recorded = []
     if cfg and src.get("graph") and twin.get("history"):
         # What the gantry sowed goes into the habitat it was prepared from; the next sync takes it to the cloud.
         recorded = store.record_results(out, cfg["bed"]["id"], twin["history"])
-        if recorded and edge_cloud.linked_profiles():
-            try:
-                edge_routes.JOBS.submit("knowledge-sync", {"graph": src["graph"]})
-            except Exception:                     # busy, or offline: the person syncs from Connections
-                pass
+        _offline["queued"] += len(recorded) if offline else 0
+    if cfg and src.get("graph") and not offline and (recorded or _offline["queued"]) and edge_cloud.linked_profiles():
+        try:
+            edge_routes.JOBS.submit("knowledge-sync", {"graph": src["graph"]})
+            _offline["queued"] = 0
+        except Exception:                         # busy: the person syncs from Connections
+            pass
     return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
             "instance": instance.describe(),
-            "notices": engine.notices(cfg, twin.get("bed")) if status["running"] else [],
+            "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
+            "env": (bed or {}).get("env"),
             "habitats": store.habitats(), "recorded": recorded,
-            "proposals": engine.proposals(cfg, twin.get("bed")) if status["running"] else engine.proposals(cfg)}
+            "proposals": engine.proposals(cfg, bed, kept["holds"]) if not kept["lockout"] else []}
 
 
 @app.get("/api/twin")
@@ -150,12 +179,14 @@ def twin_job():
     data = body()
     spec = data.get("spec")
     if data.get("proposal"):
-        bed_state = (sim.status().get("twin") or {}).get("bed")
-        spec = next((p["spec"] for p in engine.proposals(engine.config(), bed_state) if p["id"] == data["proposal"]), None)
+        spec = next((p["spec"] for p in _twin_state()["proposals"] if p["id"] == data["proposal"]), None)
         if spec is None:
             return jsonify({"errors": ["that proposal is no longer current"]}), 409
     if not isinstance(spec, dict):
         return jsonify({"errors": ["name a proposal or give a job spec"]}), 400
+    why_not = keeper.refuses(_twin_state()["keeper"], str(spec.get("kind")))
+    if why_not:                                   # a hold or a lockout: the keeper's word stands over a click
+        return jsonify({"errors": [why_not]}), 409
     try:
         return jsonify(sim.gateway("/job", spec))
     except RuntimeError as exc:
@@ -184,6 +215,77 @@ def twin_tank():
         return jsonify(sim.gateway("/event", {"op": "tank", "litres": max(0.0, min(litres, full))}))
     except (TypeError, ValueError):
         return jsonify({"errors": ["litres is a number"]}), 400
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+# ----------------------------------------------------------------- chaos ----
+#
+# Chaos monkeys (disturbances.py): trouble laid over the simulated weather and
+# devices, so the keeper has something to react to. The simulation's clock can
+# run faster than the wall clock.
+
+@app.get("/api/twin/chaos")
+def chaos_catalogue():
+    return jsonify({"disturbances": disturbances.listing(), "offline": _is_offline()})
+
+
+def _factor() -> float:
+    env = ((sim.status().get("twin") or {}).get("bed") or {}).get("env") or {}
+    return float(env.get("factor") or 1.0)
+
+
+def _disturb(key: str, minutes=None) -> None:
+    d = disturbances.get(key)
+    if d.get("app"):                              # network loss is this app's, not the simulation's
+        _offline["until"] = time.time() + float(minutes or d["minutes"]) / max(_factor(), 0.1)   # simulated minutes
+        return
+    sim.gateway("/event", disturbances.event(key, minutes))
+
+
+def _calm() -> None:
+    _offline["until"] = 0.0
+    sim.gateway("/event", {"op": "calm"})
+
+
+@app.post("/api/twin/disturb")
+def twin_disturb():
+    try:
+        _disturb(str(body().get("id") or ""), body().get("minutes"))
+    except ValueError as exc:
+        return jsonify({"errors": [str(exc)]}), 400
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+    return jsonify({"ok": True})
+
+
+@app.post("/api/twin/calm")
+def twin_calm():
+    try:
+        _calm()
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+    return jsonify({"ok": True})
+
+
+@app.post("/api/twin/time")
+def twin_time():
+    """How many simulated minutes pass in a real second (1: a day in 24 minutes)."""
+    try:
+        return jsonify(sim.gateway("/event", {"op": "time", "factor": max(0.1, min(float(body().get("factor", 1)), 600.0))}))
+    except (TypeError, ValueError):
+        return jsonify({"errors": ["factor is a number"]}), 400
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+@app.post("/api/twin/chaos")
+def twin_chaos():
+    """Random disturbances, so many per simulated day; 0 turns them off."""
+    try:
+        return jsonify(sim.gateway("/event", disturbances.chaos_event(float(body().get("rate", 0)))))
+    except (TypeError, ValueError):
+        return jsonify({"errors": ["rate is a number"]}), 400
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
 
@@ -217,7 +319,8 @@ def _scenario_view() -> dict:
     return {"running": bool(t["running"] and twin.get("gantry")),
             "scenarios": [{"id": k, "title": s["title"], "about": s["about"], "steps": len(s["steps"]),
                            "unavailable": scenarios.available(s, cfg)} for k, s in scenarios.load_all().items()],
-            "run": scenarios.state(twin, t["proposals"], t.get("notices") or [])}
+            "run": scenarios.state(twin, t["proposals"], t.get("notices") or [], t.get("keeper")),
+            "score": scenarios.last_score()}
 
 
 @app.get("/api/twin/scenarios")
@@ -242,6 +345,12 @@ def scenario_do():
     t = _twin_state()
     try:
         act = scenarios.action(t["proposals"])
+        if act.get("calm"):
+            _calm()
+        if "disturb" in act:
+            _disturb(act["disturb"], act.get("minutes"))
+        if "factor" in act:
+            sim.gateway("/event", {"op": "time", "factor": float(act["factor"])})
         for event in act.get("events", []):
             if event.get("op") == "tank" and "litres" not in event:           # "refill": to the brim
                 event = {**event, "litres": float(((t.get("config") or {}).get("tank") or {}).get("litres") or 0)}
@@ -266,7 +375,7 @@ def scenario_next():
         return jsonify({"errors": ["no scenario is running"]}), 409
     if not run["ready"] and not body().get("skip"):
         return jsonify({"errors": ["this step is not complete yet"]}), 409
-    finished = not scenarios.advance()
+    finished = not scenarios.advance(ok=bool(run["ready"]))
     return jsonify({**_scenario_view(), "finished": finished})
 
 
@@ -373,6 +482,11 @@ def main(argv: list | None = None) -> int:
 
     ws.configure(user_dir=args.dir)
     instance.configure(guild=args.guild, port=args.port)
+    taken = instance.claim(engine.workspace())
+    if taken:
+        print(f"This guild's edge is already running on port {taken}. One edge per guild: "
+              f"name another guild with --guild, and give it its own --port.", file=sys.stderr)
+        return 2
     lines = [f"  {f['label'].lower():<13} {f['path']}" for f in ws.folders()]
     edge_routes.start_background()  # edge layer
     sim.stop_leftover(engine.workspace())      # a simulation an earlier run of this app left behind

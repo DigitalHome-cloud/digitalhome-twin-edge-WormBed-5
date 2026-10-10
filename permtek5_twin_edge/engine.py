@@ -26,9 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 DRY_BELOW_PCT = 30.0        # a planted cell under this is proposed for watering
-TANK_LOW_PCT = 15.0         # under this the tank is "low": a person refills it
 PORTION_G = 300             # what one feeding of the worm box carries
-BIN_HOT_C, BIN_COLD_C = 30.0, 5.0
 
 
 def workspace() -> Path:
@@ -107,16 +105,22 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             "cells": len(cfg["cells"]), "byStatus": by, "meshes": cfg["world"].get("meshes", False)}
 
 
-def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None,
+              holds: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """The jobs the gantry could do now. Proposals only: a person confirms each before anything moves.
 
     Sowing: every planned cell not sown yet. Watering: planted cells whose soil
     is dry, each with what its crop wants for a day. A probe pass and a photo
     pass over what is planted. `bed_state` is the running twin's /bed/state.
+    `holds` are the kinds of job the keeper has on hold (keeper.py): they are not proposed.
     Whether this is the right MONTH to sow is PermTek-5's calendar, not decided here.
     """
     if not cfg:
         return []
+    return [p for p in _proposals(cfg, bed_state) if p["kind"] not in (holds or [])]
+
+
+def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     state = bed_state or {}
     live = state.get("cells", {})
     out: List[Dict[str, Any]] = []
@@ -158,29 +162,6 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
                     "detail": "moisture and temperature per cell", "spec": {"kind": "probe", "cells": planted}})
         out.append({"id": "photo", "kind": "photo", "title": f"Photograph {len(planted)} planted cells",
                     "detail": "one picture per cell, from above", "spec": {"kind": "photo", "cells": planted}})
-    return out
-
-
-def notices(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None) -> List[str]:
-    """What a PERSON should do at the bed, from the running twin's readings. Never a robot job."""
-    if not cfg or not bed_state:
-        return []
-    out: List[str] = []
-    tank = bed_state.get("tank") or {}
-    if tank.get("capacity"):
-        pct = 100.0 * tank.get("litres", 0) / tank["capacity"]
-        if pct <= 0:
-            out.append("The tank is empty: the soil is no longer watered from below. Refill it.")
-        elif pct < TANK_LOW_PCT:
-            out.append(f'The tank is low ({tank.get("litres", 0):.0f} of {tank["capacity"]:.0f} l): refill it.')
-    box = bed_state.get("wormBin")
-    if box:
-        if box.get("tempC", 0) >= BIN_HOT_C:
-            out.append(f'The worm box is hot ({box["tempC"]:.0f} °C): shade it, keep the top moist, stop feeding.')
-        elif box.get("tempC", 99) <= BIN_COLD_C:
-            out.append(f'The worm box is cold ({box["tempC"]:.0f} °C): insulate it and stop feeding.')
-        if box.get("fillPct", 0) >= 90:
-            out.append("The worm box is nearly full: harvest the finished compost.")
     return out
 
 

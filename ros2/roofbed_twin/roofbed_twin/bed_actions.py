@@ -224,6 +224,8 @@ class BedActions(Node):
         box, hopper = self.cfg.get("wormBin") or {}, self.cfg.get("hopper") or {}
         if not box.get("cols"):
             raise Aborted("this bed has no worm box")
+        if (self.bed_state.get("hopper") or {}).get("jammed"):
+            raise Aborted("the scoop came back empty: the hopper is jammed")
         have = float((self.bed_state.get("hopper") or {}).get("grams", 0))
         grams = min(max(0.0, float(g.grams)), MAX_PORTION_G, have)
         if grams <= 0:

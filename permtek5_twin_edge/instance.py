@@ -22,6 +22,7 @@ Standard library only.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -69,3 +70,19 @@ def workspace(user_folder: Path) -> Path:
 def describe() -> Dict[str, Any]:
     return {"guild": guild(), "name": name(), "appPort": app_port(), "gatewayPort": gateway_port(),
             "webotsPort": webots_port(), "rosDomain": ros_domain()}
+
+
+def claim(folder: Path) -> Optional[int]:
+    """Mark this workspace as run by this process (edge.pid). When another running edge already has it,
+    nothing is written and that edge's port is returned: two edges on one guild would stop each other's
+    simulation."""
+    mark = Path(folder) / "edge.pid"
+    try:
+        pid, port = (int(v) for v in mark.read_text().split())
+        if pid != os.getpid() and "permtek5_twin_edge" in Path(f"/proc/{pid}/cmdline").read_text():
+            return port
+    except (OSError, ValueError):
+        pass
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    mark.write_text(f"{os.getpid()} {app_port()}")
+    return None

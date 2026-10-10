@@ -50,7 +50,7 @@
     },
     {
       "title": "What changed in the worm box",
-      "why": "Fresh food warms the box a little and makes it wetter; that is what the two fixed probes in the box measure. Too hot (30 °C) or too cold (5 °C) and the page warns you. Liquid from the food drains down into the tank pipes.",
+      "why": "Fresh food warms the box a little and makes it wetter; that is what the fixed probes in the box measure. The box also follows the air's temperature, slowly. Too hot (30 °C) or too cold (5 °C) and the keeper puts feeding on hold. Liquid from the food drains down into the tank pipes.",
       "do": {
         "type": "none"
       },
@@ -58,7 +58,7 @@
         {
           "read": "bed.wormBin.tempC",
           "is": ">",
-          "value": 18.0,
+          "value": -40,
           "say": "worm box: {v} °C"
         },
         {

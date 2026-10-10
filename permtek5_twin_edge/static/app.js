@@ -125,7 +125,9 @@ function stats(t) {
   }
   if (t.prepared && t.bed.wormBinCm) {
     const box = bedState.wormBin, hopper = bedState.hopper;
-    rows.push([box ? `${box.tempC.toFixed(0)} °C · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, "worm box"]);
+    // a dead probe gives no reading: say so instead of showing a number
+    const temp = box && typeof box.tempC === "number" ? `${box.tempC.toFixed(0)} °C` : "no reading";
+    rows.push([box ? `${temp} · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, "worm box"]);
     if (hopper) rows.push([`${hopper.grams} g`, "hopper"]);
   }
   $("#overview").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
@@ -161,6 +163,7 @@ function draw(t) {
   const notes = $("#twin-notices");
   notes.hidden = !(t.notices || []).length;
   notes.innerHTML = (t.notices || []).map((m) => `<li>${core.esc(m)}</li>`).join("");
+  drawEnv(t);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
   $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
   $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
@@ -302,6 +305,51 @@ async function pollShell() {
   } catch (_) { $("#badge-agent").hidden = true; }
 }
 
+/* ---------------------------------------------------------------- chaos -- */
+
+// The simulated weather, and the trouble you can throw at the guild. The keeper's
+// reactions show as notices at the top. An older server without them hides the panel.
+const CH = { loaded: false };
+
+function drawEnv(t) {
+  const env = t.env, panel = $("#chaos-panel");
+  if (!CH.loaded) return;
+  panel.hidden = false;
+  $("#env-line").textContent = env
+    ? `${env.clock} · air ${env.airC} °C · wind ${env.windMs} m/s · rain ${env.rainMmH} mm/h`
+    : "The weather runs with the simulation.";
+  const kept = t.keeper || {};
+  const lines = (env ? env.disturbances : []).map((d) => `${d.title}, ${d.leftMin} min left`);
+  if (kept.lockout) lines.push("the gantry is locked out");
+  if ((kept.holds || []).length) lines.push(`on hold: ${kept.holds.join(", ")}`);
+  if (kept.queued) lines.push(`${kept.queued} result(s) wait for the network`);
+  $("#env-active").innerHTML = lines.map((l) => `<li>${core.esc(l)}</li>`).join("");
+  for (const [sel, v] of [["#sel-factor", env && env.factor], ["#sel-chaos", env && env.chaosRate]]) {
+    const el = $(sel);
+    el.disabled = !env;
+    if (env && document.activeElement !== el && [...el.options].some((o) => Number(o.value) === Number(v))) el.value = String(v);
+  }
+  $("#btn-calm").disabled = !env;
+  $("#chaos-list").querySelectorAll("button").forEach((b) => { b.disabled = !env; });
+}
+
+async function loadChaos() {
+  let v;
+  try { v = await core.api("GET", "/api/twin/chaos"); } catch (_) { return; }
+  CH.loaded = true;
+  $("#chaos-list").innerHTML = v.disturbances.map((d) => `
+    <button class="scenario-item" data-id="${core.esc(d.id)}" disabled>
+      <strong>${core.esc(d.title)}</strong><span>${core.esc(d.about)}</span></button>`).join("");
+  $("#chaos-list").querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
+    if (await post("/api/twin/disturb", { id: b.dataset.id })) core.toast("Sent");
+    refresh();
+  }));
+}
+$("#btn-calm").addEventListener("click", async () => { await post("/api/twin/calm"); refresh(); });
+$("#sel-factor").addEventListener("change", (e) => post("/api/twin/time", { factor: Number(e.target.value) }));
+$("#sel-chaos").addEventListener("change", (e) => post("/api/twin/chaos", { rate: Number(e.target.value) }));
+loadChaos();
+
 /* ------------------------------------------------------------ scenarios -- */
 // A guided walk: pick one, then do its steps. Each step has at most one action
 // (your click, or "run every step for me" as one confirmation for all of it)
@@ -315,6 +363,10 @@ async function refreshScenarios() {
   catch (_) { $("#scenario-panel").hidden = true; return; }
   $("#scenario-panel").hidden = false;
   const run = v.run;
+  const score = $("#scenario-score");                    // a chaos run ends with a score
+  score.hidden = !!run || !v.score;
+  if (v.score) score.textContent = `${v.score.title}: ${v.score.passed} of ${v.score.of} reactions as expected`
+    + (v.score.failed.length ? `. Missed: ${v.score.failed.join(", ")}` : "");
   $("#scenario-pick").hidden = !!run;
   $("#scenario-run").hidden = !run;
   if (!run) {

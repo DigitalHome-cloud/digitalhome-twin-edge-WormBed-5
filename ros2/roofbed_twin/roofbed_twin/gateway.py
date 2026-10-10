@@ -235,9 +235,10 @@ def handler_for(gw: Gateway):
                 return self.send_json(200, {"id": job_id}) if job_id else self.send_json(409, {"error": "a job is running"})
             if self.path == "/event":
                 # what a person did at the bed: filled the hopper, refilled the tank
-                if data.get("op") not in ("hopper", "tank", "dry"):
-                    return self.send_json(400, {"error": "op must be hopper, tank or dry"})
-                gw.pub_event.publish(String(data=json.dumps({k: data[k] for k in ("op", "grams", "litres", "percent") if k in data})))
+                if data.get("op") not in ("hopper", "tank", "dry", "disturb", "calm", "time", "chaos"):
+                    return self.send_json(400, {"error": "op must be hopper, tank, dry, disturb, calm, time or chaos"})
+                keys = ("op", "grams", "litres", "percent", "id", "title", "effect", "minutes", "factor", "rate", "pool")
+                gw.pub_event.publish(String(data=json.dumps({k: data[k] for k in keys if k in data})))
                 return self.send_json(200, {"ok": True})
             if self.path == "/cancel":
                 return self.send_json(200, {"cancelled": gw.cancel()})

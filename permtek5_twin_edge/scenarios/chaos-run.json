@@ -1,0 +1,211 @@
+{
+  "title": "Chaos run: five kinds of trouble",
+  "about": "A guild lives outdoors. This run throws five disturbances at it, one after the other, with the clock running fast. Each time the keeper, the guild's rule layer, owes a reaction. The score at the end is how many it gave.",
+  "needs": [
+    "wormBin",
+    "tank"
+  ],
+  "steps": [
+    {
+      "title": "Speed the clock up",
+      "why": "Weather takes hours. Here 30 simulated minutes pass every second, so a day takes 48 seconds.",
+      "do": {
+        "type": "time",
+        "factor": 30,
+        "label": "Run the clock 30 times faster"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": ">=",
+          "value": 30,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Cold snap",
+      "scored": true,
+      "why": "The air falls far below freezing. Worms stop below about 5 °C and die in a frozen box, and water must not be put on frozen soil. The keeper owes: hold feeding and watering, and tell you to insulate.",
+      "do": {
+        "type": "disturb",
+        "id": "cold-snap",
+        "calmFirst": true,
+        "label": "Send a cold snap"
+      },
+      "expect": [
+        {
+          "read": "bed.env.airC",
+          "is": "<",
+          "value": 1,
+          "say": "air: {v} °C"
+        },
+        {
+          "read": "keeper.frost",
+          "is": "==",
+          "value": true,
+          "say": "frost reaction: {v}"
+        },
+        {
+          "read": "holds.feed",
+          "is": "==",
+          "value": true,
+          "say": "feeding on hold: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Storm wind",
+      "scored": true,
+      "why": "Gusts above what the gantry may move in. The keeper owes: park it and refuse every job until the wind has really dropped.",
+      "do": {
+        "type": "disturb",
+        "id": "storm",
+        "calmFirst": true,
+        "label": "Send a storm"
+      },
+      "expect": [
+        {
+          "read": "bed.env.windMs",
+          "is": ">=",
+          "value": 12,
+          "say": "wind: {v} m/s"
+        },
+        {
+          "read": "lockout",
+          "is": "==",
+          "value": true,
+          "say": "gantry locked out: {v}"
+        },
+        {
+          "read": "proposals.",
+          "is": "==",
+          "value": 0,
+          "say": "jobs proposed during the lockout: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Cloudburst",
+      "scored": true,
+      "why": "Heavy rain fills the tank to its overflow. The keeper owes: no more watering, and tell you to check that the overflow runs free.",
+      "do": {
+        "type": "disturb",
+        "id": "cloudburst",
+        "calmFirst": true,
+        "label": "Send a cloudburst"
+      },
+      "expect": [
+        {
+          "read": "bed.tank.overflowing",
+          "is": "==",
+          "value": true,
+          "say": "tank overflowing: {v}"
+        },
+        {
+          "read": "keeper.overflow",
+          "is": "==",
+          "value": true,
+          "say": "overflow reaction: {v}"
+        },
+        {
+          "read": "holds.water",
+          "is": "==",
+          "value": true,
+          "say": "watering on hold: {v}"
+        }
+      ]
+    },
+    {
+      "title": "A sensor dies",
+      "scored": true,
+      "why": "The worm box's temperature probe stops answering. Without it the keeper cannot know the box is safe to feed. It owes: say so, and hold feeding.",
+      "do": {
+        "type": "disturb",
+        "id": "sensor-dead",
+        "calmFirst": true,
+        "label": "Kill the box's temperature probe"
+      },
+      "expect": [
+        {
+          "read": "keeper.sensor",
+          "is": "==",
+          "value": true,
+          "say": "sensor distrusted: {v}"
+        },
+        {
+          "read": "holds.feed",
+          "is": "==",
+          "value": true,
+          "say": "feeding on hold: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The tank is empty",
+      "scored": true,
+      "why": "Nobody refilled. The soil is no longer watered from below. The keeper owes: tell you.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "calm"
+          },
+          {
+            "op": "tank",
+            "litres": 0
+          }
+        ],
+        "label": "Empty the tank"
+      },
+      "expect": [
+        {
+          "read": "bed.tank.litres",
+          "is": "<=",
+          "value": 0,
+          "say": "tank: {v} l"
+        },
+        {
+          "read": "keeper.tank-empty",
+          "is": "==",
+          "value": true,
+          "say": "empty-tank notice: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Back to a calm day",
+      "why": "Every disturbance ends, the tank is refilled and the clock runs at its usual pace again.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "calm"
+          },
+          {
+            "op": "tank"
+          },
+          {
+            "op": "time",
+            "factor": 1
+          }
+        ],
+        "label": "Calm everything down"
+      },
+      "expect": [
+        {
+          "read": "bed.tank.litres",
+          "is": ">",
+          "value": 50,
+          "say": "tank: {v} l"
+        },
+        {
+          "read": "lockout",
+          "is": "==",
+          "value": false,
+          "say": "gantry locked out: {v}"
+        }
+      ]
+    }
+  ]
+}
