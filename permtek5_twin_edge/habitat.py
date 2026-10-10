@@ -18,6 +18,7 @@ Needs rdflib only (no ROS, no Webots).
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -65,6 +66,11 @@ class Bed:
     width_cm: int
     cell_cm: int
     depth_cm: Optional[int] = None
+    # a wicking bed with a worm box (PermTek-5 docs/specs/roofbed-system.md)
+    substrate: Optional[str] = None
+    tank_pipes: int = 0
+    tank_pipe_mm: int = 110
+    worm_bin_cm: int = 0
 
     @property
     def rows(self) -> int:
@@ -73,6 +79,19 @@ class Bed:
     @property
     def cols(self) -> int:
         return -(-self.length_cm // self.cell_cm)
+
+    @property
+    def worm_bin_cols(self) -> int:
+        """The columns at the bed's far end that the worm box takes."""
+        return min(self.cols, -(-self.worm_bin_cm // self.cell_cm)) if self.worm_bin_cm else 0
+
+    @property
+    def tank_litres(self) -> int:
+        """What the tank pipes hold: the same rule as bedLoad() in PermTek-5's packages/core."""
+        if not self.tank_pipes:
+            return 0
+        bore = self.tank_pipe_mm / 1000.0 * 0.94
+        return round(math.pi * (bore / 2) ** 2 * (self.length_cm / 100.0) * self.tank_pipes * 1000)
 
 
 @dataclass
@@ -146,7 +165,9 @@ def load(ttl: str) -> Habitat:
     for s in sorted(g.subjects(RDF.type, PERMA.GrowingBed)):
         h.beds.append(Bed(str(s), label(s), str(g.value(s, PERMA.inZone) or ""),
                           _num(g, s, "lengthCm", int) or 0, _num(g, s, "widthCm", int) or 0,
-                          _num(g, s, "cellSizeCm", int) or 10, _num(g, s, "substrateDepthCm", int)))
+                          _num(g, s, "cellSizeCm", int) or 10, _num(g, s, "substrateDepthCm", int),
+                          _local(g.value(s, PERMA.substrateKind)) or None, _num(g, s, "tankPipeCount", int) or 0,
+                          _num(g, s, "tankPipeMm", int) or 110, _num(g, s, "wormBinCm", int) or 0))
     for s in sorted(g.subjects(RDF.type, PERMA.PlantingCell)):
         sown = g.value(s, PERMA.sownOn)
         h.cells.append(Cell(str(s), str(g.value(s, PERMA.inBed) or ""), _num(g, s, "row", int) or 0,
@@ -200,6 +221,8 @@ def problems(h: Habitat, library: Dict[str, Crop]) -> List[str]:
             continue
         if not (0 <= c.row < b.rows and 0 <= c.col < b.cols):
             out.append(f"cell {c.id} lies outside its bed (row {c.row + 1}, column {c.col + 1})")
+        elif c.col >= b.cols - b.worm_bin_cols:
+            out.append(f"cell {c.id} stands where the worm box is (row {c.row + 1}, column {c.col + 1})")
         if (c.bed_id, c.row, c.col) in seen:
             out.append(f"two plantings on row {c.row + 1}, column {c.col + 1}")
         seen.add((c.bed_id, c.row, c.col))
@@ -234,4 +257,6 @@ def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]
             "waterMlPerDay": water_ml_per_day(crop, bed) if crop else 0,
             "rgb": [round(v, 3) for v in crop_rgb(c.crop_id)],
         })
-    return {"bed": {**asdict(bed), "rows": bed.rows, "cols": bed.cols}, "cells": cells}
+    return {"bed": {**asdict(bed), "rows": bed.rows, "cols": bed.cols}, "cells": cells,
+            "tank": {"pipes": bed.tank_pipes, "pipeMm": bed.tank_pipe_mm, "litres": bed.tank_litres},
+            "wormBin": {"cm": bed.worm_bin_cm, "cols": bed.worm_bin_cols, "fromCol": bed.cols - bed.worm_bin_cols}}

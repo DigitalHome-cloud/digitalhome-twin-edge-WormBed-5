@@ -53,11 +53,14 @@ function drawBed(t) {
   const planned = Object.fromEntries(cfg.cells.map((c) => [`${c.row}_${c.col}`, c]));
   const live = (t.twin && t.twin.bed && t.twin.bed.cells) || {};
   const g = t.twin && t.twin.gantry, cell = cfg.world.cellM;
+  const binFrom = cfg.wormBin && cfg.wormBin.cols ? cfg.wormBin.fromCol : b.cols;
   const headKey = g ? `${Math.floor(g.y / cell)}_${Math.floor(g.x / cell)}` : "";
   el.querySelectorAll(".cell").forEach((n) => {
     const k = n.dataset.k, c = planned[k], l = live[k];
     const status = (l && l.status) || (c && c.status) || "";
-    n.className = "cell" + (status ? " " + status.replace("Cell", "").toLowerCase() : "") + (k === headKey ? " head" : "");
+    const inBin = Number(k.split("_")[1]) >= binFrom;
+    n.className = "cell" + (inBin ? " bin" : status ? " " + status.replace("Cell", "").toLowerCase() : "") + (k === headKey ? " head" : "");
+    if (inBin) { n.style.background = ""; n.title = "worm box"; return; }
     n.style.background = status === "CellGrowing" || status === "CellSown" ? rgb(c && c.rgb) || "var(--accent)" : "";
     const [r, col] = k.split("_").map(Number);
     n.title = `row ${r + 1}, column ${col + 1}` + (c ? ` · ${c.cropName}` : "") + (status ? ` · ${status.replace("Cell", "").toLowerCase()}` : "")
@@ -89,6 +92,7 @@ function drawJobs(t) {
   $("#history").innerHTML = hist.length ? hist.map((j) => {
     const r = j.result || {};
     const what = r.moisture ? `soil ${r.moisture.join(", ")} %` : r.givenMl ? `${r.givenMl.reduce((a, b) => a + b, 0)} ml`
+      : r.grams ? `${r.grams} g`
       : r.photos ? `${r.photos.length} pictures` : "";
     return `<div class="${j.state === "done" ? "" : "bad"}">${core.esc(j.kind)} · ${core.esc(j.state)}`
       + `${j.message ? " · " + core.esc(j.message) : ""}${what ? " · " + core.esc(what) : ""}</div>`;
@@ -113,6 +117,17 @@ function stats(t) {
     [driest === null || !isFinite(driest) ? "–" : `${driest.toFixed(0)} %`, "driest soil"],
     [g ? `${(g.x * 1000).toFixed(0)} · ${(g.y * 1000).toFixed(0)}` : "–", "tool x · y, mm"],
   ];
+  // the bed as a system: the tank under it and the worm box at its end, when it has them
+  const bedState = (t.twin && t.twin.bed) || {};
+  if (t.prepared && t.bed.tankLitres) {
+    const tank = bedState.tank;
+    rows.push([tank ? `${tank.litres.toFixed(0)} / ${tank.capacity.toFixed(0)} l` : `${t.bed.tankLitres} l`, "tank"]);
+  }
+  if (t.prepared && t.bed.wormBinCm) {
+    const box = bedState.wormBin, hopper = bedState.hopper;
+    rows.push([box ? `${box.tempC.toFixed(0)} °C · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, "worm box"]);
+    if (hopper) rows.push([`${hopper.grams} g`, "hopper"]);
+  }
   $("#overview").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
 }
 
@@ -140,6 +155,11 @@ function draw(t) {
     miss.hidden = false;
     miss.innerHTML += `<li>the simulation ended (exit ${t.exit}): <code>${core.esc(t.log.slice(-3).join(" | "))}</code></li>`;
   }
+  const notes = $("#twin-notices");
+  notes.hidden = !(t.notices || []).length;
+  notes.innerHTML = (t.notices || []).map((m) => `<li>${core.esc(m)}</li>`).join("");
+  $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
+  $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
   $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
   $("#btn-stop").disabled = !t.running;
   $("#chk-window").disabled = t.running;
@@ -182,6 +202,8 @@ $("#btn-start").addEventListener("click", async () => {
 });
 try { $("#chk-window").checked = localStorage.getItem("permtek5-twin-edge-window") === "1"; } catch (_) { /* private window */ }
 $("#btn-stop").addEventListener("click", async () => { views(false); await post("/api/twin/stop"); refresh(); });
+$("#btn-hopper").addEventListener("click", async () => { if (await post("/api/twin/hopper", { grams: 1000 })) core.toast("Hopper: 1 kg of scraps"); refresh(); });
+$("#btn-tank").addEventListener("click", async () => { if (await post("/api/twin/tank", {})) core.toast("Tank refilled"); refresh(); });
 $("#btn-estop").addEventListener("click", async () => {
   await post("/api/twin/estop", { on: $("#btn-estop").textContent === "E-stop" });
   refresh();

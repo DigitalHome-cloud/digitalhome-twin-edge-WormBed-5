@@ -11,7 +11,9 @@ page needs:
     POST /job    {"kind": "plant", "row", "col", "crop", "depthMm", "seeds"}
                  {"kind": "water", "cells": [[row, col, ml], ...]}
                  {"kind": "probe", "cells": [[row, col], ...]}
-                 {"kind": "photo", "cells": [[row, col], ...]}      -> {"id": ...} or 409 while one runs
+                 {"kind": "photo", "cells": [[row, col], ...]}
+                 {"kind": "feed", "grams", "spot"}                  -> {"id": ...} or 409 while one runs
+    POST /event  {"op": "hopper", "grams"} | {"op": "tank", "litres"}   what a person did at the bed
     POST /cancel                      cancel the running job
     POST /estop  {"on": true|false}
 
@@ -33,7 +35,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
-from roofbed_interfaces.action import PhotoPass, PlantCell, ProbeCells, WaterCells
+from roofbed_interfaces.action import FeedWorms, PhotoPass, PlantCell, ProbeCells, WaterCells
 
 CAMERAS = {"tool": "/gantry/tool_camera/compressed", "overview": "/gantry/overview_camera/compressed"}
 
@@ -58,7 +60,9 @@ class Gateway(Node):
         self.clients_ = {"plant": ActionClient(self, PlantCell, "/bed/plant_cell"),
                          "water": ActionClient(self, WaterCells, "/bed/water_cells"),
                          "probe": ActionClient(self, ProbeCells, "/bed/probe_cells"),
-                         "photo": ActionClient(self, PhotoPass, "/bed/photo_pass")}
+                         "photo": ActionClient(self, PhotoPass, "/bed/photo_pass"),
+                         "feed": ActionClient(self, FeedWorms, "/bed/feed_worms")}
+        self.pub_event = self.create_publisher(String, "/bed/event", 10)
 
     def on_pos(self, msg):
         self.pos = {"x": round(msg.point.x, 4), "y": round(msg.point.y, 4), "z": round(msg.point.z, 4)}
@@ -77,7 +81,7 @@ class Gateway(Node):
     def start(self, spec):
         kind = spec.get("kind")
         if kind not in self.clients_:
-            raise ValueError("kind must be plant, water, probe or photo")
+            raise ValueError("kind must be plant, water, probe, photo or feed")
         goal = self.goal_for(kind, spec)
         with self.lock:
             if self.job and self.job["state"] == "running":
@@ -93,6 +97,8 @@ class Gateway(Node):
         if kind == "plant":
             return PlantCell.Goal(row=int(s["row"]), col=int(s["col"]), crop=str(s.get("crop", "")),
                                   depth_mm=float(s.get("depthMm", 5)), seeds=int(s.get("seeds", 1)))
+        if kind == "feed":
+            return FeedWorms.Goal(grams=float(s.get("grams", 300)), spot=int(s.get("spot", 0)))
         rows, cols = [int(c[0]) for c in cells], [int(c[1]) for c in cells]
         if kind == "water":
             return WaterCells.Goal(rows=rows, cols=cols, millilitres=[float(c[2]) for c in cells])
@@ -131,6 +137,8 @@ class Gateway(Node):
     def plain(self, kind, r, job_id):
         if kind == "plant":
             return {"sown": r.sown, "seeds": r.seeds_dropped}
+        if kind == "feed":
+            return {"fed": r.fed, "grams": round(r.grams_dropped)}
         if kind == "water":
             return {"givenMl": [round(v, 1) for v in r.given_ml]}
         if kind == "probe":
@@ -225,6 +233,12 @@ def handler_for(gw: Gateway):
                 except (ValueError, KeyError, TypeError, IndexError) as e:
                     return self.send_json(400, {"error": str(e)})
                 return self.send_json(200, {"id": job_id}) if job_id else self.send_json(409, {"error": "a job is running"})
+            if self.path == "/event":
+                # what a person did at the bed: filled the hopper, refilled the tank
+                if data.get("op") not in ("hopper", "tank"):
+                    return self.send_json(400, {"error": "op must be hopper or tank"})
+                gw.pub_event.publish(String(data=json.dumps({k: data[k] for k in ("op", "grams", "litres") if k in data})))
+                return self.send_json(200, {"ok": True})
             if self.path == "/cancel":
                 return self.send_json(200, {"cancelled": gw.cancel()})
             if self.path == "/estop":

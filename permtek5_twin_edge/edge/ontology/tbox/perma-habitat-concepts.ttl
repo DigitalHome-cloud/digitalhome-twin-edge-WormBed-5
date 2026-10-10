@@ -40,3 +40,16 @@ perma:CellGrowing a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topCo
     skos:prefLabel "Growing"@en , "Wächst"@de , "En croissance"@fr .
 perma:CellHarvested a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
     skos:prefLabel "Harvested"@en , "Geerntet"@de , "Récolté"@fr .
+
+perma:SubstrateKinds a skos:ConceptScheme ;
+    skos:prefLabel "Substrates"@en , "Substrate"@de , "Substrats"@fr ;
+    skos:hasTopConcept perma:LightweightRoofSubstrate , perma:GardenSoil , perma:PottingCompost .
+perma:LightweightRoofSubstrate a skos:Concept ; skos:inScheme perma:SubstrateKinds ; skos:topConceptOf perma:SubstrateKinds ;
+    skos:prefLabel "Lightweight roof substrate"@en , "Leichtes Dachsubstrat"@de , "Substrat léger pour toiture"@fr ;
+    skos:definition "A mineral mix made for green roofs (expanded clay or shale, pumice, some compost): lighter when wet than soil."@en .
+perma:GardenSoil a skos:Concept ; skos:inScheme perma:SubstrateKinds ; skos:topConceptOf perma:SubstrateKinds ;
+    skos:prefLabel "Garden soil"@en , "Gartenerde"@de , "Terre de jardin"@fr ;
+    skos:definition "Topsoil, with or without compost: the heaviest choice when wet."@en .
+perma:PottingCompost a skos:Concept ; skos:inScheme perma:SubstrateKinds ; skos:topConceptOf perma:SubstrateKinds ;
+    skos:prefLabel "Potting compost"@en , "Blumenerde"@de , "Terreau"@fr ;
+    skos:definition "Peat-free potting mix: light, but it settles and has to be topped up."@en .

@@ -97,6 +97,7 @@ def _twin_state() -> dict:
             except Exception:                     # busy, or offline: the person syncs from Connections
                 pass
     return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
+            "notices": engine.notices(cfg, twin.get("bed")) if status["running"] else [],
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": engine.proposals(cfg, twin.get("bed")) if status["running"] else engine.proposals(cfg)}
 
@@ -153,6 +154,32 @@ def twin_job():
         return jsonify({"errors": ["name a proposal or give a job spec"]}), 400
     try:
         return jsonify(sim.gateway("/job", spec))
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+@app.post("/api/twin/hopper")
+def twin_hopper():
+    """A person filled the hopper with kitchen scraps (grams)."""
+    try:
+        grams = max(0.0, min(float(body().get("grams", 1000)), 5000.0))
+        return jsonify(sim.gateway("/event", {"op": "hopper", "grams": grams}))
+    except (TypeError, ValueError):
+        return jsonify({"errors": ["grams is a number"]}), 400
+    except RuntimeError as exc:
+        return jsonify({"errors": [str(exc)]}), 409
+
+
+@app.post("/api/twin/tank")
+def twin_tank():
+    """A person refilled the tank: to the brim, or to the litres given."""
+    cfg = engine.config() or {}
+    full = float((cfg.get("tank") or {}).get("litres") or 0)
+    try:
+        litres = float(body().get("litres", full))
+        return jsonify(sim.gateway("/event", {"op": "tank", "litres": max(0.0, min(litres, full))}))
+    except (TypeError, ValueError):
+        return jsonify({"errors": ["litres is a number"]}), 400
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
 

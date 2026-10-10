@@ -186,7 +186,7 @@
       "id": "actions",
       "type": "backend",
       "label": "bed_actions",
-      "sublabel": "sow · water · probe · photo",
+      "sublabel": "sow · water · probe · feed",
       "pos": [
         950,
         60
@@ -360,7 +360,7 @@
       "title": "The loop",
       "items": [
         "Map the bed in PermTek-5; it syncs here",
-        "The world is generated, the gantry works its cells",
+        "The world is generated: bed, tank pipes, worm box",
         "What was sown goes back to the map"
       ]
     },
@@ -369,7 +369,7 @@
       "title": "You decide",
       "items": [
         "Jobs are proposals until you press Confirm",
-        "One job at a time; the tool lifts before it moves",
+        "You fill the hopper and the tank; the gantry feeds the worms",
         "Soft limits are the bed; e-stop holds the gantry"
       ]
     },

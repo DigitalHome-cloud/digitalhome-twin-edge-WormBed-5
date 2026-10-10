@@ -55,7 +55,7 @@ def test_proposals_sow_what_is_planned_and_look_after_what_is_planted(tmp_path):
     engine.prepare(engine.habitat_ttl(None), tmp_path)
     cfg = engine.config(tmp_path)
     ps = {p["id"]: p for p in engine.proposals(cfg)}
-    assert {"plant-5_13", "plant-5_15", "plant-8_26", "probe", "photo"} == set(ps)
+    assert {"plant-5_13", "plant-5_15", "plant-8_22", "probe", "photo"} == set(ps)
     assert ps["plant-5_13"]["spec"] == {"kind": "plant", "row": 5, "col": 13, "crop": "crop-rocket", "depthMm": 5, "seeds": 3}
     assert "row 6, column 14" in ps["plant-5_13"]["title"]
     assert len(ps["photo"]["spec"]["cells"]) == 25
@@ -193,3 +193,53 @@ def test_the_film_needs_a_prepared_world_and_serves_only_its_two_files(client, t
     (out / "poster.png").write_bytes(b"png")
     assert client.get("/api/twin/film/poster.png").data == b"png"
     assert client.get("/api/twin/film").get_json()["poster"]["bytes"] == 3
+
+
+# -------------------------------------------------- the bed as a system ----
+
+LIVE = {"cells": {"1_1": {"status": "CellGrowing", "moisture": 12.0}, "10_10": {"status": "CellSown", "moisture": 12.0}},
+        "tank": {"litres": 120.0, "capacity": 202.0}, "hopper": {"grams": 1000},
+        "wormBin": {"tempC": 19.0, "moisture": 70.0, "fillPct": 30.0, "feedings": 5}}
+
+
+def test_feeding_is_proposed_only_with_scraps_in_the_hopper_and_rotates_its_spot(tmp_path):
+    engine.prepare(engine.habitat_ttl(None), tmp_path)
+    cfg = engine.config(tmp_path)
+    assert "feed" not in {p["id"] for p in engine.proposals(cfg, {**LIVE, "hopper": {"grams": 0}})}
+    feed = next(p for p in engine.proposals(cfg, LIVE) if p["id"] == "feed")
+    assert feed["spec"] == {"kind": "feed", "grams": 300, "spot": 1}          # 5 feedings so far, 4 spots
+    plain = dict(cfg, wormBin={"cols": 0})
+    assert "feed" not in {p["id"] for p in engine.proposals(plain, LIVE)}, "a bed without a worm box is never fed"
+
+
+def test_with_water_in_the_tank_only_what_was_just_sown_is_watered_from_above(tmp_path):
+    engine.prepare(engine.habitat_ttl(None), tmp_path)
+    cfg = engine.config(tmp_path)
+    water = next(p for p in engine.proposals(cfg, LIVE) if p["id"] == "water")
+    assert [c[:2] for c in water["spec"]["cells"]] == [[10, 10]], "the grown lettuce drinks from below"
+    dry_tank = {**LIVE, "tank": {"litres": 0.0, "capacity": 202.0}}
+    water = next(p for p in engine.proposals(cfg, dry_tank) if p["id"] == "water")
+    assert sorted(c[:2] for c in water["spec"]["cells"]) == [[1, 1], [10, 10]]
+
+
+def test_notices_are_for_the_person_not_jobs(tmp_path):
+    engine.prepare(engine.habitat_ttl(None), tmp_path)
+    cfg = engine.config(tmp_path)
+    assert engine.notices(cfg, LIVE) == []
+    assert any("low" in n for n in engine.notices(cfg, {**LIVE, "tank": {"litres": 10.0, "capacity": 202.0}}))
+    assert any("empty" in n for n in engine.notices(cfg, {**LIVE, "tank": {"litres": 0.0, "capacity": 202.0}}))
+    assert any("hot" in n for n in engine.notices(cfg, {**LIVE, "wormBin": {**LIVE["wormBin"], "tempC": 32.0}}))
+    assert any("cold" in n for n in engine.notices(cfg, {**LIVE, "wormBin": {**LIVE["wormBin"], "tempC": 3.0}}))
+    assert engine.notices(cfg, None) == []
+
+
+def test_the_persons_buttons_tell_the_twin_what_was_done(client, twin):
+    _, calls = twin
+    web.sim.running = lambda: False
+    client.post("/api/twin/prepare", json={})
+    assert client.post("/api/twin/hopper", json={"grams": 800}).status_code == 200
+    assert client.post("/api/twin/tank", json={}).status_code == 200
+    assert client.post("/api/twin/tank", json={"litres": 9999}).status_code == 200
+    assert calls == [("/event", {"op": "hopper", "grams": 800.0}), ("/event", {"op": "tank", "litres": 202.0}),
+                     ("/event", {"op": "tank", "litres": 202.0})], "the tank never holds more than its pipes"
+    assert client.post("/api/twin/hopper", json={"grams": "many"}).status_code == 400

@@ -5,7 +5,8 @@
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 
 # CityDemo: an INVENTED city habitat, like everything in this public repository.
-# A small flat roof with one bed (3 m x 1.2 m, 10 cm cells: 12 rows, 30 columns)
+# A small flat roof with one wicking bed (3 m x 1.2 m, 10 cm cells: 12 rows, 30 columns; eight tank
+# pipes under 15 cm of lightweight substrate; a worm box on its last 40 cm)
 # and a small back garden with three fruit trees. Positions are metres inside
 # each zone, never geographic.
 
@@ -18,7 +19,8 @@ id:zone-z-citygarden a perma:GardenZone ; rdfs:label "Back garden" ;
     perma:areaM2 60.0 ; perma:microclimateOffsetC 0.0 .
 
 id:bed-b-citybed a perma:GrowingBed ; rdfs:label "Roof bed" ; perma:inZone id:zone-z-cityroof ;
-    perma:lengthCm 300 ; perma:widthCm 120 ; perma:substrateDepthCm 25 ; perma:cellSizeCm 10 .
+    perma:lengthCm 300 ; perma:widthCm 120 ; perma:substrateDepthCm 15 ; perma:cellSizeCm 10 ;
+    perma:substrateKind perma:LightweightRoofSubstrate ; perma:tankPipeCount 8 ; perma:tankPipeMm 110 ; perma:wormBinCm 40 .
 
 id:cell-c001 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 1 ;
     perma:grows crop:crop-lettuce ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-18"^^xsd:date .
@@ -70,11 +72,11 @@ id:cell-c024 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 5 ;
     perma:grows crop:crop-rocket ; perma:cellStatus perma:CellPlanned .
 id:cell-c025 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 5 ; perma:col 15 ;
     perma:grows crop:crop-rocket ; perma:cellStatus perma:CellPlanned .
-id:cell-c026 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 27 ;
+id:cell-c026 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 1 ; perma:col 23 ;
     perma:grows crop:crop-chives ; perma:cellStatus perma:CellGrowing .
-id:cell-c027 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 4 ; perma:col 27 ;
+id:cell-c027 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 4 ; perma:col 23 ;
     perma:grows crop:crop-parsley ; perma:cellStatus perma:CellGrowing ; perma:sownOn "2026-04-10"^^xsd:date .
-id:cell-c028 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 8 ; perma:col 26 ;
+id:cell-c028 a perma:PlantingCell ; perma:inBed id:bed-b-citybed ; perma:row 8 ; perma:col 22 ;
     perma:grows crop:crop-tomato ; perma:cellStatus perma:CellPlanned .
 
 id:plant-p-citypear a perma:GardenPlant ; rdfs:label "Pear by the wall" ; perma:inZone id:zone-z-citygarden ;

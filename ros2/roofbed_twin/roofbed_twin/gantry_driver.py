@@ -15,8 +15,16 @@ and the bed itself, which the simulation has to play (a real bed just is):
   out  /bed/state   std_msgs/String  JSON {"time": s, "cells": {"row_col": {"status", "moisture", "crop"}}}
   in   /bed/event   std_msgs/String  JSON {"op": "sow", "row", "col", "crop"} | {"op": "water", "row", "col", "ml"}
 
+                                     {"op": "feed", "grams", "spot"} the worm box gets a portion from the hopper
+                                     {"op": "hopper", "grams"} a person filled the hopper
+                                     {"op": "tank", "litres"}  a person refilled (or emptied) the tank
+
 A sown cell gets a seedling in the world. Soil moisture is a simple number per
-cell (percent): watering raises it, time lowers it.
+cell (percent): watering raises it, time lowers it. With tank pipes under the
+bed and water in them, the soil is kept moist from below and the tank slowly
+empties (a wicking bed). The worm box has a temperature, a moisture and a
+fill level; feeding it warms it a little and sends liquid down into the tank.
+/bed/state carries "tank", "wormBin" and "hopper" beside the cells.
 """
 import json
 import os
@@ -36,6 +44,12 @@ MOISTURE_START = 35.0
 MOISTURE_PER_ML = 0.08          # 250 ml on one plant: +20 %
 MOISTURE_LOSS_PER_S = 0.01
 SOIL_TEMP_C = 14.0
+WICK_TO = 45.0                  # the moisture the wick holds the soil at while the tank has water
+WICK_GAIN_PER_S = 0.4           # how fast a drier cell is brought back up (percent per second)
+WICK_L_PER_CELL_S = 0.00002     # what that costs the tank, per planted cell and second
+LIQUID_L_PER_G = 0.0003         # liquid a portion of food sends down to the tank
+BIN_FULL_G = 20000.0            # the worm box is "full" at this much food and bedding
+AIR_TEMP_C = 16.0
 
 
 def load_bed():
@@ -64,6 +78,12 @@ class GantryDriver:
                       for c in self.cfg["cells"]}
         self.rgb = {c["crop"]: c.get("rgb", [0.3, 0.6, 0.3]) for c in self.cfg["cells"]}
         self.elapsed_ms = 0
+        tank = self.cfg.get("tank") or {}
+        self.tank_cap = float(tank.get("litres") or 0)
+        self.tank_l = self.tank_cap * 0.6                       # starts partly filled
+        self.has_bin = bool((self.cfg.get("wormBin") or {}).get("cols"))
+        self.bin = {"tempC": AIR_TEMP_C + 2.0, "moisture": 70.0, "grams": 6000.0, "fedGrams": 0.0, "feedings": 0}
+        self.hopper_g = 0.0
 
         if not rclpy.ok():
             rclpy.init(args=None)
@@ -104,6 +124,30 @@ class GantryDriver:
     def on_event(self, msg):
         try:
             e = json.loads(msg.data)
+        except ValueError:
+            return
+        if not isinstance(e, dict):
+            return
+        op = e.get("op")
+        try:
+            if op == "hopper":
+                self.hopper_g = max(0.0, min(float(e.get("grams", 0)), 5000.0))
+                return
+            if op == "tank":
+                self.tank_l = max(0.0, min(float(e.get("litres", self.tank_cap)), self.tank_cap))
+                return
+            if op == "feed":
+                if not self.has_bin:
+                    return
+                grams = max(0.0, min(float(e.get("grams", 0)), self.hopper_g))
+                self.hopper_g -= grams
+                self.bin["grams"] = min(BIN_FULL_G, self.bin["grams"] + grams)
+                self.bin["fedGrams"] += grams
+                self.bin["feedings"] += 1
+                self.bin["tempC"] += grams / 400.0                      # fresh food warms the box a little
+                self.bin["moisture"] = min(95.0, self.bin["moisture"] + grams / 200.0)
+                self.tank_l = min(self.tank_cap, self.tank_l + grams * LIQUID_L_PER_G)
+                return
             row, col = int(e["row"]), int(e["col"])
         except (ValueError, KeyError, TypeError):
             return
@@ -168,10 +212,23 @@ class GantryDriver:
                     self.pub_cam[name].publish(out)
 
         if self.elapsed_ms % STATE_EVERY_MS < self.ts:
-            loss = MOISTURE_LOSS_PER_S * STATE_EVERY_MS / 1000.0
+            dt = STATE_EVERY_MS / 1000.0
+            loss = MOISTURE_LOSS_PER_S * dt
+            wicking = self.tank_cap > 0 and self.tank_l > 0.0
             for c in self.cells.values():
                 c["moisture"] = max(5.0, c["moisture"] - loss)
+                if wicking and c["status"] != "CellPlanned" and c["moisture"] < WICK_TO:
+                    c["moisture"] = min(WICK_TO, c["moisture"] + WICK_GAIN_PER_S * dt)
+                    self.tank_l = max(0.0, self.tank_l - WICK_L_PER_CELL_S * dt)
+            b = self.bin                                            # the worm box drifts back to the air's temperature
+            b["tempC"] += (AIR_TEMP_C + 2.0 - b["tempC"]) * min(1.0, 0.02 * dt)
+            b["moisture"] = max(40.0, b["moisture"] - 0.002 * dt)
             self.pub_bed.publish(String(data=json.dumps({
                 "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
+                "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1)},
+                "wormBin": ({"tempC": round(b["tempC"], 1), "moisture": round(b["moisture"], 1),
+                             "fillPct": round(100.0 * b["grams"] / BIN_FULL_G, 1), "fedGrams": round(b["fedGrams"]),
+                             "feedings": b["feedings"]} if self.has_bin else None),
+                "hopper": {"grams": round(self.hopper_g)},
                 "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1)}
                           for k, c in self.cells.items()}})))

@@ -26,6 +26,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 DRY_BELOW_PCT = 30.0        # a planted cell under this is proposed for watering
+TANK_LOW_PCT = 15.0         # under this the tank is "low": a person refills it
+PORTION_G = 300             # what one feeding of the worm box carries
+BIN_HOT_C, BIN_COLD_C = 30.0, 5.0
 
 
 def workspace() -> Path:
@@ -88,7 +91,9 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         by[c["status"]] = by.get(c["status"], 0) + 1
     b = cfg["bed"]
     return {"prepared": True, "bed": {"name": b["name"], "lengthCm": b["length_cm"], "widthCm": b["width_cm"],
-                                      "cellCm": b["cell_cm"], "rows": b["rows"], "cols": b["cols"]},
+                                      "cellCm": b["cell_cm"], "rows": b["rows"], "cols": b["cols"],
+                                      "depthCm": b.get("depth_cm"), "tankLitres": (cfg.get("tank") or {}).get("litres", 0),
+                                      "wormBinCm": b.get("worm_bin_cm", 0)},
             "cells": len(cfg["cells"]), "byStatus": by, "meshes": cfg["world"].get("meshes", False)}
 
 
@@ -102,10 +107,22 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
     """
     if not cfg:
         return []
-    live = (bed_state or {}).get("cells", {})
+    state = bed_state or {}
+    live = state.get("cells", {})
     out: List[Dict[str, Any]] = []
     planted = []
     dry = []
+    # With water in the tank pipes the soil is kept moist from below: only what was
+    # just sown, whose roots do not reach yet, is watered from above (clean water).
+    wicking = (state.get("tank") or {}).get("litres", 0) > 0
+    hopper = (state.get("hopper") or {}).get("grams", 0)
+    box = cfg.get("wormBin") or {}
+    if box.get("cols") and hopper > 0:
+        grams = min(PORTION_G, int(hopper))
+        spot = int((state.get("wormBin") or {}).get("feedings", 0)) % int(box.get("spots", 1))
+        out.append({"id": "feed", "kind": "feed", "title": f"Feed the worms: {grams} g from the hopper",
+                    "detail": f'spot {spot + 1} of {box.get("spots", 1)} across the box, in rotation; {int(hopper)} g in the hopper',
+                    "spec": {"kind": "feed", "grams": grams, "spot": spot}})
     for c in cfg["cells"]:
         key = f'{c["row"]}_{c["col"]}'
         status = live.get(key, {}).get("status", c["status"])
@@ -119,7 +136,8 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
         elif status in ("CellSown", "CellGrowing"):
             planted.append([c["row"], c["col"]])
             moisture = live.get(key, {}).get("moisture")
-            if moisture is not None and moisture < DRY_BELOW_PCT and c.get("waterMlPerDay"):
+            if (moisture is not None and moisture < DRY_BELOW_PCT and c.get("waterMlPerDay")
+                    and not (wicking and status == "CellGrowing")):
                 dry.append([c["row"], c["col"], c["waterMlPerDay"]])
     if dry:
         out.append({"id": "water", "kind": "water", "title": f"Water {len(dry)} dry cells",
@@ -130,6 +148,29 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
                     "detail": "moisture and temperature per cell", "spec": {"kind": "probe", "cells": planted}})
         out.append({"id": "photo", "kind": "photo", "title": f"Photograph {len(planted)} planted cells",
                     "detail": "one picture per cell, from above", "spec": {"kind": "photo", "cells": planted}})
+    return out
+
+
+def notices(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None) -> List[str]:
+    """What a PERSON should do at the bed, from the running twin's readings. Never a robot job."""
+    if not cfg or not bed_state:
+        return []
+    out: List[str] = []
+    tank = bed_state.get("tank") or {}
+    if tank.get("capacity"):
+        pct = 100.0 * tank.get("litres", 0) / tank["capacity"]
+        if pct <= 0:
+            out.append("The tank is empty: the soil is no longer watered from below. Refill it.")
+        elif pct < TANK_LOW_PCT:
+            out.append(f'The tank is low ({tank.get("litres", 0):.0f} of {tank["capacity"]:.0f} l): refill it.')
+    box = bed_state.get("wormBin")
+    if box:
+        if box.get("tempC", 0) >= BIN_HOT_C:
+            out.append(f'The worm box is hot ({box["tempC"]:.0f} °C): shade it, keep the top moist, stop feeding.')
+        elif box.get("tempC", 99) <= BIN_COLD_C:
+            out.append(f'The worm box is cold ({box["tempC"]:.0f} °C): insulate it and stop feeding.')
+        if box.get("fillPct", 0) >= 90:
+            out.append("The worm box is nearly full: harvest the finished compost.")
     return out
 
 

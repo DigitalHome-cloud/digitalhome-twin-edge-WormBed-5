@@ -282,3 +282,5 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
   border-radius: var(--app-radius-sm); background: var(--app-bg-sunken); font-size: 0.875rem; }
 .link-state[hidden] { display: none; }
 .link-code { font-family: var(--app-font-mono); font-size: 1.75rem; font-weight: 700; letter-spacing: 0.12em; color: var(--app-accent); }
+.cell.bin { background: repeating-linear-gradient(90deg, var(--app-surface-raised) 0 4px, var(--app-border-strong) 4px 5px); }
+#twin-notices { border-left-color: var(--app-cat-1); }

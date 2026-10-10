@@ -22,6 +22,7 @@ def test_citydemo_reads(demo):
     bed = h.beds[0]
     assert (bed.length_cm, bed.width_cm, bed.cell_cm, bed.rows, bed.cols) == (300, 120, 10, 12, 30)
     assert len(h.cells) == 28 and len(h.plants) == 3
+    assert (bed.substrate, bed.tank_pipes, bed.tank_pipe_mm, bed.worm_bin_cm, bed.worm_bin_cols, bed.tank_litres) == ("LightweightRoofSubstrate", 8, 110, 40, 4, 202)
     assert hb.problems(h, lib) == []
     assert lib["crop-pear"].woody and not lib["crop-lettuce"].woody
 
@@ -89,3 +90,28 @@ def test_the_garden_trees_stand_behind_the_roof(demo, tmp_path):
     world.generate(h, lib, tmp_path)
     wbt = (tmp_path / "roofbed.wbt").read_text()
     assert "# Pear by the wall" in wbt and "# Plum" in wbt and "# garden" in wbt
+
+
+def test_the_worm_box_takes_the_last_columns_and_the_world_shows_the_system(demo, tmp_path):
+    h, lib = demo
+    out = world.generate(h, lib, tmp_path)
+    cfg = json.loads(open(out["config"]).read())
+    assert cfg["tank"] == {"pipes": 8, "pipeMm": 110, "litres": 202}
+    assert cfg["wormBin"]["fromCol"] == 26 and cfg["wormBin"]["x"] == [pytest.approx(2.6), pytest.approx(3.0)] and cfg["wormBin"]["spots"] == 4
+    assert cfg["hopper"]["x"] < 0
+    wbt = (tmp_path / "roofbed.wbt").read_text()
+    assert wbt.count("# tank pipe") == 8 and "# worm box" in wbt and "# hopper" in wbt and "# fill pipe" in wbt
+    bad = hb.load_citydemo()
+    bad.cells[0].col = 27
+    assert any("worm box" in p for p in hb.problems(bad, lib))
+
+
+def test_a_plain_bed_has_no_tank_and_no_worm_box(demo, tmp_path):
+    h, lib = demo
+    plain = hb.load_citydemo()
+    plain.beds[0].tank_pipes, plain.beds[0].worm_bin_cm = 0, 0
+    out = world.generate(plain, lib, tmp_path)
+    cfg = json.loads(open(out["config"]).read())
+    assert cfg["tank"]["litres"] == 0 and cfg["wormBin"]["cols"] == 0 and "dropX" not in cfg["wormBin"]
+    wbt = (tmp_path / "roofbed.wbt").read_text()
+    assert "# tank pipe" not in wbt and "# worm box" not in wbt

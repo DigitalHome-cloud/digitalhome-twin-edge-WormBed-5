@@ -5,6 +5,7 @@
     /bed/water_cells  roofbed_interfaces/action/WaterCells
     /bed/probe_cells  roofbed_interfaces/action/ProbeCells
     /bed/photo_pass   roofbed_interfaces/action/PhotoPass
+    /bed/feed_worms   roofbed_interfaces/action/FeedWorms
 
 It talks to the gantry only through its driver's topics (/gantry/target,
 /gantry/position, the tool camera) and tells the bed what happened
@@ -28,7 +29,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
-from roofbed_interfaces.action import PhotoPass, PlantCell, ProbeCells, WaterCells
+from roofbed_interfaces.action import FeedWorms, PhotoPass, PlantCell, ProbeCells, WaterCells
 
 TOLERANCE_M = 0.002
 MOVE_TIMEOUT_S = 90.0
@@ -36,6 +37,8 @@ WATER_ABOVE_M = 0.05        # nozzle height over the soil
 PROBE_INTO_M = 0.03
 FLOW_ML_PER_S = 40.0
 MAX_ML_PER_CELL = 1000.0
+MAX_PORTION_G = 500.0       # what the scoop carries in one go
+SCOOP_INTO_M = 0.08         # how far the tool dips into the hopper
 
 
 class Aborted(Exception):
@@ -61,7 +64,8 @@ class BedActions(Node):
         self.create_subscription(CompressedImage, "/gantry/tool_camera/compressed", self.on_frame, 2, callback_group=g)
         self.create_subscription(Bool, "/gantry/estop", lambda m: setattr(self, "stopped", bool(m.data)), 10, callback_group=g)
         for name, kind, run in (("plant_cell", PlantCell, self.plant), ("water_cells", WaterCells, self.water),
-                                ("probe_cells", ProbeCells, self.probe), ("photo_pass", PhotoPass, self.photo)):
+                                ("probe_cells", ProbeCells, self.probe), ("photo_pass", PhotoPass, self.photo),
+                                ("feed_worms", FeedWorms, self.feed)):
             ActionServer(self, kind, f"/bed/{name}", execute_callback=self.guarded(run, kind), callback_group=g,
                          goal_callback=self.accept, cancel_callback=lambda _goal: CancelResponse.ACCEPT)
 
@@ -109,6 +113,8 @@ class BedActions(Node):
     def cell_xy(self, row, col):
         if not (0 <= row < self.bed["rows"] and 0 <= col < self.bed["cols"]):
             raise Aborted(f"row {row + 1}, column {col + 1} is outside the bed (soft limit)")
+        if col >= self.cfg.get("wormBin", {}).get("fromCol", self.bed["cols"]):
+            raise Aborted(f"row {row + 1}, column {col + 1} is the worm box, not soil")
         return (col + 0.5) * self.w["cellM"], (row + 0.5) * self.w["cellM"]
 
     def move(self, goal_handle, x=None, y=None, z=None):
@@ -211,6 +217,34 @@ class BedActions(Node):
             result.temperature_c.append(float(self.bed_state.get("soilTempC", 14.0)))
         self.lift(gh)
         result.message = f"{len(result.moisture_pct)} cells probed"
+
+    def feed(self, gh, result):
+        """One portion from the hopper into the worm box, at one of its spots across the bed."""
+        g = gh.request
+        box, hopper = self.cfg.get("wormBin") or {}, self.cfg.get("hopper") or {}
+        if not box.get("cols"):
+            raise Aborted("this bed has no worm box")
+        have = float((self.bed_state.get("hopper") or {}).get("grams", 0))
+        grams = min(max(0.0, float(g.grams)), MAX_PORTION_G, have)
+        if grams <= 0:
+            raise Aborted("the hopper is empty: a person fills it first")
+        spots = int(box.get("spots", 1))
+        spot = int(g.spot) % spots
+        width = self.w["y"][1]
+        say = lambda phase: gh.publish_feedback(FeedWorms.Feedback(phase=phase))   # noqa: E731
+        say("to the hopper")
+        self.lift(gh)
+        self.move(gh, x=hopper["x"], y=hopper["y"])
+        say("scooping")
+        self.move(gh, z=SCOOP_INTO_M)
+        self.pause(gh, 0.5)
+        self.lift(gh)
+        say("to the worm box")
+        self.move(gh, x=box["dropX"], y=width * (spot + 0.5) / spots)
+        say("dropping")
+        self.pause(gh, 0.5)
+        self.event(op="feed", grams=grams, spot=spot)
+        result.fed, result.grams_dropped, result.message = True, grams, f"{grams:.0f} g at spot {spot + 1} of {spots}"
 
     def photo(self, gh, result):
         g = gh.request

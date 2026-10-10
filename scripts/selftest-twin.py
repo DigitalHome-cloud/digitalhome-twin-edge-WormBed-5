@@ -5,11 +5,13 @@
     .venv/bin/python scripts/selftest-twin.py [--gui]
 
 Generates the world, starts the simulation, sows, waters, probes and
-photographs cells through the gateway, checks what came back, stops it.
+photographs cells through the gateway, feeds the worm box, watches the tank
+and the soil, checks what came back, stops it.
 Not part of ./test.sh (which must pass on a machine without ROS or Webots).
 """
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -44,6 +46,33 @@ def main():
         photos = (job.get("result") or {}).get("photos", [])
         check("photo_pass returns one picture per cell",
               job["state"] == "done" and len(photos) == 1 and Path(photos[0]["file"]).stat().st_size > 1000, job)
+        # the bed as a system: the worm box, the tank under the bed
+        job = sim.run_job({"kind": "feed", "grams": 300, "spot": 0})
+        check("an empty hopper is refused", job["state"] == "failed" and "hopper is empty" in job["message"], job)
+        sim.gateway("/event", {"op": "hopper", "grams": 1000})
+        sim.gateway("/event", {"op": "tank", "litres": 100})
+        time.sleep(1.2)
+        before_feed = sim.gateway("/state")["bed"]
+        job = sim.run_job({"kind": "feed", "grams": 300, "spot": 1})
+        check("feed_worms drops a portion in the worm box", job["state"] == "done" and job["result"]["grams"] == 300, job)
+        time.sleep(1.2)
+        bed = sim.gateway("/state")["bed"]
+        check("the hopper is lighter, the worm box fed", bed["hopper"]["grams"] == 700 and bed["wormBin"]["feedings"] == 1, bed["hopper"])
+        check("the worm box is a little warmer", bed["wormBin"]["tempC"] > before_feed["wormBin"]["tempC"], bed["wormBin"])
+        g = sim.gateway("/state")["gantry"]
+        check("the head is over the worm box", abs(g["x"] - 2.8) < 0.005, g)
+        job = sim.run_job({"kind": "plant", "row": 5, "col": 27, "crop": "crop-rocket"})
+        check("nothing is sown in the worm box", job["state"] == "failed" and "worm box" in job["message"], job)
+        # with water in the tank the soil is kept moist from below; an empty tank lets it dry
+        time.sleep(6)
+        wet = sim.gateway("/state")["bed"]
+        check("the wick holds a grown cell's moisture up", wet["cells"]["1_1"]["moisture"] >= 36.0, wet["cells"]["1_1"])
+        check("and that draws on the tank", wet["tank"]["litres"] < 100.1, wet["tank"])
+        sim.gateway("/event", {"op": "tank", "litres": 0})
+        time.sleep(1.2)
+        level = sim.gateway("/state")["bed"]["cells"]["1_1"]["moisture"]
+        time.sleep(5)
+        check("an empty tank lets the soil dry", sim.gateway("/state")["bed"]["cells"]["1_1"]["moisture"] < level, level)
         job = sim.run_job({"kind": "plant", "row": 40, "col": 2, "crop": "crop-rocket"})
         check("a cell outside the bed is refused (soft limit)", job["state"] == "failed" and "outside the bed" in job["message"], job)
     finally:

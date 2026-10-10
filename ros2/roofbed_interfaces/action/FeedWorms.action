@@ -1,0 +1,9 @@
+# Carry one portion from the hopper to the worm box. spot: 0-based place across the box (the gantry rotates them).
+float32 grams
+int32 spot
+---
+bool fed
+float32 grams_dropped
+string message
+---
+string phase

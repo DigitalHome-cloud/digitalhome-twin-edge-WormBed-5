@@ -86,11 +86,32 @@ perma:widthCm a owl:DatatypeProperty ;
 
 perma:substrateDepthCm a owl:DatatypeProperty ;
     rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
-    rdfs:label "substrate depth (cm)"@en , "Substrattiefe (cm)"@de , "profondeur du substrat (cm)"@fr .
+    rdfs:label "substrate depth (cm)"@en , "Substrattiefe (cm)"@de , "profondeur du substrat (cm)"@fr ;
+    rdfs:comment "The soil the plants root in, above the tank pipes when the bed has them."@en .
 
 perma:cellSizeCm a owl:DatatypeProperty ;
     rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
     rdfs:label "cell size (cm)"@en , "Zellgröße (cm)"@de , "taille de case (cm)"@fr .
+
+perma:substrateKind a owl:ObjectProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range skos:Concept ;
+    rdfs:label "substrate"@en , "Substrat"@de , "substrat"@fr ;
+    rdfs:comment "One concept from perma:SubstrateKinds. It sets how heavy the wet bed is (docs/specs/roofbed-system.md)."@en .
+
+perma:tankPipeCount a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "tank pipes"@en , "Tankrohre"@de , "tuyaux réservoir"@fr ;
+    rdfs:comment "Drain pipes lying under the substrate along the bed's length: the water tank of a wicking bed. The soil draws the water up from below."@en .
+
+perma:tankPipeMm a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "pipe diameter (mm)"@en , "Rohrdurchmesser (mm)"@de , "diamètre des tuyaux (mm)"@fr ;
+    rdfs:comment "Outer diameter of the tank pipes, e.g. 110."@en .
+
+perma:wormBinCm a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range xsd:integer ;
+    rdfs:label "worm box (cm)"@en , "Wurmkiste (cm)"@de , "lombricomposteur (cm)"@fr ;
+    rdfs:comment "Length of the bed's far end (the highest columns) taken by a worm compost box. Its liquid drains into the tank pipes. No cells are planted there."@en .
 
 perma:inBed a owl:ObjectProperty ;
     rdfs:domain perma:PlantingCell ; rdfs:range perma:GrowingBed ;

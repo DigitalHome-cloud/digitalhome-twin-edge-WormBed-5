@@ -15,6 +15,7 @@
 permash:InZoneKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:ZoneKinds ] .
 permash:InExposures a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:Exposures ] .
 permash:InCellStatuses a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:CellStatuses ] .
+permash:InSubstrateKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:SubstrateKinds ] .
 
 permash:LibraryCrop a sh:PropertyShape ;
     sh:path perma:grows ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
@@ -45,7 +46,16 @@ permash:GrowingBedShape a sh:NodeShape ;
     sh:property [ sh:path perma:substrateDepthCm ; sh:maxCount 1 ; sh:datatype xsd:integer ;
                   sh:minInclusive 0 ; sh:maxInclusive 300 ; sh:message "Substrate depth is 0..300 cm."@en ] ;
     sh:property [ sh:path perma:cellSizeCm ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
-                  sh:minInclusive 5 ; sh:maxInclusive 100 ; sh:message "A bed's cells are 5..100 cm."@en ] .
+                  sh:minInclusive 5 ; sh:maxInclusive 100 ; sh:message "A bed's cells are 5..100 cm."@en ] ;
+    sh:property [ sh:path perma:substrateKind ; sh:maxCount 1 ; sh:node permash:InSubstrateKinds ;
+                  sh:message "A bed's substrate is one concept from perma:SubstrateKinds."@en ] ;
+    sh:property [ sh:path perma:tankPipeCount ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 0 ; sh:maxInclusive 20 ; sh:message "A bed has 0..20 tank pipes."@en ] ;
+    sh:property [ sh:path perma:tankPipeMm ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+                  sh:minInclusive 50 ; sh:maxInclusive 200 ; sh:message "Tank pipes are 50..200 mm across."@en ] ;
+    sh:property [ sh:path perma:wormBinCm ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ;
+                  sh:lessThan perma:lengthCm ;
+                  sh:message "The worm box is shorter than its bed."@en ] .
 
 permash:PlantingCellShape a sh:NodeShape ;
     sh:targetClass perma:PlantingCell ;

@@ -89,6 +89,7 @@
                 <button id="btn-estop" class="danger" title="Hold the gantry where it is and abort the job">E-stop</button>
               </div>
               <ul id="twin-missing" class="missing" hidden></ul>
+              <ul id="twin-notices" class="missing" hidden></ul>
             </div>
           </div>
 
@@ -120,6 +121,7 @@
                   <span><span class="cell sown"></span>sown</span>
                   <span><span class="cell growing"></span>growing</span>
                   <span><span class="cell head"></span>tool head</span>
+                  <span><span class="cell bin"></span>worm box</span>
                   <span>row 1, column 1 is the gantry's home corner</span>
                 </p>
               </div>
@@ -129,6 +131,11 @@
               <div class="app-panel">
                 <h2 class="app-panel__title">Job</h2>
                 <div id="job" class="job">none</div>
+                <h3>Your part <span class="tag">what a person does at the bed</span></h3>
+                <div class="hero-controls">
+                  <button id="btn-hopper" title="You put kitchen scraps into the hopper: the gantry can then feed the worms">Hopper filled</button>
+                  <button id="btn-tank" title="You refilled the tank pipes to the brim">Tank refilled</button>
+                </div>
                 <h3>Proposed <span class="tag">nothing moves until you confirm</span></h3>
                 <div id="proposals" class="proposals"></div>
                 <h3>Done</h3>

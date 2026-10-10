@@ -17,7 +17,7 @@ confirms. The same ROS 2 actions are meant to drive the real gantry later
 | `ros2/roofbed_interfaces` | actions `PlantCell`, `WaterCells`, `ProbeCells`, `PhotoPass` |
 | `ros2/roofbed_twin` | the gantry's Webots driver (axes, two cameras, the bed's state), `bed_actions` (the jobs), a gateway on 127.0.0.1 for this app, the launch |
 | `permtek5_twin_edge/sim.py`, `app.py` | start and stop the simulation; the page: robot views, the bed, proposed jobs with **Confirm** |
-| `assets/build.py` | optional looks made with Blender (`bpy`): plants, raked soil, the gantry's profile, trees |
+| `assets/build.py` | optional looks made with Blender (`bpy`): plants, raked soil, the gantry's profile, trees, the worm box |
 | `permtek5_twin_edge/edge/` | the D-LAB-5 edge layer: link to PermTek-5 (device flow), A-Box sync, chat with proposals |
 
 **The simulation needs** ROS 2 (Kilted) with `webots_ros2_driver`, Webots
@@ -28,6 +28,12 @@ R2025a, and a source checkout (the ROS packages are built in `ros2/`):
 ./run.sh                                  # then: Prepare world, Start, Confirm a job
 .venv/bin/python scripts/selftest-twin.py # the whole loop on CityDemo, end to end
 ```
+
+The bed is simulated **as a system** (PermTek-5 `docs/specs/roofbed-system.md`):
+tank pipes under the soil keep it moist from below while they hold water, a
+worm box takes the bed's far end, and the gantry feeds it from a hopper a
+person fills (`feed_worms`). The page shows the tank, the worm box and the
+hopper, and has the person's two buttons: *Hopper filled*, *Tank refilled*.
 
 The page says what is missing. Without a linked habitat it runs **CityDemo**,
 an invented roof bed and three fruit trees.
