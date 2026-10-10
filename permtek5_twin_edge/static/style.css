@@ -278,3 +278,7 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
   border-radius: var(--app-radius-sm); background: var(--app-bg-sunken); }
 .film[hidden] { display: none; }
 #film-progress { width: 100%; max-width: 60rem; accent-color: var(--app-accent); }
+.link-state { display: grid; gap: var(--app-space-2); padding: var(--app-space-4); border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm); background: var(--app-bg-sunken); font-size: 0.875rem; }
+.link-state[hidden] { display: none; }
+.link-code { font-family: var(--app-font-mono); font-size: 1.75rem; font-weight: 700; letter-spacing: 0.12em; color: var(--app-accent); }

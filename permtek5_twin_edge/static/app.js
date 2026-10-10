@@ -223,16 +223,58 @@ function markTheme() {
   });
 }
 
+/* ----------------------------------------------------------------- link -- */
+// Pick Stage or Production; the edge looks the edge API up (/api/twin/cloud),
+// then pairs through the edge layer's own route. A site admin approves the code.
+
+async function startLink() {
+  const site = $("#link-site").value;
+  let found;
+  try { found = await core.api("GET", `/api/twin/cloud?site=${encodeURIComponent(site)}`); }
+  catch (err) { say(err); return; }
+  const made = await post("/api/cloud/link", { cloud: found.edgeApi, profile: site });
+  if (made) { S.linkSite = found.site; refreshLink(); }
+}
+
+async function refreshLink() {
+  let c;
+  try { c = await core.api("GET", "/api/cloud"); } catch (_) { return; }
+  const link = c.link || {}, box = $("#link-state");
+  const linked = Object.entries(c.profiles || {}).filter(([, p]) => p && (p.linked || p.edge_id));
+  $("#dot-linked").hidden = !linked.length;
+  $("#btn-sync").hidden = !linked.length;
+  if (link.state === "waiting") {
+    // the approval page is the site's own /link, whatever host the cloud printed
+    const url = S.linkSite ? `${S.linkSite}/link?user_code=${encodeURIComponent(link.user_code)}` : link.url;
+    box.hidden = false;
+    box.innerHTML = `<span>Approve this code as an admin of your site:</span>
+      <span class="link-code">${core.esc(link.user_code || "")}</span>
+      <span><a href="${core.esc(url)}" target="_blank" rel="noopener noreferrer">Open the approval page ↗</a>
+      <span class="note"> · ${core.esc(link.status || "waiting for approval")}</span></span>`;
+  } else if (link.state === "failed") {
+    box.hidden = false;
+    box.innerHTML = `<span class="bad">Linking failed: ${core.esc(link.error || "")}</span>`;
+  } else if (linked.length) {
+    box.hidden = false;
+    box.innerHTML = linked.map(([name, p]) =>
+      `<span><strong>${core.esc(name)}</strong> · linked to ${core.esc((p.tenant && p.tenant.name) || p.site || "a site")}`
+      + `${(p.spaces || []).length ? " · " + p.spaces.length + " group(s)" : ""}</span>`).join("")
+      + `<span class="note">Sync, then choose the site as the twin's source on the Simulation tab.</span>`;
+  } else {
+    box.hidden = true;
+  }
+}
+
+$("#btn-link").addEventListener("click", startLink);
+$("#btn-sync").addEventListener("click", async () => { if (await post("/api/knowledge/sync", {})) core.toast("Syncing the site's knowledge…"); });
+refreshLink();
+setInterval(refreshLink, 3000);
+
 async function pollShell() {
   try {
     const info = await core.api("GET", "/api/agent");
     $("#badge-agent").hidden = !(info && info.status && info.status.connected);
   } catch (_) { $("#badge-agent").hidden = true; }
-  try {
-    const cloud = await core.api("GET", "/api/cloud");
-    const linked = Object.values((cloud && cloud.profiles) || {}).some((c) => c && (c.linked || c.edge_id));
-    $("#dot-linked").hidden = !linked;
-  } catch (_) { $("#dot-linked").hidden = true; }
 }
 
 /* ----------------------------------------------------------------- film -- */

@@ -23,6 +23,7 @@ import urllib.request
 from flask import Response, abort, jsonify, render_template, request, send_file
 
 from . import engine as engine
+from . import cloudsite
 from . import film
 from . import habitat_store as store
 from . import sim
@@ -165,6 +166,18 @@ def twin_estop():
         return jsonify(sim.gateway("/estop", {"on": bool(body().get("on", True))}))
     except RuntimeError as exc:
         return jsonify({"errors": [str(exc)]}), 409
+
+
+# ------------------------------------------------------------------ link ----
+
+@app.get("/api/twin/cloud")
+def twin_cloud():
+    """Where a PermTek-5 site's edge API is: ?site=stage | prod | https://… (cloudsite.py).
+    The page then links through the edge layer's own /api/cloud/link."""
+    try:
+        return jsonify(cloudsite.discover(request.args.get("site") or "stage"))
+    except cloudsite.NotFound as exc:
+        return jsonify({"errors": [str(exc)]}), 404
 
 
 # ------------------------------------------------------------------ film ----

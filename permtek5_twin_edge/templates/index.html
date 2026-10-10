@@ -161,6 +161,16 @@
           <h2 class="app-panel__title">PermTek-5 link</h2>
           <p class="app-panel__hint">Link this edge to a PermTek-5 site: it shows a code, a site admin approves it there,
             and the site's habitats sync to this PC. Then choose one as the twin's source; what the gantry sows goes back with the next sync.</p>
+          <div class="hero-controls">
+            <select id="link-site" title="Which PermTek-5 to link to">
+              <option value="stage">Stage (stage-permtek5.digitalhome.cloud)</option>
+              <option value="prod">Production (permtek5.digitalhome.cloud)</option>
+            </select>
+            <button id="btn-link" class="primary">Get a pairing code</button>
+            <button id="btn-sync" hidden>Sync now</button>
+          </div>
+          <div id="link-state" class="link-state" hidden></div>
+          <h3>Connections</h3>
           <section id="edge-connections" class="panel"></section>  <!-- edge layer -->
         </div>
       </section>
