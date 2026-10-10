@@ -101,6 +101,8 @@ def test_the_worm_box_takes_the_last_columns_and_the_world_shows_the_system(demo
     assert cfg["hopper"]["x"] < 0
     wbt = (tmp_path / "roofbed.wbt").read_text()
     assert wbt.count("# tank pipe") == 8 and "# worm box" in wbt and "# hopper" in wbt and "# fill pipe" in wbt
+    assert "DEF WORM_LID Pose" in wbt and "DEF WORM_WRAP Pose" in wbt, "the lid opens and the wrapping goes on in the world"
+    assert cfg["world"]["lidOpenRad"] > 1 and cfg["world"]["wrapOffZ"] < 0 < cfg["world"]["wrapZ"]
     bad = hb.load_citydemo()
     bad.cells[0].col = 27
     assert any("worm box" in p for p in hb.problems(bad, lib))

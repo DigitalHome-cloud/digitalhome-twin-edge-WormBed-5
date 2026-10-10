@@ -182,6 +182,8 @@ def _gantry(length: float, width: float, zmax: float, assets: Optional[Path]) ->
 
 
 BIN_ABOVE = 0.12         # the worm box stands this far above the soil
+WRAP_OFF_Z = -5.0        # where the box's wrapping waits while it is not on (under the ground)
+LID_OPEN_RAD = 1.2       # how far an open lid stands up
 PIPE_STUB = 0.06         # the tank pipes' capped ends stick out of the bed's near end
 
 
@@ -203,14 +205,26 @@ def _system(bed: hb.Bed, length: float, width: float, planted: float, hopper_y: 
     if bed.worm_bin_cm:
         bin_m = length - planted
         box_h = SOIL_Z + BIN_ABOVE
-        mesh = _mesh(assets, "worm_box")
+        mesh, lid_mesh = _mesh(assets, "worm_box"), _mesh(assets, "worm_box_lid")
         dark = "PBRAppearance { baseColor 0.30 0.21 0.13 roughness 0.9 metalness 0 }"
-        if mesh:                                 # modelled 1 x 1 x 1, standing on z = 0
+        pale = "PBRAppearance { baseColor 0.62 0.60 0.52 roughness 0.9 metalness 0 }"
+        straw = "PBRAppearance { baseColor 0.80 0.68 0.36 roughness 1 metalness 0 }"
+        # The lid turns about a hinge at the box's far edge and the wrapping is a jacket around the box:
+        # the driver opens the one (WORM_LID) and puts the other on (WORM_WRAP) when a person, or trouble, does.
+        if mesh and lid_mesh:                    # modelled 1 x 1 x 1, standing on z = 0
             out.append(f'Pose {{ translation {_f(planted)} 0 0 children [ Transform {{ scale {_f(bin_m)} {_f(width)} {_f(box_h)} children [ '
                        f'Shape {{ appearance {dark} geometry Mesh {{ url [ "{mesh}" ] }} }} ] }} ] }}  # worm box')
+            out.append(f'DEF WORM_LID Pose {{ translation {_f(planted + 1.03 * bin_m)} 0 {_f(0.88 * box_h)} rotation 0 1 0 0 children [ '
+                       f'Transform {{ scale {_f(bin_m)} {_f(width)} {_f(box_h)} children [ '
+                       f'Shape {{ appearance {pale} geometry Mesh {{ url [ "{lid_mesh}" ] }} }} ] }} ] }}  # worm box lid')
         else:
             out.append(_box("worm box", (planted + bin_m / 2, width / 2, box_h / 2), (bin_m, width, box_h), (0.30, 0.21, 0.13)))
-            out.append(_box("worm box lid", (planted + bin_m / 2, width / 2, box_h + 0.012), (bin_m + 0.02, width + 0.02, 0.024), (0.62, 0.60, 0.52)))
+            out.append(f'DEF WORM_LID Pose {{ translation {_f(planted + bin_m + 0.01)} 0 {_f(box_h)} rotation 0 1 0 0 children [ '
+                       f'Pose {{ translation {_f(-(bin_m + 0.02) / 2)} {_f(width / 2)} 0.012 children [ Shape {{ appearance {pale} '
+                       f'geometry Box {{ size {_f(bin_m + 0.02)} {_f(width + 0.02)} 0.024 }} }} ] }} ] }}  # worm box lid')
+        out.append(f'DEF WORM_WRAP Pose {{ translation {_f(planted + bin_m / 2)} {_f(width / 2)} {_f(WRAP_OFF_Z)} children [ '
+                   f'Shape {{ appearance {straw} geometry Box {{ size {_f(bin_m + 0.10)} {_f(width + 0.10)} {_f(box_h * 0.84)} }} }} ] }}'
+                   f'  # the box\'s winter wrapping, out of sight until it is put on')
     # the hopper a person fills, on a stand at the near end where the head parks
     out.append(_box("hopper stand", (-PARK, hopper_y, 0.16), (0.05, 0.05, 0.32), (0.72, 0.74, 0.76), 0.35, 0.8))
     out.append(_box("hopper", (-PARK, hopper_y, 0.37), (0.16, 0.22, 0.10), (0.20, 0.36, 0.24)))
@@ -255,7 +269,8 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
     zmax = (TIP_HOME - SOIL_Z) + min(0.15, depth)
     cfg["world"] = {"soilZ": SOIL_Z, "tipHome": TIP_HOME, "zMax": zmax, "park": PARK, "cellM": cell_m,
                     "x": [-PARK, length + 0.05], "y": [0.0, width], "camOffsetX": CAM_DX, "meshes": bool(assets and _mesh(assets, "plant_grown")),
-                    "seedlingMesh": _mesh(assets, "plant_seedling")}
+                    "seedlingMesh": _mesh(assets, "plant_seedling"),
+                    "lidOpenRad": LID_OPEN_RAD, "wrapZ": (SOIL_Z + BIN_ABOVE) * 0.42, "wrapOffZ": WRAP_OFF_Z}
 
     # the garden's plants, for scenery here and for the rendered film (assets/demo.py)
     trees = [p for p in h.plants if p.x_m is not None and p.y_m is not None and p.crop_id in library]

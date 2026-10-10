@@ -313,8 +313,11 @@ async function pollShell() {
 function drawBox(t, ready) {
   const box = t.twin && t.twin.bed && t.twin.bed.wormBin;
   const panel = $("#box-panel");
-  panel.hidden = !(box && "weightKg" in box);
-  if (panel.hidden) return;
+  const none = t.running && t.prepared && t.bed && !t.bed.wormBinCm;       // this habitat's bed was drawn without one
+  panel.hidden = !none && !(box && "weightKg" in box);
+  $("#box-none").hidden = !none;
+  $("#box-has").hidden = none;
+  if (panel.hidden || none) return;
   const r = (v, unit, digits) => typeof v === "number" ? `${v.toFixed(digits || 0)}${unit}` : "no reading";
   const rows = [[r(box.tempC, " °C", 1), "core"], [r(box.edgeC, " °C", 1), "edge"], [r(box.moisture, " %"), "moisture"],
     [r(box.weightKg, " kg", 2), "weight"], [r(box.gas, ""), "gas, 0 fresh to 100"], [box.lidOpen ? "open" : "closed", "lid"],

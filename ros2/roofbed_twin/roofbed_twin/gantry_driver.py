@@ -104,6 +104,7 @@ class GantryDriver:
         self.probes = Sensors(seed=seed)
         self.lid_left_open = False       # by a person; a disturbance can open it too
         self.overflowing = False
+        self.shown = {}                  # what the world shows of the box: lid open, wrapping on
         b = self.cfg["bed"]
         self.bed_m2 = b["length_cm"] * b["width_cm"] / 10000.0
 
@@ -233,6 +234,22 @@ class GantryDriver:
         self.robot.getRoot().getField("children").importMFNodeFromString(
             -1, f"DEF CELL_{row}_{col} Pose {{ translation {x:.4f} {y:.4f} {z:.4f} children [ {shape} ] }}")
 
+    def show_box(self):
+        """Open or shut the lid and put the wrapping on or off in the world, when that changed."""
+        w = self.cfg["world"]
+        for key, now, name in (("lid", self.box.lid_open, "WORM_LID"), ("wrap", self.box.insulated, "WORM_WRAP")):
+            if self.shown.get(key) == now:
+                continue
+            self.shown[key] = now
+            node = self.robot.getFromDef(name)
+            if node is None:
+                continue
+            if key == "lid":
+                node.getField("rotation").setSFRotation([0, 1, 0, w.get("lidOpenRad", 1.2) if now else 0.0])
+            else:
+                at = node.getField("translation").getSFVec3f()
+                node.getField("translation").setSFVec3f([at[0], at[1], w.get("wrapZ", 0.1) if now else w.get("wrapOffZ", -5.0)])
+
     # -- one step --------------------------------------------------------------
 
     def step(self):
@@ -285,6 +302,7 @@ class GantryDriver:
             box = self.box
             box.lid_open = self.lid_left_open or env.flag("lidOpen")
             if self.has_bin:
+                self.show_box()
                 made = box.step(dmin, env.air_c(), env.rain_mm_h())
                 self.tank_l = min(self.tank_cap, self.tank_l + made["liquidL"])
             self.pub_bed.publish(String(data=json.dumps({

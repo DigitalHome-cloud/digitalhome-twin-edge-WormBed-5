@@ -16,7 +16,7 @@ Every mesh is modelled at a unit size and scaled by the world:
     bed_soil.obj                          a 1 x 1 m surface with small bumps, z about 0
     gantry_bridge.obj                     an aluminium profile 1 m long along y, centred
     tree_trunk.obj, tree_canopy.obj       a tree 1 m tall, standing on z = 0
-    worm_box.obj                          a slatted box with a lid in a unit cube, standing on z = 0
+    worm_box.obj, worm_box_lid.obj        a slatted box in a unit cube, standing on z = 0; its lid, hinged at its origin
 
 The same script and parameters give the same files; a hash of this file in
 the output folder lets a second run skip the work.
@@ -159,28 +159,37 @@ def tree_canopy():
     return new_object("tree_canopy", bm)
 
 
-def worm_box():
-    """A slatted box with an overhanging lid and a handle, in a unit cube: x and y 0..1, standing on z = 0."""
+def _blocks(name, blocks):
     bm = bmesh.new()
-
-    def block(x0, x1, y0, y1, z0, z1):
+    for x0, x1, y0, y1, z0, z1 in blocks:
         bmesh.ops.create_cube(bm, size=1.0, matrix=Matrix.Translation(((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2))
                               @ Matrix.Diagonal((x1 - x0, y1 - y0, z1 - z0, 1.0)))
-
-    block(0.04, 0.96, 0.02, 0.98, 0.0, 0.86)                       # the insulated body, a little inside the slats
-    for i in range(5):                                             # slats on the two long faces, with air gaps
-        z0 = 0.03 + i * 0.17
-        block(0.0, 0.04, 0.0, 1.0, z0, z0 + 0.13)
-        block(0.96, 1.0, 0.0, 1.0, z0, z0 + 0.13)
-    block(-0.03, 1.03, -0.02, 1.02, 0.88, 0.96)                    # the lid, overhanging against rain
-    block(0.42, 0.58, 0.35, 0.65, 0.96, 1.0)                       # its handle
-    obj = new_object("worm_box", bm)
+    obj = new_object(name, bm)
     for poly in obj.data.polygons:
         poly.use_smooth = False
     return obj
 
 
-BUILDERS = (plant_grown, plant_seedling, bed_soil, gantry_bridge, tree_trunk, tree_canopy, worm_box)
+def worm_box():
+    """A slatted box, open at the top, in a unit cube: x and y 0..1, standing on z = 0. Its lid is worm_box_lid."""
+    blocks = [(0.04, 0.96, 0.02, 0.98, 0.0, 0.80)]                 # what is in it: bedding and castings
+    for x0, x1 in ((0.03, 0.06), (0.94, 0.97)):                    # the insulated walls, up to the rim
+        blocks.append((x0, x1, 0.02, 0.98, 0.0, 0.88))
+    for y0, y1 in ((0.02, 0.05), (0.95, 0.98)):
+        blocks.append((0.03, 0.97, y0, y1, 0.0, 0.88))
+    for i in range(5):                                             # slats on the two long faces, with air gaps
+        z0 = 0.03 + i * 0.17
+        blocks += [(0.0, 0.04, 0.0, 1.0, z0, z0 + 0.13), (0.96, 1.0, 0.0, 1.0, z0, z0 + 0.13)]
+    return _blocks("worm_box", blocks)
+
+
+def worm_box_lid():
+    """The box's lid, overhanging against rain, with a handle. Its hinge is the y axis at x = 0, z = 0:
+    the lid lies from x = -1.06 to 0, so turning it about y opens it."""
+    return _blocks("worm_box_lid", [(-1.06, 0.0, -0.02, 1.02, 0.0, 0.08), (-0.61, -0.45, 0.35, 0.65, 0.08, 0.12)])
+
+
+BUILDERS = (plant_grown, plant_seedling, bed_soil, gantry_bridge, tree_trunk, tree_canopy, worm_box, worm_box_lid)
 
 
 def export(obj, out: Path):
