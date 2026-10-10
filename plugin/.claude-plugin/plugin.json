@@ -1,0 +1,11 @@
+{
+  "name": "permtek5-twin-edge",
+  "version": "0.1.0",
+  "description": "PermTek-5 Twin Edge",
+  "author": {
+    "name": "D-LAB-5"
+  },
+  "homepage": "https://github.com/DigitalHome-cloud/permtek5-twin-edge",
+  "repository": "https://github.com/DigitalHome-cloud/permtek5-twin-edge",
+  "license": "GPL-3.0-or-later"
+}

@@ -1,0 +1,25 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v0.4.1
+_src_path: gh:ERP-LAB-5/python-tool-template
+author: D-LAB-5
+cli_command: permtek5-twin-edge
+cli_module: engine
+coffee_url: https://www.buymeacoffee.com/dlab5
+copyright_year: 2026
+default_branch: main
+description: PermTek-5 Twin Edge
+disclaimer: ''
+github_org: DigitalHome-cloud
+package_name: permtek5_twin_edge
+port: 8772
+repo_name: permtek5-twin-edge
+shared_dir: shared
+title: PermTek-5 Twin Edge
+tool_name: permtek5-twin-edge
+web_command: permtek5-twin-edge-web
+with_mcp: true
+with_plugin: true
+with_release: true
+with_windows: true
+with_workspace: true
+workspace_dir: mydocs

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "permtek5-twin-edge": {
+      "command": ".venv/bin/python",
+      "args": ["-m", "permtek5_twin_edge.mcp_server"],
+      "env": {}
+    }
+  }
+}
