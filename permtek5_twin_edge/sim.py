@@ -65,6 +65,10 @@ def missing() -> List[str]:
 def _env() -> Dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "VIRTUAL_ENV", "PYTHONHOME")}
     env["PYTHONUNBUFFERED"] = "1"
+    # Webots puts the folder its robots connect through under WEBOTS_TMPDIR (its starter takes TMPDIR), while the
+    # webots_ros2 controller looks under /tmp. A terminal that sets its own TMPDIR (a snap's, such as PyCharm's)
+    # parted the two: Webots ran, the gantry never connected. One temp folder for the whole launch.
+    env["TMPDIR"] = env["WEBOTS_TMPDIR"] = "/tmp"
     return env
 
 

@@ -29,9 +29,9 @@ def setup(context):
         if not os.path.exists(f):
             raise RuntimeError(f"{f} is missing: generate the world first (permtek5-twin-edge world)")
     webots_port = LaunchConfiguration("webots_port").perform(context)
-    cmd = ["webots", f"--mode={mode}", "--batch", f"--port={webots_port}"]
+    cmd = ["webots", f"--mode={mode}", "--batch", f"--port={webots_port}", "--stdout", "--stderr"]   # its console into sim.log
     if not gui:
-        cmd += ["--no-rendering", "--stdout", "--stderr", "--minimize"]
+        cmd += ["--no-rendering", "--minimize"]
     webots = ExecuteProcess(cmd=cmd + [world], output="screen", name="webots")
     urdf = os.path.join(get_package_share_directory("roofbed_twin"), "resource", "gantry.urdf")
     return [

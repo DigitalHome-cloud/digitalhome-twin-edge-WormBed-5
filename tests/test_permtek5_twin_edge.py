@@ -420,3 +420,12 @@ def test_a_look_over_the_bed_is_remembered_and_stamping_takes_weeds_off_the_list
     state["twin"]["history"].append({"id": "j2", "kind": "stamp", "state": "done", "started": 20.0, "spec": stamp["spec"], "result": {"stamped": 1, "skipped": 0}})
     t = client.get("/api/twin").get_json()
     assert (t["weeds"]["small"], t["weeds"]["byHand"]) == (0, 1) and "stamp" not in {p["id"] for p in t["proposals"]}
+
+
+def test_the_launch_uses_one_temp_folder_whatever_the_terminal_set(monkeypatch):
+    """A snap terminal's TMPDIR made Webots and its controller look in two places (2026-10-14)."""
+    from permtek5_twin_edge import sim
+    monkeypatch.setenv("TMPDIR", "/home/x/snap/pycharm-community/common/tmp")
+    monkeypatch.setenv("WEBOTS_TMPDIR", "/home/x/snap/pycharm-community/common/tmp")
+    env = sim._env()
+    assert env["TMPDIR"] == env["WEBOTS_TMPDIR"] == "/tmp"
