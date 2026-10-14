@@ -31,7 +31,7 @@ from pathlib import Path
 
 TOOL = "permtek5-twin-edge"
 PACKAGE = "permtek5_twin_edge"
-REPO_URL = "https://github.com/DigitalHome-cloud/permtek5-twin-edge"
+REPO_URL = "https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5"
 HERE = Path(__file__).resolve().parent
 
 

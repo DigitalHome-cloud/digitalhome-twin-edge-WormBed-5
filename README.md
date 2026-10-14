@@ -1,6 +1,6 @@
 # permtek5-twin-edge
 
-**v0.1.0** · GPL-3.0 · [releases](https://github.com/DigitalHome-cloud/permtek5-twin-edge/releases)
+**v0.1.0** · GPL-3.0 · [releases](https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5/releases)
 
 A local app that turns a [PermTek-5](https://github.com/DigitalHome-cloud/digitalhome-cloud-PermTek-5)
 habitat into a **Webots twin** of its roof bed and gantry robot, runs it over
@@ -137,7 +137,7 @@ are only accepted from this machine.
 **A release tarball**: needs neither git nor pip.
 
 ```bash
-curl -L https://github.com/DigitalHome-cloud/permtek5-twin-edge/archive/refs/tags/v0.1.0.tar.gz | tar xz
+curl -L https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5/archive/refs/tags/v0.1.0.tar.gz | tar xz
 cd permtek5-twin-edge-0.1.0
 ./run.sh
 ```
@@ -145,7 +145,7 @@ cd permtek5-twin-edge-0.1.0
 **Or install it**, with no source tree to keep:
 
 ```bash
-pipx install git+https://github.com/DigitalHome-cloud/permtek5-twin-edge@v0.1.0
+pipx install git+https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5@v0.1.0
 permtek5-twin-edge-web                 # the page
 permtek5-twin-edge world              # the command line
 permtek5-twin-edge-mcp                 # the MCP server, for agents
@@ -169,8 +169,8 @@ Every command has a `python3 -m` twin that needs nothing on PATH:
 pinned tag:
 
 ```bash
-pip install --upgrade git+https://github.com/DigitalHome-cloud/permtek5-twin-edge@v0.1.0
-pipx install --force git+https://github.com/DigitalHome-cloud/permtek5-twin-edge@v0.1.0
+pip install --upgrade git+https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5@v0.1.0
+pipx install --force git+https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5@v0.1.0
 ```
 
 If you copied the skill with `--install`, refresh it afterwards:

@@ -23,9 +23,9 @@ classifiers = [
 dependencies = ["flask>=3.0", "mcp>=2,<3", "rdflib>=7.0", "pyshacl>=0.26"]
 
 [project.urls]
-Homepage = "https://github.com/DigitalHome-cloud/permtek5-twin-edge"
-Source = "https://github.com/DigitalHome-cloud/permtek5-twin-edge"
-Issues = "https://github.com/DigitalHome-cloud/permtek5-twin-edge/issues"
+Homepage = "https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5"
+Source = "https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5"
+Issues = "https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5/issues"
 
 [project.scripts]
 permtek5-twin-edge = "permtek5_twin_edge.engine:main"
