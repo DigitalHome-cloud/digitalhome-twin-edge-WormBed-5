@@ -690,34 +690,45 @@ async function refreshFilm() {
   const miss = $("#film-missing");
   miss.hidden = !f.missing.length;
   miss.innerHTML = f.missing.map((m) => `<li>${core.esc(m)}</li>`).join("");
-  $("#btn-film").disabled = !!job || f.missing.length > 0 || !f.prepared;
-  $("#btn-film").textContent = f.film ? "Render again" : "Render film";
+  const q = $("#sel-film-quality");
+  if (!q.options.length && f.quality) {
+    q.innerHTML = Object.entries(f.quality).map(([k, v]) => `<option value="${k}">${core.esc(v)}</option>`).join("");
+    q.value = "good";
+  }
   $("#btn-film-cancel").hidden = !job;
   $("#film-progress").hidden = !job;
   if (job) $("#film-progress").value = job.progress || 0;
-  const last = f.job && !job ? f.job : null;
-  $("#film-status").textContent = job ? `rendering · ${job.phase}`
-    : last && last.state === "failed" ? `failed: ${last.error}`
-    : last && last.state === "cancelled" ? "cancelled"
-    : f.film ? `rendered ${new Date(f.film.modified * 1000).toLocaleString()}`
-    : !f.prepared ? "prepare a world first" : "not rendered yet";
-  // show the film when there is one, else the still; reload only when the file changed
-  const want = f.film ? `film:${f.film.modified}` : f.poster ? `poster:${f.poster.modified}` : "";
+  const last = f.job && !job ? f.job : null, shotOf = (j) => (j && j.spec && j.spec.shot) || "";
+  const title = (id) => ((f.shots || []).find((x) => x.id === id) || {}).title || id;
+  $("#film-status").textContent = job ? `rendering “${title(shotOf(job))}” · ${job.phase}${(f.waiting || []).length ? ` · ${f.waiting.length} more waiting` : ""}`
+    : last && last.state === "failed" ? `the last film failed: ${last.error}`
+    : last && last.state === "cancelled" ? "the last film was cancelled"
+    : !f.prepared ? "prepare a world first" : "";
+  // one card per shot: its film (or still), and a button; redrawn only when something changed
+  const busy = f.missing.length > 0 || !f.prepared, waiting = f.waiting || [];
+  const want = JSON.stringify([busy, shotOf(job), waiting, (f.shots || []).map((x) => [x.id, x.film && x.film.modified, x.poster && x.poster.modified])]);
   if (want === F.shown) return;
   F.shown = want;
-  const video = $("#film-video"), poster = $("#film-poster");
-  video.hidden = !f.film; poster.hidden = !!f.film || !f.poster;
-  if (f.film) {
-    video.poster = f.poster ? `/api/twin/film/poster.png?t=${f.poster.modified}` : "";
-    video.src = `/api/twin/film/film.mp4?t=${f.film.modified}`;
-    video.play().catch(() => { /* autoplay refused: the controls are there */ });
-  } else if (f.poster) {
-    poster.src = `/api/twin/film/poster.png?t=${f.poster.modified}`;
-  }
+  $("#film-shots").innerHTML = (f.shots || []).map((x) => {
+    const when = x.film ? `rendered ${new Date(x.film.modified * 1000).toLocaleString()}` : x.poster ? "only the still so far" : "not rendered yet";
+    const media = x.film
+      ? `<video class="film" controls loop muted playsinline preload="metadata" ${x.poster ? `poster="/api/twin/film/${x.poster.name}?t=${x.poster.modified}"` : ""} src="/api/twin/film/${x.film.name}?t=${x.film.modified}"></video>`
+      : x.poster ? `<img class="film" alt="A still of ${core.esc(x.title)}" src="/api/twin/film/${x.poster.name}?t=${x.poster.modified}">`
+      : `<div class="film film--none">no film yet</div>`;
+    const doing = shotOf(job) === x.id ? "rendering now" : waiting.includes(x.id) ? "waits its turn" : "";
+    return `<section class="app-panel film-card"><h3>${core.esc(x.title)}${doing ? ` <span class="tag">${doing}</span>` : ""}</h3>${media}
+      <div class="hero-controls"><button data-shot="${x.id}" class="${x.film ? "" : "primary"}" ${busy || doing ? "disabled" : ""}>${x.film ? "Render again" : "Render"}</button>
+      <span class="note">${when}</span></div></section>`;
+  }).join("");
 }
-
-$("#btn-film").addEventListener("click", async () => { await post("/api/twin/film", {}); refreshFilm(); });
-$("#btn-film-cancel").addEventListener("click", async () => { if (F.job) await post(`/api/jobs/${F.job.id}/cancel`); refreshFilm(); });
+$("#film-shots").addEventListener("click", async (e) => {
+  const shot = e.target.dataset && e.target.dataset.shot;
+  if (!shot) return;
+  e.target.disabled = true;
+  if (await post("/api/twin/film", { shot, quality: $("#sel-film-quality").value })) core.toast("Rendering: it takes a while");
+  F.shown = "";
+  refreshFilm();
+});
 refreshFilm();
 setInterval(refreshFilm, 2000);
 

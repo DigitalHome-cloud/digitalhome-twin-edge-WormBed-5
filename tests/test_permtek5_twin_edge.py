@@ -183,17 +183,19 @@ def test_the_drawing_and_its_source_agree():
         assert c["label"] in html, c["label"]
 
 
-def test_the_film_needs_a_prepared_world_and_serves_only_its_two_files(client, tmp_path):
+def test_the_films_need_a_prepared_world_and_serve_only_their_own_files(client, tmp_path):
     f = client.get("/api/twin/film").get_json()
-    assert f["prepared"] is False and f["film"] is None and f["job"] is None
-    assert client.post("/api/twin/film", json={}).status_code == 400
-    assert client.get("/api/twin/film/film.mp4").status_code == 404
+    assert f["prepared"] is False and f["job"] is None
+    assert [x["id"] for x in f["shots"]] == ["bed", "box", "flight"] and all(x["film"] is None for x in f["shots"])
+    assert client.post("/api/twin/film", json={"shot": "box"}).status_code == 400
+    assert client.get("/api/twin/film/film-box.mp4").status_code == 404
     assert client.get("/api/twin/film/other.txt").status_code == 404
     out = engine.workspace() / "demo"
     out.mkdir(parents=True)
-    (out / "poster.png").write_bytes(b"png")
-    assert client.get("/api/twin/film/poster.png").data == b"png"
-    assert client.get("/api/twin/film").get_json()["poster"]["bytes"] == 3
+    (out / "poster-box.png").write_bytes(b"png")
+    assert client.get("/api/twin/film/poster-box.png").data == b"png"
+    box = next(x for x in client.get("/api/twin/film").get_json()["shots"] if x["id"] == "box")
+    assert box["poster"]["bytes"] == 3 and box["film"] is None
 
 
 # -------------------------------------------------- the bed as a system ----

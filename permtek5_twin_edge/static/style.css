@@ -409,3 +409,9 @@ button.op-tile:focus-visible { outline: 2px solid var(--app-accent); outline-off
 .sensor-menu { display: flex; justify-content: flex-end; padding: 0; margin: var(--app-space-3) 0 0; }
 @media (max-width: 40rem) { .sensor-facts { grid-template-columns: minmax(0, 1fr); } .sensor-facts dd { margin-bottom: 6px; } }
 .op-label, .op-value, .op-state { display: block; }
+
+/* Film: one card per shot */
+.film-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr)); gap: var(--app-space-4); margin-top: var(--app-space-4); }
+.film-card h3 { margin-top: 0; }
+.film-card .film { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--app-radius-sm); background: var(--app-bg-sunken); display: block; }
+.film--none { display: grid !important; place-items: center; color: var(--app-text-muted); font-size: 0.875rem; }

@@ -313,20 +313,20 @@
 
       <section id="tab-film" class="tabpane view" hidden>
         <div class="app-panel">
-          <h2 class="app-panel__title">Film of the bed</h2>
-          <p class="app-panel__hint">Blender renders the prepared bed as a short film: the soil, every planted cell in its
-            crop's colour, the gantry travelling along the bed, the garden's trees behind, and a camera that circles once.
-            It is rendered on this PC's processor, so it takes several minutes; the simulation keeps priority.</p>
+          <h2 class="app-panel__title">Films of the guild</h2>
+          <p class="app-panel__hint">Blender renders the prepared guild as it is: the soil, every planted cell, the gantry,
+            the garden's trees, and the worm box with its lid open. Inside it, red wigglers crawl over moist castings,
+            torn newspaper and the last feeding's scraps, past their cocoons; about as many as the simulation's box holds.
+            It renders on this PC's processor while the simulation keeps priority, so a film takes a while.</p>
           <div class="hero-controls">
-            <button id="btn-film" class="primary">Render film</button>
+            <label>Quality <select id="sel-film-quality"></select></label>
             <button id="btn-film-cancel" hidden>Cancel</button>
             <span id="film-status" class="note"></span>
           </div>
           <ul id="film-missing" class="missing" hidden></ul>
           <progress id="film-progress" max="1" value="0" hidden></progress>
-          <video id="film-video" class="film" controls loop muted playsinline hidden></video>
-          <img id="film-poster" class="film" alt="A still of the rendered bed" hidden>
         </div>
+        <div class="film-grid" id="film-shots"></div>
       </section>
 
       <section id="tab-connections" class="tabpane view" hidden>

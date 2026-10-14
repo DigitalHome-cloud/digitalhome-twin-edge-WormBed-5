@@ -59,7 +59,7 @@ the app; Webots loads them, and nothing is built when the twin runs.
 | Blender does | When | Who |
 |---|---|---|
 | the shape library | once, and again when a shape is changed or added | a developer |
-| the film | when you ask for it on the Film tab | you |
+| the films | when you ask for one on the Film tab | you |
 
 Blender is needed only for those two. `bpy` on PyPI is built for one Python
 version (3.13 today) and ROS 2 needs the system's 3.12, so it has an
@@ -70,13 +70,20 @@ scripts/setup-bpy.sh                      # once: uv, Python 3.13, bpy (about 40
 .venv-bpy/bin/python assets/build.py      # rewrites permtek5_twin_edge/shapes/ after a change to a shape
 ```
 
-The **Film** tab renders the prepared bed as a short turntable with Blender
-(`assets/demo.py`, Cycles on the CPU: about 12 s a frame on an 8-thread
-laptop, so 72 frames take a quarter of an hour; `ffmpeg` makes the MP4):
+The **Film** tab renders the prepared guild with Blender (`assets/demo.py`), in
+three shots: **the bed** (the camera circles it), **the worm box, close up**
+(red wigglers crawling over moist castings, newspaper, scraps and cocoons, with
+shallow focus) and **into the worm box** (a flight from the whole bed down into
+it). The box's insides are `assets/wormlife.py`: every shape and surface is
+made there, nothing is downloaded. It shows about as many worms as the
+simulation's box holds. Cycles on the CPU, so it takes a while: on a 4-core
+laptop a close-up runs about half an hour in draft and an hour or two in
+good quality; draft and good render every second frame and `ffmpeg` makes the
+ones between.
 
 ```bash
-.venv-bpy/bin/python assets/demo.py --still-only   # one still, half a minute
-.venv-bpy/bin/python assets/demo.py                # poster.png and film.mp4 in mydocs/twin/demo/
+.venv-bpy/bin/python assets/demo.py --shot box --still-only     # one still, about a minute
+.venv-bpy/bin/python assets/demo.py --shot box --quality draft  # poster-box.png and film-box.mp4 in mydocs/twin/demo/
 ```
 
 **The worm box** is two bins: a working bin above the soil on a sump that

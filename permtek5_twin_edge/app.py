@@ -669,15 +669,26 @@ def twin_cloud():
 
 # ------------------------------------------------------------------ film ----
 #
-# A rendered turntable of the prepared bed, made with Blender in its own
-# environment (film.py, assets/demo.py). A background job with progress.
+# Films of the prepared guild, made with Blender in its own environment
+# (film.py, assets/demo.py, assets/wormlife.py): the bed, the worm box close
+# up, and a flight into it. A background job with progress, one at a time.
 
 def _film_out():
     return engine.workspace() / "demo"
 
 
 def _film_job(spec, progress, cancelled):
-    return film.render(engine.workspace() / "bed.json", _film_out(), spec.get("frames", 72), progress, cancelled)
+    return film.render(engine.workspace() / "bed.json", _film_out(), spec.get("shot", "bed"), spec.get("quality", "good"),
+                       progress, cancelled, adults=spec.get("adults"))
+
+
+def _adults():
+    """The simulated adult worms now, so the film shows about as many as the box holds; None when not running."""
+    try:
+        bed = (sim.status().get("twin") or {}).get("bed") or {}
+        return ((bed.get("wormBin") or {}).get("sim") or {}).get("population", {}).get("adults")
+    except Exception:
+        return None
 
 
 edge_routes.JOBS.register("film", _film_job)
@@ -685,8 +696,11 @@ edge_routes.JOBS.register("film", _film_job)
 
 @app.get("/api/twin/film")
 def film_status():
-    job = next((j for j in edge_routes.JOBS.list() if j["kind"] == "film"), None)
-    return jsonify({**film.status(_film_out()), "prepared": engine.config() is not None, "job": job})
+    films = [j for j in edge_routes.JOBS.list() if j["kind"] == "film"]
+    waiting = [j for j in films if j["state"] == "queued"]
+    job = next((j for j in films if j["state"] == "running"), None) or (films[0] if films else None)
+    return jsonify({**film.status(_film_out()), "prepared": engine.config() is not None, "job": job,
+                    "waiting": [j["spec"].get("shot") for j in waiting]})
 
 
 @app.post("/api/twin/film")
@@ -696,16 +710,20 @@ def film_start():
     bad = film.missing()
     if bad:
         return jsonify({"errors": bad}), 400
-    frames = max(24, min(int(body().get("frames") or 72), film.MAX_FRAMES))
+    shot, quality = str(body().get("shot") or "bed"), str(body().get("quality") or "good")
+    if shot not in film.SHOTS or quality not in film.QUALITY:
+        return jsonify({"errors": [f"shot is one of {', '.join(film.SHOTS)}; quality one of {', '.join(film.QUALITY)}"]}), 400
+    if any(j["kind"] == "film" and j["state"] in ("queued", "running") and j["spec"].get("shot") == shot for j in edge_routes.JOBS.list()):
+        return jsonify({"errors": ["this film is already being rendered or waits its turn"]}), 409
     try:
-        return jsonify(edge_routes.JOBS.submit("film", {"frames": frames})), 202
+        return jsonify(edge_routes.JOBS.submit("film", {"shot": shot, "quality": quality, "adults": _adults()})), 202
     except Exception as exc:                      # the same film is already queued or running
         return jsonify({"errors": [str(exc)]}), 409
 
 
 @app.get("/api/twin/film/<name>")
 def film_file(name: str):
-    if name not in ("poster.png", "film.mp4"):
+    if name not in {f for shot in film.SHOTS for f in film.files(shot).values()}:
         abort(404)
     path = _film_out() / name
     if not path.exists():
