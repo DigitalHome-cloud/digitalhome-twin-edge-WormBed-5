@@ -91,6 +91,25 @@ ones between.
 .venv-bpy/bin/python assets/demo.py --shot box --quality draft  # poster-box.png and film-box.mp4 in mydocs/twin/demo/
 ```
 
+**The Webots world and the Blender film are two pictures of one bed.** They
+share three things and nothing else:
+
+| Shared | Webots (live) | Blender film (offline) |
+|---|---|---|
+| `bed.json`, written by `world.py` next to `roofbed.wbt` when a world is prepared | the gantry driver reads it: the bed's size, cells and crops, the rails, the worm box, the tank | `demo.py` reads the same file, so the film shows the bed as it was prepared: every planted cell in its crop's colour, the garden's trees, the worm box at the bed's far end |
+| the shapes from `assets/build.py` | loaded as OBJ files from `permtek5_twin_edge/shapes/`, for looks only; collisions and motion never depend on them | the same functions are called directly inside Blender, so plants, soil, the gantry's profile, trees and the worm box are the very same shapes |
+| the worm count | the driver's worm box model counts thousands of worms but shows only a sample, as many as a log of the real count, while the lid is open | when a render starts, the edge takes the simulated adults and the film shows about as many worms (`visible_worms`) |
+
+What differs is everything else. Webots runs in real time, with physics, the
+robot's cameras and jobs you confirm; its looks are simple. The film is
+path-traced by Cycles at tens of seconds a frame, and only it has
+`wormlife.py`'s close-up detail: moist castings, newspaper and cardboard, the
+last feeding's scraps, cocoons, worms that crawl and feel about with their
+heads, and shallow focus. The film is **not a recording of the simulation**:
+the camera's path and the gantry's travel are scripted in `demo.py`, and a job
+running in Webots does not show in it. To see the bed as it is now, prepare the
+world again and render again.
+
 **The worm box** is two bins: a working bin above the soil on a sump that
 catches the liquid. Its sensors (two temperatures, moisture, weight, gas,
 acidity, sump level, lid) read with noise and can fail. Around it:

@@ -57,14 +57,16 @@
         "note": "A sown cell is written into the habitat's copy, checked with the cloud's shapes, and the next sync shows it on the map."
       },
       {
-        "id": "looks",
-        "label": "Blender meshes",
+        "id": "films",
+        "label": "Webots world and Blender film",
         "focus": [
-          "assets",
           "world",
-          "webots"
+          "webots",
+          "driver",
+          "assets",
+          "film"
         ],
-        "note": "Plants, soil, the gantry's profile and trees are built once with Blender in its own Python. Without them the world uses boxes."
+        "note": "Both read bed.json and one set of Blender shapes. Webots runs it live; the film renders it slowly and lifelike, with the box's worms."
       }
     ]
   },
@@ -157,10 +159,10 @@
     {
       "id": "assets",
       "type": "backend",
-      "label": "Blender meshes",
-      "sublabel": "bpy · built offline",
+      "label": "Blender shapes",
+      "sublabel": "build.py · bpy · once",
       "pos": [
-        500,
+        290,
         520
       ],
       "size": [
@@ -223,6 +225,21 @@
         140,
         64
       ]
+    },
+    {
+      "id": "film",
+      "type": "backend",
+      "label": "Blender films",
+      "sublabel": "demo.py · wormlife · Cycles",
+      "pos": [
+        520,
+        520
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "rendered offline"
     }
   ],
   "boundaries": [
@@ -242,7 +259,8 @@
         "page",
         "knowledge",
         "world",
-        "assets"
+        "assets",
+        "film"
       ]
     },
     {
@@ -290,11 +308,7 @@
       "label": "OBJ · looks only",
       "variant": "dashed",
       "fromSide": "top",
-      "toSide": "bottom",
-      "labelAt": [
-        570,
-        442
-      ]
+      "toSide": "bottom"
     },
     {
       "id": "wbt",
@@ -352,6 +366,33 @@
         440,
         212
       ]
+    },
+    {
+      "id": "sameshapes",
+      "from": "assets",
+      "to": "film",
+      "label": "same shapes",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "bedjson",
+      "from": "world",
+      "to": "film",
+      "label": "bed.json",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDx": 22
+    },
+    {
+      "id": "wormcount",
+      "from": "driver",
+      "to": "film",
+      "label": "worm count",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "right"
     }
   ],
   "cards": [
@@ -366,20 +407,20 @@
     },
     {
       "dot": "cyan",
-      "title": "You decide",
+      "title": "You decide, it stays here",
       "items": [
-        "Jobs are proposals until you press Confirm",
-        "You fill the hopper and the tank; the gantry feeds the worms",
-        "Soft limits are the bed; e-stop holds the gantry"
+        "Jobs run only when you press Confirm; the chat only proposes",
+        "You fill the hopper and the tank; e-stop holds the gantry",
+        "Habitat, worlds, pictures and logs stay on this PC"
       ]
     },
     {
-      "dot": "rose",
-      "title": "Stays on this PC",
+      "dot": "amber",
+      "title": "Webots world and Blender film",
       "items": [
-        "A real habitat, its worlds, pictures and logs",
-        "The gateway answers local calls only",
-        "Pairing needs a code a site admin approves"
+        "Both read bed.json and the same Blender shapes: one bed",
+        "Webots runs live; the film renders slowly, path-traced",
+        "The film shows as many worms as the simulated box holds"
       ]
     }
   ]
