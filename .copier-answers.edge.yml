@@ -7,10 +7,10 @@ env_prefix: PERMTEK5_TWIN_EDGE
 github_org: DigitalHome-cloud
 package_name: permtek5_twin_edge
 port: 8772
-repo_name: permtek5-twin-edge
+repo_name: digitalhome-twin-edge-WormBed-5
 space_noun: area
 tenant_noun: site
-title: PermTek-5 Twin Edge
+title: wormbed5.edge
 tool_name: permtek5-twin-edge
 with_mcp: true
 with_workspace: true

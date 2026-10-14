@@ -33,7 +33,7 @@ from .core import mcp_bridge as web
 server = MCPServer(
     name="permtek5-twin-edge",
     instructions=(
-        "PermTek-5 Twin Edge: a Webots twin of a gantry robot over a habitat's roof bed. "
+        "wormbed5.edge: a Webots twin of a gantry robot over a habitat's roof bed. "
         "twin() says whether a world is prepared and the simulation runs, where the gantry "
         "is, the bed's cells and the jobs proposed. Jobs (sow, water, probe, photograph "
         "cells) are proposals: twin_confirm sends one, and in the chat panel that is a "

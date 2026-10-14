@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 D-LAB-5
-"""permtek5-twin-edge — PermTek-5 Twin Edge
+"""permtek5-twin-edge — wormbed5.edge
 
     engine      the engine and its command line, standard library only
     app         the browser front end (Flask), on top of core.server

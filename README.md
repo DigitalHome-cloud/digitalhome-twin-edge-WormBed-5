@@ -1,6 +1,8 @@
-# permtek5-twin-edge
+# wormbed5.edge
 
 **v0.1.0** · GPL-3.0 · [releases](https://github.com/DigitalHome-cloud/digitalhome-twin-edge-WormBed-5/releases)
+
+The edge twin of one PermTek-5 **WormBed-5** guild (package and commands: `permtek5-twin-edge`).
 
 A local app that turns a [PermTek-5](https://github.com/DigitalHome-cloud/digitalhome-cloud-PermTek-5)
 habitat into a **Webots twin** of its roof bed and gantry robot, runs it over

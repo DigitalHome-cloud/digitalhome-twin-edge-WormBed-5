@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 D-LAB-5
 """
-Install PermTek-5 Twin Edge @VERSION@ on this computer: Linux, macOS or Windows.
+Install wormbed5.edge @VERSION@ on this computer: Linux, macOS or Windows.
 
 Download this file and the package next to it from PermTek-5
 (Settings -> Edges -> Install an edge), then, in that folder:
@@ -70,7 +70,7 @@ def running():
 
 
 def main():
-    say(f"PermTek-5 Twin Edge {VERSION}")
+    say(f"wormbed5.edge {VERSION}")
     if sys.version_info < (3, 10):
         stop(f"Python 3.10 or newer is needed (this is {sys.version.split()[0]}): https://www.python.org/downloads/")
     say(f"  ok Python {sys.version.split()[0]}")

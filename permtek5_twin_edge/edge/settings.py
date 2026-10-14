@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Tuple
 
 TOOL = "permtek5-twin-edge"
 PACKAGE = "permtek5_twin_edge"
-TITLE = "PermTek-5 Twin Edge"
+TITLE = "wormbed5.edge"
 KIND = "robot"                 # human | iot | robot
 CLOUD_NAME = "PermTek-5"          # "the Mediathek", "DigitalHome" …
 TENANT_NOUN = "site"        # what people call a tenant here

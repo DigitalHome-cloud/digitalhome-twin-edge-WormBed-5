@@ -1,6 +1,6 @@
 # The edge layer
 
-PermTek-5 Twin Edge is an **edge**: a robot with a ROS 2 backbone
+wormbed5.edge is an **edge**: a robot with a ROS 2 backbone
 that links to PermTek-5, a site made from
 [template-dlab5-cloud](https://github.com/d-lab-5/template-dlab5-cloud). It was made in
 two steps: the ERP-LAB-5 python-tool-template (the base), then the

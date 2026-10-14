@@ -1,7 +1,7 @@
 {
   "name": "permtek5-twin-edge",
   "version": "0.1.0",
-  "description": "PermTek-5 Twin Edge",
+  "description": "wormbed5.edge: the edge twin of a PermTek-5 WormBed-5 guild",
   "author": {
     "name": "D-LAB-5"
   },

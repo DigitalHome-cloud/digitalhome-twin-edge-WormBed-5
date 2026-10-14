@@ -7,14 +7,14 @@ cli_module: engine
 coffee_url: https://www.buymeacoffee.com/dlab5
 copyright_year: 2026
 default_branch: main
-description: PermTek-5 Twin Edge
+description: "wormbed5.edge: the edge twin of a PermTek-5 WormBed-5 guild"
 disclaimer: ''
 github_org: DigitalHome-cloud
 package_name: permtek5_twin_edge
 port: 8772
-repo_name: permtek5-twin-edge
+repo_name: digitalhome-twin-edge-WormBed-5
 shared_dir: shared
-title: PermTek-5 Twin Edge
+title: wormbed5.edge
 tool_name: permtek5-twin-edge
 web_command: permtek5-twin-edge-web
 with_mcp: true

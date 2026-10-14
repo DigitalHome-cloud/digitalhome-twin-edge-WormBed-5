@@ -14,27 +14,32 @@
 
 {% block main %}
 <div class="app-shell app-shell--railed" id="shell">
-  <nav class="app-rail" id="rail" aria-label="PermTek-5 Twin Edge">
-    <a class="app-rail__brand" href="/" aria-label="PermTek-5 Twin Edge">
+  <nav class="app-rail" id="rail" aria-label="wormbed5.edge">
+    <a class="app-rail__brand" href="/" aria-label="wormbed5.edge">
       <span class="app-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"
-        stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V6h16v14"/><path d="M12 6v4"/>
-        <path d="M12 20v-5"/><path d="M12 16c0-2.5-1.8-3.8-4.2-3.8 0 2.5 1.8 3.8 4.2 3.8z"/><path d="M12 15c0-2.5 1.8-3.8 4.2-3.8 0 2.5-1.8 3.8-4.2 3.8z"/></svg></span>
-      <span>permtek5<span class="app-rail__brandaccent">.twin</span></span>
+        stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 21V4.5h17V21"/><path d="M12 4.5v3"/>
+        <path d="M6.5 17.5c1.6-3.6 4-3.6 5.6 0s4 3.6 5.6-.3" stroke-width="2.6"/></svg></span>
+      <span>wormbed5<span class="app-rail__brandaccent">.edge</span></span>
     </a>
 
     <div class="app-rail__section">
-      <h2 class="app-rail__sectionlabel">Twin</h2>
+      <h2 class="app-rail__sectionlabel">Guild</h2>
       <ul class="app-rail__items">
-        <li><a class="app-rail__item tab" href="#twin" data-tab="twin"><svg {{ ico|safe }}><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M9 6v12M15 6v12M3 12h18"/></svg><span>Simulation</span></a></li>
-        <li><a class="app-rail__item tab" href="#film" data-tab="film"><svg {{ ico|safe }}><rect x="3" y="5" width="18" height="14" rx="1.6"/><path d="m10 9 5 3-5 3z"/></svg><span>Film</span></a></li>
-        <li><a class="app-rail__item tab" href="#connections" data-tab="connections"><svg {{ ico|safe }}><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg><span>PermTek-5 link</span><span class="app-rail__dot" id="dot-linked" hidden></span></a></li>
-        <li><a class="app-rail__item tab" href="#chat" data-tab="chat"><svg {{ ico|safe }}><path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M8 10h8M8 13h5"/></svg><span>Chat</span></a></li>
+        <li><a class="app-rail__item tab" href="#setup" data-tab="setup"><svg {{ ico|safe }}><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg><span>Setup</span></a></li>
+        <li><a class="app-rail__item tab" href="#operator" data-tab="operator"><svg {{ ico|safe }}><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-5 3 3 5-6"/></svg><span>Operator</span><span class="app-rail__dot rail-dot--alarm" id="dot-operator" hidden></span></a></li>
+        <li><a class="app-rail__item tab" href="#robot" data-tab="robot"><svg {{ ico|safe }}><path d="M3 20V5h18v15"/><path d="M12 5v5"/><circle cx="12" cy="12" r="2"/></svg><span>Robot</span><span class="app-rail__dot" id="dot-robot" hidden></span></a></li>
+        <li><a class="app-rail__item tab" href="#care" data-tab="care"><svg {{ ico|safe }}><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 9h16M9 3v4M15 3v4"/><path d="m9 14 2 2 4-4"/></svg><span>Care</span><span class="app-rail__dot" id="dot-care" hidden></span></a></li>
+        <li><a class="app-rail__item tab" href="#sim" data-tab="sim"><svg {{ ico|safe }}><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/><path d="M12 9.5V12l1.8 1.2"/></svg><span>Simulation</span></a></li>
       </ul>
     </div>
 
     <div class="app-rail__section">
-      <h2 class="app-rail__sectionlabel">Job</h2>
-      <p class="rail-job" id="rail-job">none</p>
+      <h2 class="app-rail__sectionlabel">More</h2>
+      <ul class="app-rail__items">
+        <li><a class="app-rail__item tab" href="#film" data-tab="film"><svg {{ ico|safe }}><rect x="3" y="5" width="18" height="14" rx="1.6"/><path d="m10 9 5 3-5 3z"/></svg><span>Film</span></a></li>
+        <li><a class="app-rail__item tab" href="#connections" data-tab="connections"><svg {{ ico|safe }}><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg><span>PermTek-5 link</span><span class="app-rail__dot" id="dot-linked" hidden></span></a></li>
+        <li><a class="app-rail__item tab" href="#chat" data-tab="chat"><svg {{ ico|safe }}><path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M8 10h8M8 13h5"/></svg><span>Chat</span></a></li>
+      </ul>
     </div>
 
     <div class="rail-foot">
@@ -62,172 +67,247 @@
   <div class="app-shell__body">
     <header class="app-shell__header">
       <button type="button" id="rail-toggle" class="app-linkbutton app-shell__railtoggle" aria-label="Hide menu" aria-expanded="true">☰</button>
-      <span class="app-shell__title">PermTek-5 Twin Edge</span>
+      <span class="app-shell__title">wormbed5.edge</span>
       <span class="app-shell__meta" id="shell-meta"></span>
       <span class="app-shell__spacer"></span>
+      <!-- the status strip: on every screen -->
+      <span class="strip" id="strip" aria-live="polite">
+        <span class="strip__item" id="strip-clock" title="The simulated clock"></span>
+        <span class="strip__item" id="strip-job" title="The gantry's job"></span>
+        <a class="strip__item strip__alerts" id="strip-alerts" href="#operator" hidden></a>
+      </span>
       <span class="app-badge badge-estop" id="badge-estop" hidden>E-stop</span>
       <span class="app-badge badge-sim" id="badge-sim" hidden>Simulation</span>
       <span class="app-badge badge-agent" id="badge-agent" hidden>Agent connected</span>
-      <span class="app-badge badge-running">Running</span>
+      <button id="btn-estop" class="danger strip__estop" title="Hold the gantry where it is and abort the job">E-stop</button>
     </header>
 
     <main class="app-shell__main edge-main">
 
-      <section id="tab-twin" class="tabpane view">
-        <div class="edge-main">
-          <div class="app-hero">
-            <div class="app-hero__copy">
-              <p class="app-hero__eyebrow" id="hero-eyebrow">Roof-bed twin</p>
-              <h1 class="app-hero__title edge-hero__title" id="twin-status">loading…</h1>
-              <div class="hero-controls">
-                <select id="sel-source" title="The habitat the world is made from"><option value="">CityDemo (invented)</option></select>
-                <button id="btn-prepare" title="Write the Webots world for the habitat">Prepare world</button>
-                <label class="hero-check" title="Open the Webots 3D window too (otherwise it runs hidden and you watch through the cameras)">
-                  <input type="checkbox" id="chk-window"> Webots window</label>
-                <button id="btn-start" class="primary">Start</button>
-                <button id="btn-stop">Stop</button>
-                <button id="btn-estop" class="danger" title="Hold the gantry where it is and abort the job">E-stop</button>
-              </div>
-              <ul id="twin-missing" class="missing" hidden></ul>
-              <ul id="twin-notices" class="missing" hidden></ul>
-              <p id="twin-assumed" class="note" hidden></p>
-            </div>
-          </div>
-
-          <dl class="app-stats" id="overview"></dl>
-
-          <div class="twin-grid">
-            <div class="twin-main">
-              <div class="app-panel">
-                <h2 class="app-panel__title">Robot views</h2>
-                <div class="views">
-                  <figure>
-                    <img id="view-overview" alt="The whole bed, from the overview camera" hidden>
-                    <div class="view-off" id="off-overview">overview camera</div>
-                    <figcaption><span>Overview</span></figcaption>
-                  </figure>
-                  <figure>
-                    <img id="view-tool" alt="Looking down from the tool head" hidden>
-                    <div class="view-off" id="off-tool">tool camera</div>
-                    <figcaption><span>Tool camera</span><span id="axes" class="tag"></span></figcaption>
-                  </figure>
+      <!-- 1 · Setup: from the habitat to a running twin -->
+      <section id="tab-setup" class="tabpane view">
+        <div class="app-hero">
+          <div class="app-hero__copy">
+            <p class="app-hero__eyebrow" id="hero-eyebrow">wormbed5.edge</p>
+            <h1 class="app-hero__title edge-hero__title" id="twin-status">loading…</h1>
+            <ol class="steps">
+              <li class="step" id="step-source">
+                <span class="step__n">1</span>
+                <div class="step__body">
+                  <h3>Choose the habitat</h3>
+                  <p class="note">The guild's bed, worm box and tank come from this habitat's map.</p>
+                  <select id="sel-source" title="The habitat the world is made from"><option value="">CityDemo (invented)</option></select>
                 </div>
-              </div>
-
-              <div class="app-panel">
-                <h2 class="app-panel__title" id="bed-title">Bed</h2>
-                <div class="bed-scroll"><div id="bed" class="bed" role="img" aria-label="The bed's cells"></div></div>
-                <p class="note legend">
-                  <span><span class="cell planned"></span>planned</span>
-                  <span><span class="cell sown"></span>sown</span>
-                  <span><span class="cell growing"></span>growing</span>
-                  <span><span class="cell head"></span>tool head</span>
-                  <span><span class="cell bin"></span>worm box</span>
-                  <span><span class="cell weed"></span>weed found</span>
-                  <span>row 1, column 1 is the gantry's home corner</span>
-                </p>
-                <p class="note" id="weeds-line"></p>
-              </div>
-              <div class="app-panel" id="box-panel" hidden>
-                <h2 class="app-panel__title">Worm box</h2>
-                <dl class="app-stats" id="box-readings"></dl>
-                <p class="note" id="box-feeder"></p>
-                <p class="note" id="box-guide"></p>
-                <p class="note" id="box-harvest"></p>
-                <p class="note" id="box-sim" title="A real box cannot show this; the simulation can"></p>
-                <div class="box-pop" id="box-pop" hidden title="A real box cannot count its worms; the simulation can">
-                  <p class="note" id="box-pop-line"></p>
-                  <svg id="box-pop-trend" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="Worms in the box over the last 90 simulated days"></svg>
+              </li>
+              <li class="step" id="step-prepare">
+                <span class="step__n">2</span>
+                <div class="step__body">
+                  <h3>Prepare the world</h3>
+                  <p class="note">Writes the Webots world of the guild. Needed again only when the habitat changed.</p>
+                  <button id="btn-prepare" title="Write the Webots world for the habitat">Prepare world</button>
+                  <p id="twin-assumed" class="note" hidden></p>
                 </div>
-                <h3>Your part <span class="tag">what a person does at the box</span></h3>
-                <div class="hero-controls">
-                  <button id="btn-insulate" title="You wrapped the box against the cold (or took the wrapping off)">Wrap the box</button>
-                  <button id="btn-bedding" title="You mixed in 500 g of dry shredded paper: it takes up moisture and lets air in">Dry bedding added</button>
-                  <button id="btn-moisten" title="You sprinkled half a litre of water over the box">Water sprinkled</button>
-                  <button id="btn-tap" title="You opened the tap: the sump's liquid ran on into the tank pipes">Tap opened</button>
-                  <button id="btn-lid" title="You closed the lid (or left it open)">Lid</button>
-                </div>
-              </div>
-              <div class="app-panel" id="care-panel" hidden>
-                <h2 class="app-panel__title">Care <span class="tag" id="care-today"></span></h2>
-                <p class="note">The guild's care calendar from PermTek-5: what is due, and who does it. The robot's tasks count as
-                  done when its job finishes; yours when you say so. A reaction of the keeper brings a task forward.</p>
-                <ul class="care-list" id="care-due"></ul>
-                <details><summary>Coming up</summary><ul class="care-list" id="care-next"></ul></details>
-              </div>
-            </div>
-
-            <aside class="twin-main">
-              <div class="app-panel" id="chaos-panel" hidden>
-                <h2 class="app-panel__title">Weather and trouble</h2>
-                <p class="note" id="env-line"></p>
-                <ul class="scenario-checks" id="env-active"></ul>
-                <div class="chaos-controls">
-                  <label>Clock
-                    <select id="sel-factor" title="How fast the simulated day runs">
-                      <option value="1">1 min per second</option>
-                      <option value="10">10 min per second</option>
-                      <option value="30">30 min per second</option>
-                      <option value="120">2 h per second</option>
-                    </select></label>
-                  <label>Random trouble
-                    <select id="sel-chaos" title="Disturbances thrown in at random, per simulated day">
-                      <option value="0">off</option>
-                      <option value="2">2 a day</option>
-                      <option value="6">6 a day</option>
-                    </select></label>
-                  <button id="btn-calm" class="ghost" title="End every disturbance">Calm down</button>
-                </div>
-                <div id="chaos-list" class="proposals"></div>
-              </div>
-
-              <div class="app-panel" id="scenario-panel" hidden>
-                <h2 class="app-panel__title">Scenarios</h2>
-                <p class="scenario-score" id="scenario-score" hidden></p>
-                <div id="scenario-pick">
-                  <p class="app-panel__hint">A guided walk through one thing the bed does: each step says what happens and why, and shows the readings to watch.</p>
-                  <div id="scenario-list" class="proposals"></div>
-                </div>
-                <div id="scenario-run" hidden>
-                  <p class="scenario-progress"><span id="scenario-title"></span> <span class="tag" id="scenario-count"></span></p>
-                  <p class="scenario-about" id="scenario-about" hidden></p>
-                  <h3 id="scenario-step"></h3>
-                  <p class="scenario-why" id="scenario-why"></p>
-                  <ul class="scenario-checks" id="scenario-checks"></ul>
+              </li>
+              <li class="step" id="step-start">
+                <span class="step__n">3</span>
+                <div class="step__body">
+                  <h3>Start the twin</h3>
+                  <p class="note">Webots and the gantry start over ROS 2; the robot then proposes jobs for you to confirm.</p>
                   <div class="hero-controls">
-                    <button id="btn-scenario-do" class="primary"></button>
-                    <button id="btn-scenario-next">Next step</button>
-                    <button id="btn-scenario-skip" class="ghost" title="Go on although this step's readings did not come out as expected">Skip step</button>
-                    <button id="btn-scenario-stop" class="ghost">End</button>
+                    <label class="hero-check" title="Open the Webots 3D window too (otherwise it runs hidden and you watch through the cameras)">
+                      <input type="checkbox" id="chk-window"> Webots window</label>
+                    <button id="btn-start" class="primary">Start</button>
+                    <button id="btn-stop">Stop</button>
+                    <button class="primary" id="btn-go-operator" hidden>Go to the Operator screen →</button>
                   </div>
-                  <label class="hero-check" title="Your one confirmation for the whole scenario: every step's action is done for you, one after the other">
-                    <input type="checkbox" id="chk-scenario-auto"> Run every step for me</label>
                 </div>
-              </div>
-              <div class="app-panel">
-                <h2 class="app-panel__title">Job</h2>
-                <div id="job" class="job">none</div>
-                <h3>Your part <span class="tag">what a person does at the bed</span></h3>
-                <div class="hero-controls">
-                  <button id="btn-hopper" title="You put a usual mix into the hopper: 600 g vegetable scraps, 300 g fruit, 100 g coffee grounds">Hopper filled (1 kg, usual mix)</button>
-                  <button id="btn-browns" title="You filled the hopper's second compartment with 1 kg of torn cardboard or dry leaves: the robot adds it when the feeding guide asks">Bedding compartment filled (1 kg)</button>
-                  <button id="btn-hopper-empty" class="ghost" title="You emptied the hopper, for instance after the feeding guide refused what was in it">Hopper emptied</button>
-                  <button id="btn-tank" title="You refilled the tank pipes to the brim">Tank refilled</button>
-                </div>
-                <details id="hopper-form" hidden>
-                  <summary>Say exactly what went into the hopper</summary>
-                  <p class="note" id="guide-about"></p>
-                  <div id="hopper-kinds" class="hopper-kinds"></div>
-                  <div class="hero-controls"><button id="btn-hopper-mix">Hopper filled with this</button></div>
-                  <ul class="note" id="guide-rules"></ul>
-                </details>
-                <h3>Proposed <span class="tag">nothing moves until you confirm</span></h3>
-                <div id="proposals" class="proposals"></div>
-                <h3>Done</h3>
-                <div id="history" class="history">nothing yet</div>
-              </div>
-            </aside>
+              </li>
+            </ol>
+            <ul id="twin-missing" class="missing" hidden></ul>
           </div>
+        </div>
+        <div class="app-panel">
+          <h2 class="app-panel__title">The guild at a glance</h2>
+          <dl class="app-stats" id="overview"></dl>
+        </div>
+      </section>
+
+      <!-- 2 · Operator: what a real guild shows, readings only -->
+      <section id="tab-operator" class="tabpane view" hidden>
+        <div class="app-panel attention" id="attention">
+          <h2 class="app-panel__title">Needs attention <span class="tag" id="attention-count"></span></h2>
+          <ul id="twin-notices" class="notices"></ul>
+          <p class="note" id="attention-holds" hidden></p>
+          <p class="note" id="attention-none">Nothing needs you. The keeper watches every reading below.</p>
+        </div>
+        <div id="op-groups" class="op-groups"></div>
+        <p class="note op-empty" id="op-empty">The readings appear once the twin runs. <a href="#setup">Start it on Setup.</a></p>
+        <div class="app-panel" id="op-feeding">
+          <h2 class="app-panel__title">Feeding and compost</h2>
+          <p class="note" id="box-feeder"></p>
+          <p class="note" id="box-guide"></p>
+          <p class="note" id="box-harvest"></p>
+        </div>
+        <p class="note">Every reading here is one a real guild has too: sensors, the tank gauge, the hopper. What only the
+          simulation knows, such as how many worms live in the box, is on <a href="#sim">Simulation</a>.</p>
+      </section>
+
+      <!-- 3 · Robot: cameras, the bed, jobs to confirm, and your part -->
+      <section id="tab-robot" class="tabpane view" hidden>
+        <div class="twin-grid">
+          <div class="twin-main">
+            <div class="app-panel">
+              <h2 class="app-panel__title">Proposed <span class="tag">nothing moves until you confirm</span></h2>
+              <div id="proposals" class="proposals"></div>
+              <h3>Now</h3>
+              <div id="job" class="job">none</div>
+            </div>
+            <div class="app-panel">
+              <h2 class="app-panel__title">Robot views</h2>
+              <div class="views">
+                <figure>
+                  <img id="view-overview" alt="The whole bed, from the overview camera" hidden>
+                  <div class="view-off" id="off-overview">overview camera</div>
+                  <figcaption><span>Overview</span></figcaption>
+                </figure>
+                <figure>
+                  <img id="view-tool" alt="Looking down from the tool head" hidden>
+                  <div class="view-off" id="off-tool">tool camera</div>
+                  <figcaption><span>Tool camera</span><span id="axes" class="tag"></span></figcaption>
+                </figure>
+              </div>
+            </div>
+            <div class="app-panel">
+              <h2 class="app-panel__title" id="bed-title">Bed</h2>
+              <div class="bed-scroll"><div id="bed" class="bed" role="img" aria-label="The bed's cells"></div></div>
+              <p class="note legend">
+                <span><span class="cell planned"></span>planned</span>
+                <span><span class="cell sown"></span>sown</span>
+                <span><span class="cell growing"></span>growing</span>
+                <span><span class="cell head"></span>tool head</span>
+                <span><span class="cell bin"></span>worm box</span>
+                <span><span class="cell weed"></span>weed found</span>
+                <span>row 1, column 1 is the gantry's home corner</span>
+              </p>
+              <p class="note" id="weeds-line"></p>
+            </div>
+          </div>
+
+          <aside class="twin-main">
+            <div class="app-panel">
+              <h2 class="app-panel__title">Your part <span class="tag">what a person does</span></h2>
+              <h3>At the bed</h3>
+              <div class="hero-controls">
+                <button id="btn-hopper" title="You put a usual mix into the hopper: 600 g vegetable scraps, 300 g fruit, 100 g coffee grounds">Hopper filled (1 kg, usual mix)</button>
+                <button id="btn-browns" title="You filled the hopper's second compartment with 1 kg of torn cardboard or dry leaves: the robot adds it when the feeding guide asks">Bedding compartment filled (1 kg)</button>
+                <button id="btn-hopper-empty" class="ghost" title="You emptied the hopper, for instance after the feeding guide refused what was in it">Hopper emptied</button>
+                <button id="btn-tank" title="You refilled the tank pipes to the brim">Tank refilled</button>
+              </div>
+              <details id="hopper-form" hidden>
+                <summary>Say exactly what went into the hopper</summary>
+                <p class="note" id="guide-about"></p>
+                <div id="hopper-kinds" class="hopper-kinds"></div>
+                <div class="hero-controls"><button id="btn-hopper-mix">Hopper filled with this</button></div>
+                <ul class="note" id="guide-rules"></ul>
+              </details>
+              <h3>At the worm box</h3>
+              <div class="hero-controls" id="box-buttons">
+                <button id="btn-insulate" title="You wrapped the box against the cold (or took the wrapping off)">Wrap the box</button>
+                <button id="btn-bedding" title="You mixed in 500 g of dry shredded paper: it takes up moisture and lets air in">Dry bedding added</button>
+                <button id="btn-moisten" title="You sprinkled half a litre of water over the box">Water sprinkled</button>
+                <button id="btn-tap" title="You opened the tap: the sump's liquid ran on into the tank pipes">Tap opened</button>
+                <button id="btn-lid" title="You closed the lid (or left it open)">Lid</button>
+              </div>
+            </div>
+            <div class="app-panel">
+              <h2 class="app-panel__title">Done</h2>
+              <div id="history" class="history">nothing yet</div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- 4 · Care: the calendar of regular work -->
+      <section id="tab-care" class="tabpane view" hidden>
+        <div class="app-panel" id="care-panel">
+          <h2 class="app-panel__title">Due now <span class="tag" id="care-today"></span></h2>
+          <p class="note">The guild's care calendar from PermTek-5: what is due, and who does it. The robot's tasks count as
+            done when its job finishes; yours when you say so. A reaction of the keeper brings a task forward.</p>
+          <ul class="care-list" id="care-due"></ul>
+        </div>
+        <div class="app-panel">
+          <h2 class="app-panel__title">Coming up</h2>
+          <ul class="care-list" id="care-next"></ul>
+        </div>
+        <div class="app-panel">
+          <h2 class="app-panel__title">The year</h2>
+          <p class="note" id="care-about"></p>
+          <div class="care-year-scroll"><table class="care-year" id="care-year"></table></div>
+        </div>
+      </section>
+
+      <!-- 5 · Simulation: what exists because this is a twin -->
+      <section id="tab-sim" class="tabpane view" hidden>
+        <div class="twin-grid">
+          <div class="twin-main">
+            <div class="app-panel" id="chaos-panel" hidden>
+              <h2 class="app-panel__title">Clock, weather and trouble</h2>
+              <p class="note" id="env-line"></p>
+              <ul class="scenario-checks" id="env-active"></ul>
+              <div class="chaos-controls">
+                <label>Clock
+                  <select id="sel-factor" title="How fast the simulated day runs">
+                    <option value="1">1 min per second</option>
+                    <option value="10">10 min per second</option>
+                    <option value="30">30 min per second</option>
+                    <option value="120">2 h per second</option>
+                  </select></label>
+                <label>Random trouble
+                  <select id="sel-chaos" title="Disturbances thrown in at random, per simulated day">
+                    <option value="0">off</option>
+                    <option value="2">2 a day</option>
+                    <option value="6">6 a day</option>
+                  </select></label>
+                <button id="btn-calm" class="ghost" title="End every disturbance">Calm down</button>
+              </div>
+              <div id="chaos-list" class="proposals"></div>
+            </div>
+            <div class="app-panel" id="scenario-panel" hidden>
+              <h2 class="app-panel__title">Scenarios</h2>
+              <p class="scenario-score" id="scenario-score" hidden></p>
+              <div id="scenario-pick">
+                <p class="app-panel__hint">A guided walk through one thing the guild does: each step says what happens and why, and shows the readings to watch.</p>
+                <div id="scenario-list" class="proposals"></div>
+              </div>
+              <div id="scenario-run" hidden>
+                <p class="scenario-progress"><span id="scenario-title"></span> <span class="tag" id="scenario-count"></span></p>
+                <p class="scenario-about" id="scenario-about" hidden></p>
+                <h3 id="scenario-step"></h3>
+                <p class="scenario-why" id="scenario-why"></p>
+                <ul class="scenario-checks" id="scenario-checks"></ul>
+                <div class="hero-controls">
+                  <button id="btn-scenario-do" class="primary"></button>
+                  <button id="btn-scenario-next">Next step</button>
+                  <button id="btn-scenario-skip" class="ghost" title="Go on although this step's readings did not come out as expected">Skip step</button>
+                  <button id="btn-scenario-stop" class="ghost">End</button>
+                </div>
+                <label class="hero-check" title="Your one confirmation for the whole scenario: every step's action is done for you, one after the other">
+                  <input type="checkbox" id="chk-scenario-auto"> Run every step for me</label>
+              </div>
+            </div>
+          </div>
+          <aside class="twin-main">
+            <div class="app-panel truth" id="sim-truth">
+              <h2 class="app-panel__title">Simulation truth <span class="tag">a real guild cannot see this</span></h2>
+              <div class="box-pop" id="box-pop" hidden>
+                <p class="note" id="box-pop-line"></p>
+                <svg id="box-pop-trend" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="Worms in the box over the last 90 simulated days"></svg>
+              </div>
+              <p class="note" id="box-sim"></p>
+              <p class="note" id="soil-life"></p>
+              <p class="note" id="truth-none">Start the twin to see what only the simulation knows.</p>
+            </div>
+          </aside>
         </div>
       </section>
 

@@ -31,6 +31,7 @@ from . import cloudsite
 from . import disturbances
 from . import feeder
 from . import maintenance
+from . import operator_view
 from . import feeding_guide
 from . import film
 from . import habitat_store as store
@@ -251,9 +252,17 @@ def _twin_state() -> dict:
             "feeder": kept.get("feeder"), "worms": kept.get("worms"), "guide": kept.get("guide"), "weeds": kept.get("weeds"),
             "care": kept.get("care"),
             "env": (bed or {}).get("env"),
+            "operator": _operator(bed, kept["active"]),
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"))
                           if not kept["lockout"] else [])}
+
+
+def _operator(bed, active) -> dict:
+    """The Operator screen: every reading as a tile, judged as the keeper judges it (operator_view.py)."""
+    tiles = operator_view.tiles(bed, active)
+    return {"groups": [{"id": g, "title": title} for g, title in operator_view.GROUPS], "tiles": tiles,
+            "count": operator_view.summary(tiles)}
 
 
 @app.get("/api/twin")
@@ -373,6 +382,12 @@ def _follow_care(cfg, bed, twin, out, kept: dict) -> None:
     kept["care"] = {"today": today.isoformat(), "tasks": tasks,
                     "due": {"robot": sum(1 for t in tasks if t["due"] and t["who"] == "robot"),
                             "person": sum(1 for t in tasks if t["due"] and t["who"] == "person")}}
+
+
+@app.get("/api/twin/care/guide")
+def care_guide():
+    """The care calendar itself (synced from PermTek-5), for the Care screen's year."""
+    return jsonify(maintenance.load())
 
 
 @app.post("/api/twin/care/done")

@@ -10,7 +10,7 @@
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const S = { running: false, streams: false, bedKey: "", busy: false };
+const S = { running: false, streams: false, bedKey: "", busy: false, tab: "", landed: false, ready: false };
 
 const say = (err) => core.toast((err.errors || [String(err)]).join("; "), true);
 
@@ -26,6 +26,7 @@ function rgb(c) { return c ? `rgb(${c.map((v) => Math.round(v * 255)).join(",")}
    a connection per view and not every browser paints one reliably. The next
    picture is asked for only when the last one has arrived. */
 function views(on) {
+  on = on && S.tab === "robot";                 // pictures only while the Robot screen shows them
   if (on === S.streams) return;
   S.streams = on;
   for (const name of ["overview", "tool"]) {
@@ -141,9 +142,6 @@ function stats(t) {
     rows.push([box ? `${temp} · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, "worm box"]);
     if (hopper) rows.push([`${hopper.grams} g${hopper.brownsGrams ? ` · ${hopper.brownsGrams} g` : ""}`, hopper.brownsGrams ? "hopper: scraps · bedding" : "hopper"]);
   }
-  // how alive the soil is: only the simulation knows, and only as an index (soil.py)
-  const life = bedState.sim && bedState.sim.soilLife;
-  if (typeof life === "number") rows.push([`${Math.round(life * 100)} %`, "soil life (simulation, an index not a count)"]);
   $("#overview").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
 }
 
@@ -174,9 +172,7 @@ function draw(t) {
     miss.hidden = false;
     miss.innerHTML += `<li>the simulation ended (exit ${t.exit}): <code>${core.esc(t.log.slice(-3).join(" | "))}</code></li>`;
   }
-  const notes = $("#twin-notices");
-  notes.hidden = !(t.notices || []).length;
-  notes.innerHTML = (t.notices || []).map((m) => `<li>${core.esc(m)}</li>`).join("");
+  drawAttention(t);
   const assumed = $("#twin-assumed");               // parts a WormBed5 guild has that the map does not show yet
   assumed.hidden = !(t.assumed || []).length;
   assumed.textContent = assumed.hidden ? "" : `Not on your map yet, so assumed here: ${t.assumed.join("; ")}. `
@@ -184,6 +180,14 @@ function draw(t) {
   drawEnv(t);
   drawBox(t, ready);
   drawCare(t);
+  drawOperator(t);
+  drawTruth(t);
+  drawStrip(t, ready);
+  S.ready = !!ready;
+  $("#btn-go-operator").hidden = !ready;
+  $("#btn-start").classList.toggle("pulse", !!(t.prepared && !t.running && !t.missing.length));
+  for (const [id, on] of [["#step-source", true], ["#step-prepare", !!t.prepared], ["#step-start", !!ready]]) $(id).classList.toggle("step--done", on);
+  land(t);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
   $("#btn-hopper-empty").disabled = $("#btn-hopper-mix").disabled = $("#btn-browns").disabled = $("#btn-hopper").disabled;
   $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
@@ -208,7 +212,7 @@ function draw(t) {
   drawBed(t);
   drawJobs(t);
   const job = t.twin && t.twin.job;
-  $("#rail-job").textContent = job ? `${job.kind} · ${job.state}${job.feedback && job.state === "running" ? " · " + job.feedback : ""}` : "none";
+  $("#strip-job").textContent = !t.running ? "" : job ? `job: ${job.kind} · ${job.state}${job.feedback && job.state === "running" ? " · " + job.feedback : ""}` : "no job";
 }
 
 async function refresh() {
@@ -259,16 +263,18 @@ $("#btn-estop").addEventListener("click", async () => {
 /* ---------------------------------------------------------------- shell -- */
 // The rail's own buttons call core's (its header stays in the page, hidden).
 
-const TABS = ["twin", "film", "connections", "chat"];
+const TABS = ["setup", "operator", "robot", "care", "sim", "film", "connections", "chat"];
 
 function showTab(name) {
-  const tab = TABS.includes(name) ? name : "twin";
+  const tab = TABS.includes(name) ? name : "setup";
+  S.tab = tab;
   for (const t of TABS) $(`#tab-${t}`).hidden = t !== tab;
   document.querySelectorAll(".app-rail__item.tab").forEach((a) => {
     const on = a.dataset.tab === tab;
     a.classList.toggle("app-rail__item--on", on);
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
+  views(S.ready);
 }
 
 function railOpen(open, remember = false) {
@@ -352,16 +358,10 @@ async function pollShell() {
 // what only the simulation knows. An older server without them hides the panel.
 function drawBox(t, ready) {
   const box = t.twin && t.twin.bed && t.twin.bed.wormBin;
-  const panel = $("#box-panel");
-  panel.hidden = !(box && "weightKg" in box);
-  if (panel.hidden) return;
-  const r = (v, unit, digits) => typeof v === "number" ? `${v.toFixed(digits || 0)}${unit}` : "no reading";
-  const rows = [[r(box.tempC, " °C", 1), "core"], [r(box.edgeC, " °C", 1), "edge"], [r(box.moisture, " %"), "moisture"],
-    [r(box.weightKg, " kg", 2), "weight"], [r(box.gas, ""), "gas, 0 fresh to 100"],
-    [r(box.pH, "", 1), "acidity, pH"],
-    [typeof box.sumpL === "number" ? `${box.sumpL.toFixed(1)} / ${box.sumpCapacity} l` : "no reading", "sump"], [box.lidOpen ? "open" : "closed", "lid"],
-    [box.insulated ? "wrapped" : "bare", "insulation"], [`${box.fedGrams} g`, `fed in ${box.feedings} portion(s)`]];
-  $("#box-readings").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
+  const has = !!(box && "weightKg" in box);
+  $("#op-feeding").hidden = !has;
+  for (const id of ["#btn-insulate", "#btn-bedding", "#btn-moisten", "#btn-lid", "#btn-tap"]) $(id).disabled = !ready || !has;
+  if (!has) { $("#box-sim").textContent = ""; drawPopulation(t, null); return; }
   const f = t.feeder;
   $("#box-feeder").textContent = !f ? "" : `Feeder: ${f.why}.` + (f.state === "known" ? ` It would feed ${f.grams} g now.` : "");
   // the feeding guide: why the next feeding waits, and the week on record
@@ -380,7 +380,7 @@ function drawBox(t, ready) {
       : `half ${h.side + 1} rests (${h.restDays} of ${h.readyAfterDays} days); the worms are moving to the other half. `)
     + (box.takenGrams ? `${box.takenGrams} g taken so far, onto ${cells} cell(s).` : "");
   const sim = box.sim;
-  $("#box-sim").textContent = !sim ? "" : `Simulation only: worms ${sim.wormsG} g, health ${Math.round(sim.health * 100)} %, `
+  $("#box-sim").textContent = !sim ? "" : `The box: worms ${sim.wormsG} g, health ${Math.round(sim.health * 100)} %, `
     + `working at ${Math.round(sim.activity * 100)} %, eat ${sim.eatsPerDay} g a day, ${sim.foodG} g uneaten, ${sim.castingsG} g castings`
     + (f && f.offPct !== undefined ? `. The feeder's estimate is off by ${f.offPct} %.` : ".")
     + (box.wormsMayLeave ? " Worms may leave into the soil." : " The box is closed.");
@@ -389,7 +389,6 @@ function drawBox(t, ready) {
   $("#btn-insulate").dataset.on = box.insulated ? "" : "1";
   $("#btn-lid").textContent = box.lidOpen ? "Lid closed" : "Lid left open";
   $("#btn-lid").dataset.open = box.lidOpen ? "" : "1";
-  for (const id of ["#btn-insulate", "#btn-bedding", "#btn-moisten", "#btn-lid", "#btn-tap"]) $(id).disabled = !ready;
 }
 // The worms by life stage, and a trend of the last 90 simulated days (kept in the page: a reload starts it again).
 const POP = { days: [] };
@@ -403,7 +402,7 @@ function drawPopulation(t, p) {
   POP.days = POP.days.filter((d) => day - d[0] <= 90);
   const n = (v) => v >= 10000 ? `${Math.round(v / 1000)}k` : String(v);
   const w = t.worms;
-  $("#box-pop-line").textContent = `Worms (simulation only): ${n(p.adults)} adults, ${n(p.young)} young, ${n(p.cocoons)} cocoons`
+  $("#box-pop-line").textContent = `Worms: ${n(p.adults)} adults, ${n(p.young)} young, ${n(p.cocoons)} cocoons`
     + (p.inBed ? `, ${n(p.inBed)} out in the bed` : "") + ` · ${p.wormsG} g, ${p.kgPerM2} kg/m²`
     + (p.crowding > 0 ? `, crowded ${Math.round(p.crowding * 100)} %` : "") + (p.nourish < 0.7 ? `, hungry` : "")
     + (w ? `. The feeder reckons about ${w.kg} kg of worms` + (w.fallPct !== null && w.fallPct !== undefined ? `, ${w.fallPct} % less than a week ago` : "") + "." : ".");
@@ -415,6 +414,76 @@ function drawPopulation(t, p) {
   svg.innerHTML = `<polyline points="${line}" fill="none" stroke="var(--app-accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`
     + `<text x="2" y="10" class="box-pop-label">${top} g</text>`;
 }
+/* ------------------------------------------------------- operator view -- */
+
+// Which screen a first look lands on: Setup until the twin runs, then Operator. A #screen in the address wins.
+function land(t) {
+  if (S.landed) return;
+  S.landed = true;
+  const asked = location.hash.slice(1);
+  if (TABS.includes(asked)) return;
+  showTab(t.running ? "operator" : "setup");
+}
+
+// The keeper's notices, alerts first, and what they hold back.
+function drawAttention(t) {
+  const kept = t.keeper || {}, list = (kept.notices || []).slice().sort((a, b) => (a.level === "alert" ? 0 : 1) - (b.level === "alert" ? 0 : 1));
+  $("#twin-notices").innerHTML = list.map((n) => `<li class="notice notice--${n.level === "alert" ? "alarm" : "watch"}">`
+    + `<span class="op-word">${n.level === "alert" ? "alarm" : "note"}</span> ${core.esc(n.text)}</li>`).join("");
+  const alerts = list.filter((n) => n.level === "alert").length;
+  const notes = list.length - alerts, n = (k, word) => k ? `${k} ${word}${k > 1 ? "s" : ""}` : "";
+  $("#attention-count").textContent = [n(alerts, "alarm"), n(notes, "note")].filter(Boolean).join(" · ");
+  $("#attention-none").hidden = list.length > 0;
+  const holds = kept.holds || [];
+  $("#attention-holds").hidden = !holds.length && !kept.lockout;
+  $("#attention-holds").innerHTML = (kept.lockout ? `<span class="chip chip--alarm">gantry locked out</span> ` : "")
+    + holds.map((h) => `<span class="chip">${core.esc(h)} on hold</span>`).join(" ");
+  $("#attention").classList.toggle("attention--alarm", alerts > 0 || !!kept.lockout);
+}
+
+// Every reading as a tile: its value, and how it stands as the keeper judges it (operator_view.py).
+const OP_RULE = { sensor: "no trustworthy reading" };
+function drawOperator(t) {
+  const op = t.operator, tiles = (op && op.tiles) || [];
+  $("#op-empty").hidden = tiles.length > 0;
+  $("#op-groups").innerHTML = !tiles.length ? "" : op.groups.map((g) => {
+    const mine = tiles.filter((x) => x.group === g.id);
+    if (!mine.length) return "";
+    return `<section class="app-panel op-group"><h2 class="app-panel__title">${core.esc(g.title)}</h2><div class="op-grid">`
+      + mine.map((x) => {
+        const v = x.value === null || x.value === undefined ? "no reading" : String(x.value);
+        const why = x.hint || (x.rule ? (OP_RULE[x.rule] || x.rule.replace(/-/g, " ")) : x.state === "watch" ? "close to a limit" : "");
+        return `<div class="op-tile op-tile--${x.state}" title="${core.esc(why)}"><div class="op-label">${core.esc(x.label)}</div>`
+          + `<div class="op-value">${core.esc(v)} <span class="op-unit">${core.esc(x.unit || "")}</span></div>`
+          + `<div class="op-state"><span class="op-word">${x.state}</span>${why ? ` · ${core.esc(why)}` : ""}</div></div>`;
+      }).join("") + "</div></section>";
+  }).join("");
+}
+
+// What only the simulation knows: the worms by life stage (drawPopulation), the box's insides, the soil life.
+function drawTruth(t) {
+  const bed = t.twin && t.twin.bed, life = bed && bed.sim && bed.sim.soilLife;
+  $("#soil-life").textContent = typeof life === "number"
+    ? `Soil life in the bed: ${Math.round(life * 100)} %. An index of how good the bed has been for soil life lately, not a count.` : "";
+  $("#truth-none").hidden = !!(t.running && bed);
+}
+
+// The strip in the header: the simulated clock, the job, and how many readings or notices are at alarm.
+function drawStrip(t, ready) {
+  const env = t.env, count = (t.operator && t.operator.count) || {}, kept = t.keeper || {};
+  // the keeper's alerts are what an operator acts on; a reading at alarm without one (a dead sensor) still counts
+  const alerts = (kept.notices || []).filter((n) => n.level === "alert").length, alarms = alerts || count.alarm || 0;
+  const notes = (kept.notices || []).length - alerts;
+  $("#strip-clock").textContent = env ? env.clock : t.running ? "starting…" : t.prepared ? "stopped" : "";
+  const a = $("#strip-alerts");
+  a.hidden = !ready || (!alarms && !notes);
+  a.textContent = alarms ? `⚠ ${alarms} alarm${alarms > 1 ? "s" : ""}` : `${notes} note${notes > 1 ? "s" : ""}`;
+  a.classList.toggle("strip__alerts--alarm", alarms > 0);
+  $("#dot-operator").hidden = !alarms;
+  $("#dot-robot").hidden = !ready || !(t.proposals || []).length;
+  $("#dot-care").hidden = !((t.care && t.care.tasks) || []).some((x) => x.due && x.who === "person");
+}
+
 // The care calendar (maintenance.py): what is due now, by whom, and what comes next. An older server hides it.
 const CARE_WHY = { never: "not done yet", rhythm: "its time has come", season: "its months have begun", brought: "the keeper brings it forward" };
 function drawCare(t) {
@@ -431,6 +500,19 @@ function drawCare(t) {
   $("#care-next").innerHTML = next.slice(0, 12).map((x) => `<li class="care-${x.who}"><span class="care-who">${x.who === "robot" ? "robot" : "you"}</span>
       ${core.esc(x.label)} <span class="note">· ${x.nextOn}</span></li>`).join("");
 }
+// The year: the seasonal tasks month by month, from the care guide the edge holds. Once; an older server hides it.
+(async function loadCareYear() {
+  let g;
+  try { g = await core.api("GET", "/api/twin/care/guide"); } catch (_) { return; }
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], now = new Date().getMonth() + 1;
+  const en = (x) => (x && (x.en || Object.values(x)[0])) || "";
+  const seasonal = g.tasks.filter((x) => (x.months || []).length);
+  $("#care-about").textContent = en(g.about);
+  $("#care-year").innerHTML = `<thead><tr><th scope="col">Task</th>${MONTHS.map((m, i) => `<th scope="col" class="${i + 1 === now ? "now" : ""}">${m}</th>`).join("")}</tr></thead><tbody>`
+    + seasonal.map((x) => `<tr><th scope="row" title="${core.esc(en(x.why))}">${core.esc(en(x.label))} <span class="note">· ${x.who === "robot" ? "robot" : "you"}</span></th>`
+      + MONTHS.map((_, i) => `<td class="${i + 1 === now ? "now" : ""}">${x.months.includes(i + 1) ? `<span class="care-mark care-mark--${x.who}"></span>` : ""}</td>`).join("") + "</tr>").join("")
+    + "</tbody>";
+})();
 $("#care-due").addEventListener("click", async (e) => {
   const id = e.target.dataset && e.target.dataset.care;
   if (!id) return;
@@ -610,6 +692,7 @@ refreshFilm();
 setInterval(refreshFilm, 2000);
 
 window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+$("#btn-go-operator").addEventListener("click", () => { location.hash = "operator"; });
 $("#rail-toggle").addEventListener("click", () => railOpen($("#rail").classList.contains("app-rail--closed"), true));
 $("#rail-agent").addEventListener("click", () => core.connectDialog());
 $("#rail-about").addEventListener("click", () => core.aboutDialog());

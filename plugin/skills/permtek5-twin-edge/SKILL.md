@@ -1,9 +1,9 @@
 ---
 name: permtek5-twin-edge
-description: PermTek-5 Twin Edge, a Webots twin of a gantry robot over a habitat's roof bed (PermTek-5, permaculture on DigitalHome.Cloud). Check a habitat's Turtle, write its Webots world, start and stop the simulation over ROS 2, watch the robot's camera views, and confirm jobs that sow, water, probe and photograph the bed's cells. Use when someone asks to simulate the roof bed or the gantry, to work with permtek5-twin-edge, or runs `permtek5-twin-edge`.
+description: wormbed5.edge, a Webots twin of a gantry robot over a habitat's roof bed (PermTek-5, permaculture on DigitalHome.Cloud). Check a habitat's Turtle, write its Webots world, start and stop the simulation over ROS 2, watch the robot's camera views, and confirm jobs that sow, water, probe and photograph the bed's cells. Use when someone asks to simulate the roof bed or the gantry, to work with permtek5-twin-edge, or runs `permtek5-twin-edge`.
 ---
 
-# PermTek-5 Twin Edge
+# wormbed5.edge
 
 A local app (http://127.0.0.1:8772) that turns a PermTek-5 habitat into a
 Webots world of one growing bed and its gantry robot, runs it over ROS 2 and

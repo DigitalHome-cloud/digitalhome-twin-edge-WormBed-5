@@ -11,8 +11,8 @@ modules come out byte-identical in every tool.
 
 TOOL_NAME = "permtek5-twin-edge"
 PACKAGE = "permtek5_twin_edge"
-TITLE = "PermTek-5 Twin Edge"
-DESCRIPTION = "PermTek-5 Twin Edge"
+TITLE = "wormbed5.edge"
+DESCRIPTION = "wormbed5.edge: the edge twin of a PermTek-5 WormBed-5 guild"
 AUTHOR = "D-LAB-5"
 COPYRIGHT = "© 2026 D-LAB-5"
 LICENCE = "GPL-3.0-or-later"
@@ -21,7 +21,7 @@ DISCLAIMER = ""
 COFFEE_URL = "https://www.buymeacoffee.com/dlab5"
 
 GITHUB_ORG = "DigitalHome-cloud"
-REPO_NAME = "permtek5-twin-edge"
+REPO_NAME = "digitalhome-twin-edge-WormBed-5"
 REPO_URL = f"https://github.com/{GITHUB_ORG}/{REPO_NAME}"
 DEFAULT_BRANCH = "main"
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "permtek5-twin-edge"
 dynamic = ["version"]
-description = "PermTek-5 Twin Edge"
+description = "wormbed5.edge: the edge twin of a PermTek-5 WormBed-5 guild"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-or-later"

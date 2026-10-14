@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 D-LAB-5
 #
-# Install PermTek-5 Twin Edge @VERSION@ on this PC (Linux or macOS).
+# Install wormbed5.edge @VERSION@ on this PC (Linux or macOS).
 #
 # Download this script and the package next to it from PermTek-5
 # (Settings → Edges → Install an edge), then run:
@@ -31,7 +31,7 @@ PORT="${PERMTEK5_TWIN_EDGE_EDGE_PORT:-8772}"
 say() { printf '%s\n' "$*"; }
 stop() { say ""; say "  ✗ $*"; exit 1; }
 
-say "PermTek-5 Twin Edge $VERSION"
+say "wormbed5.edge $VERSION"
 
 # 1. Python
 PY=""
@@ -66,7 +66,7 @@ say "  ✓ installed in $HOME_DIR"
 mkdir -p "$BIN"
 cat > "$BIN/permtek5-twin-edge-start" <<EOF
 #!/usr/bin/env bash
-# Start PermTek-5 Twin Edge on http://127.0.0.1:$PORT (installed by install-permtek5-twin-edge.sh)
+# Start wormbed5.edge on http://127.0.0.1:$PORT (installed by install-permtek5-twin-edge.sh)
 unset PYTHONPATH
 export PERMTEK5_TWIN_EDGE_EDGE_HOME="$HOME_DIR"
 exec "$HOME_DIR/venv/bin/python" -m permtek5_twin_edge --port $PORT "\$@"
