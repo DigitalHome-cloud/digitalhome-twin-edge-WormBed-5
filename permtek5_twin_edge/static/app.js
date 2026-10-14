@@ -445,20 +445,50 @@ function drawAttention(t) {
 const OP_RULE = { sensor: "no trustworthy reading" };
 function drawOperator(t) {
   const op = t.operator, tiles = (op && op.tiles) || [];
+  SENS.tiles = Object.fromEntries(tiles.map((x) => [x.key, x]));
   $("#op-empty").hidden = tiles.length > 0;
-  $("#op-groups").innerHTML = !tiles.length ? "" : op.groups.map((g) => {
+  const html = !tiles.length ? "" : op.groups.map((g) => {
     const mine = tiles.filter((x) => x.group === g.id);
     if (!mine.length) return "";
     return `<section class="app-panel op-group"><h2 class="app-panel__title">${core.esc(g.title)}</h2><div class="op-grid">`
       + mine.map((x) => {
         const v = x.value === null || x.value === undefined ? "no reading" : String(x.value);
         const why = x.hint || (x.rule ? (OP_RULE[x.rule] || x.rule.replace(/-/g, " ")) : x.state === "watch" ? "close to a limit" : "");
-        return `<div class="op-tile op-tile--${x.state}" title="${core.esc(why)}"><div class="op-label">${core.esc(x.label)}</div>`
-          + `<div class="op-value">${core.esc(v)} <span class="op-unit">${core.esc(x.unit || "")}</span></div>`
-          + `<div class="op-state"><span class="op-word">${x.state}</span>${why ? ` · ${core.esc(why)}` : ""}</div></div>`;
+        return `<button type="button" class="op-tile op-tile--${x.state}" data-key="${core.esc(x.key)}" title="${core.esc(why || "the sensor and how it measures")}">`
+          + `<span class="op-label">${core.esc(x.label)}</span>`
+          + `<span class="op-value">${core.esc(v)} <span class="op-unit">${core.esc(x.unit || "")}</span></span>`
+          + `<span class="op-state"><span class="op-word">${x.state}</span>${why ? ` · ${core.esc(why)}` : ""}</span></button>`;
       }).join("") + "</div></section>";
   }).join("");
+  const el = $("#op-groups");
+  if (S.opHtml !== html) {                      // redraw only on a change: a focused tile keeps its focus
+    const focused = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.key;
+    el.innerHTML = html;
+    S.opHtml = html;
+    if (focused) { const again = el.querySelector(`[data-key="${focused}"]`); if (again) again.focus(); }
+  }
 }
+
+// A tile's details: the sensor behind it and how it measures (operator_view.SENSORS), with its reading now.
+const SENS = { info: null, tiles: {} };
+(async function loadSensors() { try { SENS.info = await core.api("GET", "/api/twin/sensors"); } catch (_) { /* an older server: no details */ } })();
+$("#op-groups").addEventListener("click", (e) => {
+  const tile = e.target.closest(".op-tile");
+  if (!tile) return;
+  const x = SENS.tiles[tile.dataset.key], info = SENS.info && SENS.info[tile.dataset.key];
+  if (!x) return;
+  const v = x.value === null || x.value === undefined ? "no reading" : `${x.value} ${x.unit || ""}`;
+  const row = (k, html) => `<dt>${k}</dt><dd>${html}</dd>`;
+  core.dialog(x.label[0].toUpperCase() + x.label.slice(1),
+    `<p class="sensor-now op-tile--${x.state}"><strong>${core.esc(v)}</strong> · <span class="op-word">${x.state}</span>`
+    + `${x.hint || x.rule ? ` · ${core.esc(x.hint || x.rule.replace(/-/g, " "))}` : ""}</p>`
+    + (!info ? '<p class="note">No details for this reading.</p>' : `<dl class="sensor-facts">`
+      + row("Sensor", core.esc(info.sensor)) + row("Where", core.esc(info.where))
+      + row("How it measures", core.esc(info.method)) + row("How often", core.esc(info.every))
+      + row("Limits", info.limits.length ? `<ul>${info.limits.map((l) => `<li>${core.esc(l)}</li>`).join("")}</ul>` : "none set")
+      + row("In this twin", core.esc(info.twin)) + "</dl>")
+    + '<menu class="sensor-menu"><button value="close" class="primary">Close</button></menu>');
+});
 
 // What only the simulation knows: the worms by life stage (drawPopulation), the box's insides, the soil life.
 function drawTruth(t) {

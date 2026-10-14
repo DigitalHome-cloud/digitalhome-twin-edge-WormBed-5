@@ -265,6 +265,12 @@ def _operator(bed, active) -> dict:
             "count": operator_view.summary(tiles)}
 
 
+@app.get("/api/twin/sensors")
+def twin_sensors():
+    """What stands behind each Operator tile: the device, where, how it measures, how often, its limits, the twin's way."""
+    return jsonify({key: operator_view.sensor(key) for key in operator_view.SENSORS})
+
+
 @app.get("/api/twin")
 def twin_status():
     return jsonify(_twin_state())

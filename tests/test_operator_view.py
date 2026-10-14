@@ -66,3 +66,11 @@ def test_frost_in_the_air_leaves_a_warm_box_ok():
     assert t["airC"]["state"] == "alarm"
     assert t["tempC"]["state"] == "ok" and t["edgeC"]["state"] == "ok", "the box is warm: the air tripped the rule"
     assert t["insulated"]["hint"] == "frost: wrap the box"
+
+
+def test_every_tile_says_what_stands_behind_it():
+    t = judged(bed())
+    for key in t:
+        info = ov.sensor(key)
+        assert info and all(info.get(k) is not None for k in ("sensor", "where", "method", "every", "limits", "twin")), key
+    assert str(keeper.FROST_BOX_ON) .split(".")[0] in " ".join(ov.sensor("tempC")["limits"]), "the limits come from the keeper"

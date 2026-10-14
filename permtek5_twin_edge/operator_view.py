@@ -63,6 +63,118 @@ def _temp_rules(c: Optional[float], frost_off: float, heat_off: float, more: Lis
     return (["frost"] if c < frost_off else []) + (["heat"] if c > heat_off else []) + more
 
 
+K = keeper
+# What stands behind each tile: the device, where it sits, how it measures, how often, the limits the keeper
+# applies to it, and how this twin makes the value (PermTek-5 docs/specs/roofbed-system.md, section 6). The
+# devices are the usual choices for a hobby build (rules of thumb, to confirm on the real guild).
+SENSORS: Dict[str, Dict[str, Any]] = {
+    "soilDriest": {"sensor": "Soil moisture probes", "where": "two or three fixed at depth along the bed, plus the gantry's probe pushed into each cell",
+                   "method": "Capacitive: the probe's electric field changes with the water in the soil around it (its dielectric constant); "
+                             "read as volumetric water content, %. No bare metal in the soil, so it does not corrode.",
+                   "every": "fixed probes every few minutes; the gantry's probe on each probe pass",
+                   "limits": [f"under {DRY_BELOW_PCT:.0f} %: the cell is proposed for watering"],
+                   "twin": "the simulated water content of every sown or growing cell: the tank pipes wick water up, the plants and the sun take it"},
+    "soilMean": {"same": "soilDriest"}, "soilWettest": {"same": "soilDriest"},
+    "soilTempC": {"sensor": "Soil temperature", "where": "on the soil probe, a few centimetres deep",
+                  "method": "A digital thermometer chip (DS18B20 type) sealed in the probe's tip, ±0.5 °C.",
+                  "every": "with the soil moisture", "limits": [],
+                  "twin": "a fixed value for now: the twin does not model soil temperature yet"},
+    "tank": {"sensor": "Tank level", "where": "in the fill pipe that reaches the tank pipes from above",
+             "method": "A level probe: a float on a rod, or a pressure sensor at the bottom (the water column's weight gives its height); "
+                       "the pipes' size turns height into litres.",
+             "every": "every few minutes",
+             "limits": [f"under {K.TANK_LOW_PCT:.0f} %: refill (note)", f"under {K.TANK_DEAD_L:.0f} l: empty, the soil is no longer watered from below (alarm)",
+                        f"{K.TANK_FALL_L:.0f} l lost within {K.TANK_FALL_MIN:.0f} min with nothing drawing: a leak (alarm)", "rain on a full tank: check the overflow"],
+             "twin": "the simulated water balance: what the wick gives the soil, rain, refills and leaks; read without noise"},
+    "tempC": {"sensor": "Compost temperature, core", "where": "a probe in the middle of the working bin, 10–15 cm deep",
+              "method": "A stainless-steel probe with a digital thermometer chip (DS18B20 type), ±0.5 °C.",
+              "every": "every minute",
+              "limits": [f"at or under {K.FROST_BOX_ON:.0f} °C: frost, until it is back over {K.FROST_BOX_OFF:.0f} °C (alarm)",
+                         f"at or over {K.HEAT_BOX_ON:.0f} °C: heat, until under {K.HEAT_BOX_OFF:.0f} °C (alarm)",
+                         f"{K.OVERFED_ON:.0f} °C or more above the edge: too much food is composting (note)",
+                         f"unchanged for {K.STUCK_MIN:.0f} min while the air moved {K.STUCK_AIR_C:.0f} °C: a stuck sensor (alarm)"],
+              "twin": "the simulated core: air, sun, the wrapping, and the heat of food composting; plus noise of ±0.1 °C"},
+    "edgeC": {"sensor": "Compost temperature, edge", "where": "a second probe near a wall of the working bin",
+              "method": "The same kind of probe as the core. Core and edge together tell food heating up from weather: weather changes both.",
+              "every": "every minute",
+              "limits": [f"frost and heat as the core: {K.FROST_BOX_ON:.0f} °C and {K.HEAT_BOX_ON:.0f} °C"],
+              "twin": "the simulated edge, closer to the air than the core; plus noise of ±0.1 °C"},
+    "moisture": {"sensor": "Compost moisture", "where": "a probe in the working bin's bedding",
+                 "method": "Capacitive, like the soil probes, calibrated for compost. Red wigglers do best at about 70–85 %.",
+                 "every": "every few minutes",
+                 "limits": [f"at or under {K.DRY_ON:.0f} %: drying out, sprinkle water (note)", f"at or over {K.WET_ON:.0f} %: soaked, add dry bedding (note)"],
+                 "twin": "the simulated water in the bedding: food brings water, paper takes it up, the sump drains it, the air dries it; plus noise of ±0.3 %"},
+    "pH": {"sensor": "Acidity (pH)", "where": "a probe in the bedding",
+           "method": "A glass electrode: a small voltage across a thin glass bulb that follows the hydrogen ions around it. "
+                     "Needs cleaning and calibrating with buffer solutions (a monthly care task).",
+           "every": "every few minutes",
+           "limits": [f"at or under pH {K.SOUR_ON}: turning sour, until back over {K.SOUR_OFF} (alarm)"],
+           "twin": "the simulated acidity: citrus and fresh scraps lower it, eggshell and bedding buffer it; plus noise of ±0.03"},
+    "gas": {"sensor": "Gas (smell)", "where": "under the lid, over the bedding",
+            "method": "A metal-oxide gas sensor: its resistance falls as gases from rotting (ammonia, hydrogen sulphide, alcohols) reach it. "
+                      "Shown 0 fresh to 100 rotting; it gives a trend, not exact amounts.",
+            "every": "every few minutes",
+            "limits": [f"at or over {K.GAS_ON:.0f}: short of air, until under {K.GAS_OFF:.0f} (alarm)"],
+            "twin": "the simulated smell: wet, airless, overfed bedding rots; plus noise of ±1"},
+    "weightKg": {"sensor": "Weight of the box", "where": "load cells under the working bin's corners",
+                 "method": "Strain-gauge load cells: a metal beam bends a little under the weight and the gauges glued on it change their resistance; "
+                           "an amplifier (HX711 type) reads it. Averaged over a day, the slope of the weight gives how much the worms eat.",
+                 "every": "every minute", "limits": ["a missing or frozen reading: feeding is held (alarm)"],
+                 "twin": "the simulated mass of bedding, food, castings and worms; plus noise of ±15 g"},
+    "sumpL": {"sensor": "Sump level", "where": "in the lower bin, which catches what drains from the working bin",
+              "method": "A float switch for 'full', and a level probe (float on a rod, or pressure) for the litres in between.",
+              "every": "every few minutes",
+              "limits": [f"at {K.SUMP_ON * 100:.0f} % of its capacity: full, open the tap (note); clear again under {K.SUMP_OFF * 100:.0f} %"],
+              "twin": "the simulated liquid that drains through; the tap lets it on to the tank; plus noise of ±0.03 l"},
+    "fillPct": {"sensor": "How full the box is", "where": "worked out on the edge",
+                "method": "From the weight and what was fed and harvested: castings build up as food is eaten. "
+                          "A distance sensor under the lid could check it.",
+                "every": "with the weight", "limits": [f"at {K.BOX_FULL_PCT:.0f} %: harvest the compost (note)"],
+                "twin": "the simulated castings and bedding in the working bin"},
+    "lid": {"sensor": "Lid switch", "where": "on the lid's edge",
+            "method": "A reed switch and a magnet: closed lid, closed contact.",
+            "every": "at once, when it changes", "limits": ["open: close it (note); the camera sees the worms only then"],
+            "twin": "what you said with the Lid button, or a disturbance"},
+    "insulated": {"sensor": "Wrapping", "where": "said by a person",
+                  "method": "No sensor: you say it with the Box wrapped button. The keeper asks for it in frost.",
+                  "every": "when you say so", "limits": ["frost while bare: wrap the box (watch)"],
+                  "twin": "what you said with the button; wrapped, the box loses its warmth five times more slowly"},
+    "hopper": {"sensor": "Weight of the hopper", "where": "a load cell under the hopper on the frame",
+               "method": "A strain-gauge load cell, like the box's. Each scoop the robot takes shows as a step down.",
+               "every": "every minute and around each feeding", "limits": ["empty: fill it (watch)", "the scoop comes back empty: jammed (alarm)"],
+               "twin": "what you said went in, less what the robot fed"},
+    "browns": {"sensor": "Weight of the bedding compartment", "where": "a second load cell, under the hopper's other compartment",
+               "method": "As the hopper: a strain-gauge load cell.", "every": "every minute",
+               "limits": ["the feeding guide asks for bedding with the next feeding"], "twin": "what you said went in, less what the robot added"},
+    "fed": {"sensor": "Fed so far", "where": "counted on the edge",
+            "method": "The sum of what each feeding job gave, from the hopper's weight before and after.",
+            "every": "after each feeding", "limits": [], "twin": "the robot's feeding jobs"},
+    "airC": {"sensor": "Air temperature", "where": "on the gantry's frame, in a small radiation shield (out of direct sun)",
+             "method": "A digital temperature and humidity sensor (SHT type), ±0.3 °C.",
+             "every": "every minute",
+             "limits": [f"at or under {K.FROST_AIR_ON:.0f} °C: frost, until over {K.FROST_AIR_OFF:.0f} °C (alarm)",
+                        f"at or over {K.HEAT_AIR_ON:.0f} °C: heat, until under {K.HEAT_AIR_OFF:.0f} °C (alarm)"],
+             "twin": "the simulated weather: a day's warming and cooling, plus cold snaps and heat waves when you throw them in"},
+    "windMs": {"sensor": "Wind", "where": "on top of the frame",
+               "method": "A cup anemometer: the cups turn with the wind and a magnet passes a reed switch on each turn; pulses per second give m/s.",
+               "every": "every few seconds, gusts kept",
+               "limits": [f"at or over {K.STORM_ON:.0f} m/s: storm, the gantry is locked out until under {K.STORM_OFF:.0f} m/s (alarm)"],
+               "twin": "the simulated weather, with storms when you throw them in"},
+    "rainMmH": {"sensor": "Rain", "where": "on the frame (or the local weather service until one is fitted)",
+                "method": "A tipping-bucket rain gauge: each tip of its little seesaw is 0.2 mm of rain.",
+                "every": "each tip; shown per hour", "limits": ["20 mm/h or more on a full tank: check the overflow (note)"],
+                "twin": "the simulated weather, with cloudbursts when you throw them in"},
+}
+
+
+def sensor(key: str) -> Optional[Dict[str, Any]]:
+    """What stands behind a tile: {"sensor", "where", "method", "every", "limits", "twin"}, or None."""
+    info = SENSORS.get(key)
+    if info and "same" in info:
+        info = SENSORS[info["same"]]
+    return info
+
+
 def tiles(bed: Optional[Dict[str, Any]], active: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """Every reading the guild has, as tiles in GROUPS order. No bed (not running): no tiles."""
     if not bed:
