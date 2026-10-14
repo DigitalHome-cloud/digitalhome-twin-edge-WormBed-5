@@ -59,6 +59,7 @@ from std_msgs.msg import Bool, String
 from .environment import Environment
 from .spin import Drain
 from .wormbox import FULL_G, Sensors, WormBox
+from .soil import SoilLife
 
 CAMERAS = ("tool_camera", "overview_camera")
 CAMERA_EVERY_MS = 200
@@ -123,6 +124,7 @@ class GantryDriver:
         self.seed = seed
         self.mulch_cm = float(self.cfg["bed"].get("mulch_cm") or 0)
         self.new_box()
+        self.soil_life = SoilLife()       # how alive the bed's soil is: an index, not a count (soil.py)
         self.overflowing = False
         self.shown = {}                  # what the world shows of the box: lid open, wrapping on
         self.weeds = {}                  # id -> {"x", "y", "mm", "shown"}
@@ -561,6 +563,12 @@ class GantryDriver:
                 self.tank_l += rain_mm * self.bed_m2 * RAIN_TO_TANK              # 1 mm on 1 m² is a litre
                 self.overflowing = self.tank_l >= self.tank_cap and rain_mm > 0  # the rest leaves by the overflow
                 self.tank_l = max(0.0, min(self.tank_l, self.tank_cap))
+            if self.cells:
+                live = [c for c in self.cells.values() if c["status"] in ("CellSown", "CellGrowing")]
+                soil_cells = max(1.0, self.soil_x * self.soil_y / self.cfg["world"]["cellM"] ** 2)
+                self.soil_life.step(dmin, sum(c["moisture"] for c in self.cells.values()) / len(self.cells), env.air_c(),
+                                    sum(c.get("compostG", 0.0) for c in self.cells.values()) / max(0.1, self.soil_x * self.soil_y),
+                                    self.mulch_cm, min(1.0, len(live) / soil_cells))
             box = self.box
             box.lid_open = self.lid_left_open or env.flag("lidOpen")
             if self.has_bin:
@@ -574,7 +582,7 @@ class GantryDriver:
                 "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
                 "env": env.snapshot(),
                 # what only a simulation knows: the robot finds weeds with its camera, it is not told
-                "sim": {"weeds": len(self.weeds), "weedsLarge": sum(1 for w in self.weeds.values() if w["mm"] >= STAMPABLE_BELOW_MM),
+                "sim": {"soilLife": round(self.soil_life.value, 2), "weeds": len(self.weeds), "weedsLarge": sum(1 for w in self.weeds.values() if w["mm"] >= STAMPABLE_BELOW_MM),
                         "weedsAt": [[round(w["x"], 3), round(w["y"], 3), round(w["mm"])] for w in self.weeds.values()]},
                 "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1), "overflowing": self.overflowing},
                 "wormBin": ({**self.probes.read(box, env.sensor),

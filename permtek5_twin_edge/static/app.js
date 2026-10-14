@@ -141,6 +141,9 @@ function stats(t) {
     rows.push([box ? `${temp} · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, "worm box"]);
     if (hopper) rows.push([`${hopper.grams} g${hopper.brownsGrams ? ` · ${hopper.brownsGrams} g` : ""}`, hopper.brownsGrams ? "hopper: scraps · bedding" : "hopper"]);
   }
+  // how alive the soil is: only the simulation knows, and only as an index (soil.py)
+  const life = bedState.sim && bedState.sim.soilLife;
+  if (typeof life === "number") rows.push([`${Math.round(life * 100)} %`, "soil life (simulation, an index not a count)"]);
   $("#overview").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
 }
 
