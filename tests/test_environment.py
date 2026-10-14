@@ -89,7 +89,10 @@ def test_random_chaos_draws_from_the_pool_at_a_rate_and_repeats_with_the_seed():
 def test_the_catalogue_names_what_each_disturbance_owes():
     assert {"cold-snap", "heat-wave", "cloudburst", "storm", "tank-leak", "sensor-dead", "hopper-jam", "network-loss"} <= set(disturbances.CATALOGUE)
     for key, d in disturbances.CATALOGUE.items():
-        assert d["owes"] and d["title"] and d["minutes"] > 0, key
+        assert d["title"] and d["minutes"] > 0, key
+        # what chaos may pick must call for a reaction; a cool spell only slows the worms down and calls for none
+        assert d["owes"] or key not in disturbances.RANDOM_POOL, key
+    assert disturbances.CATALOGUE["cool-spell"]["owes"] == []
     with pytest.raises(ValueError):
         disturbances.get("locusts")
     assert disturbances.chaos_event(99)["rate"] == 24.0

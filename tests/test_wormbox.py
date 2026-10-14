@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ros2" / "roofbed_twin"))
-from roofbed_twin.wormbox import LOSS_PER_G_EATEN, Sensors, WormBox  # noqa: E402
+from roofbed_twin.wormbox import (HATCH_DD, LAY_PER_DAY, LOSS_PER_G_EATEN, MATURE_DD, Sensors, WormBox,  # noqa: E402
+                                  degree_days)
 
 
 def run(box, hours, air=16.0, step=10.0, **kw):
@@ -138,3 +139,72 @@ def test_a_rested_half_is_ready_after_ten_days_and_its_castings_go_out_in_portio
     assert box.take_castings(300) == 300 and box.weight_g() == pytest.approx(weight - 300) and box.taken_g == 300
     assert box.take_castings(10_000) == pytest.approx(ready - 300)
     assert box.harvest() == {"side": None, "restDays": 0.0, "ready": False, "readyAfterDays": 10.0, "nextSide": 0}, "the halves swap: both are fed again"
+
+
+# -- the population, against the life-history numbers it was calibrated on ------------------
+
+def days_by_steps(box, days, air, feed=True, step=30.0):
+    """Feed what they eat each day, keep the bin damp and harvest the castings when it fills."""
+    for _ in range(days):
+        if feed:
+            box.feed(max(0.0, box.eats_per_day() - box.food_g * 0.5), by_robot=False, wet=0.6)
+        for _ in range(int(1440 / step)):
+            box.step(step, air)
+        if box.weight_g() > 14000:
+            box.castings_g, box.bedding_g = 1000.0, 4000.0
+        if box.moisture > 80:
+            box.add_bedding(300)
+        if box.moisture < 65:
+            box.moisten(500)
+    return box
+
+
+def test_at_25_c_a_worm_lays_a_cocoon_about_every_second_day():
+    box = WormBox(worms_g=200.0)                                  # few worms: no crowding
+    box.moisture, box.core_c = 75.0, 25.0
+    adults, laid = box.adults, box.laid
+    box.live(1.0, 25.0, fed=1.0)
+    assert (box.laid - laid) / adults == pytest.approx(LAY_PER_DAY, rel=0.05)
+    box.core_c = 15.0
+    laid = box.laid
+    box.live(1.0, 15.0, fed=1.0)
+    assert (box.laid - laid) / box.adults == pytest.approx(LAY_PER_DAY / 3, rel=0.1), "linear from 10 to 25 °C"
+
+
+def test_cocoons_hatch_in_about_three_weeks_when_warm_and_take_months_when_cool():
+    warm, cool = HATCH_DD / degree_days(22.5, 1.0), HATCH_DD / degree_days(12.0, 1.0)
+    assert 21 <= warm <= 25 and cool > 3 * warm
+    assert 40 <= MATURE_DD / degree_days(22.5, 1.0) <= 60, "and grow up in 40-60 days"
+
+
+def test_a_cold_spell_piles_the_cocoons_up_and_warmth_hatches_them():
+    box = WormBox()
+    box.insulated = True
+    days_by_steps(box, 14, air=4.0)
+    assert box.hatched == 0.0 and box.cocoons_n() > 1000
+    days_by_steps(box, 10, air=21.0)
+    assert box.hatched > 500, "the oldest cocoons hatch within days once it is warm"
+
+
+def test_a_year_of_steady_feeding_grows_the_worms_and_levels_off_below_crowding():
+    box = days_by_steps(WormBox(), 60, air=21.0)
+    assert box.worms_g > 1.6 * 800, "more than doubled in two warm months"
+    days_by_steps(box, 300, air=21.0)
+    assert 2.0 < box.density_kg_m2() < 5.0 and box.crowding() < 1.0
+
+
+def test_hunger_thins_them_out_slowly_and_those_that_may_leave_go_into_the_bed():
+    kept, free = WormBox(may_leave=False), WormBox(may_leave=True)
+    for box in (kept, free):
+        days_by_steps(box, 40, air=21.0, feed=False)
+    assert 0.1 * 1500 < kept.adults < 0.5 * 1500, "weeks, not days"
+    assert free.in_bed > 50 and kept.in_bed == 0.0
+
+
+def test_under_a_mulch_worms_that_left_live_longer_and_come_back():
+    bare, mulched = WormBox(), WormBox(mulch_cm=5)
+    for box in (bare, mulched):
+        box.in_bed = 500.0
+        box.lid_open = True                                       # no harm to the worms, just to compare the bed
+        box.live(14.0, 16.0, fed=None)
+    assert mulched.in_bed > 2 * bare.in_bed

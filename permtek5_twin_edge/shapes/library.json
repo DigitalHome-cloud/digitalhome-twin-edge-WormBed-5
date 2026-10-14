@@ -66,6 +66,18 @@
       "what": "The vent holes drilled in the lid, as dark dots to lay over it. Same coordinates as worm_box_lid, so they turn with it.",
       "vertices": 576,
       "builtBy": "assets/build.py:worm_box_lid_holes"
+    },
+    "worm": {
+      "file": "worm.obj",
+      "what": "A red wiggler lying on the bedding: 1 m long along x (the world scales it to about 8 cm), a gentle S, ringed segments, the swollen band (clitellum) a third of the way back, resting on z = 0.",
+      "vertices": 156,
+      "builtBy": "assets/build.py:worm"
+    },
+    "cocoon": {
+      "file": "cocoon.obj",
+      "what": "A worm cocoon: a small lemon, 1 m long along x (the world scales it to about 3 mm), resting on z = 0.",
+      "vertices": 64,
+      "builtBy": "assets/build.py:cocoon"
     }
   }
 }

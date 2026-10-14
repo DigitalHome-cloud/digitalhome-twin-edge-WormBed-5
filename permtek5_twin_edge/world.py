@@ -290,7 +290,8 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
                     "x": [-PARK, length + 0.05], "y": [0.0, width], "camOffsetX": CAM_DX, "meshes": bool(assets and _mesh(assets, "plant_grown")),
                     "seedlingMesh": _mesh(assets, "plant_seedling"),
                     "camFovRad": CAM_FOV, "lidOpenRad": LID_OPEN_RAD, "hatchOpenRad": HATCH_OPEN_RAD,
-                    "wrapZ": SOIL_Z + BIN_ABOVE * 0.5, "wrapOffZ": WRAP_OFF_Z, "boxTopZ": SOIL_Z + BIN_ABOVE + 0.05}
+                    "wrapZ": SOIL_Z + BIN_ABOVE * 0.5, "wrapOffZ": WRAP_OFF_Z, "boxTopZ": SOIL_Z + BIN_ABOVE + 0.05,
+                    "binSurfaceZ": 0.88 * (SOIL_Z + BIN_ABOVE)}       # the top of the bedding in the working bin (build.py:worm_box)
 
     # the garden's plants, for scenery here and for the rendered film (assets/demo.py)
     trees = [p for p in h.plants if p.x_m is not None and p.y_m is not None and p.crop_id in library]
@@ -298,6 +299,8 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
     cfg["garden"] = {"y0": gy0, "z": GARDEN_Z, "treeHeight": TREE_HEIGHT, "roofMargin": ROOF_MARGIN,
                      "trees": [{"name": p.name, "x": p.x_m, "y": p.y_m, "rgb": [round(v, 3) for v in crop_rgb(p.crop_id)]} for p in trees]}
     cfg["gantry"] = {"railZ": RAIL_Z, "railOut": RAIL_OUT, "frameT": FRAME_T, "camZ": CAM_Z}
+    # shapes the driver brings into the world while it runs (the worms it shows in the box)
+    cfg["shapes"] = {n: _mesh(assets, n) for n in ("worm", "cocoon") if _mesh(assets, n)}
 
     # the worm box at the bed's far end, and where the gantry scoops from the hopper and drops into the box
     bin_m = bed.worm_bin_cm / 100.0

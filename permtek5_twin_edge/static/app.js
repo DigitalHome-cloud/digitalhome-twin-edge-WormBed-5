@@ -380,11 +380,36 @@ function drawBox(t, ready) {
     + `working at ${Math.round(sim.activity * 100)} %, eat ${sim.eatsPerDay} g a day, ${sim.foodG} g uneaten, ${sim.castingsG} g castings`
     + (f && f.offPct !== undefined ? `. The feeder's estimate is off by ${f.offPct} %.` : ".")
     + (box.wormsMayLeave ? " Worms may leave into the soil." : " The box is closed.");
+  drawPopulation(t, sim && sim.population);
   $("#btn-insulate").textContent = box.insulated ? "Wrapping taken off" : "Box wrapped";
   $("#btn-insulate").dataset.on = box.insulated ? "" : "1";
   $("#btn-lid").textContent = box.lidOpen ? "Lid closed" : "Lid left open";
   $("#btn-lid").dataset.open = box.lidOpen ? "" : "1";
   for (const id of ["#btn-insulate", "#btn-bedding", "#btn-moisten", "#btn-lid", "#btn-tap"]) $(id).disabled = !ready;
+}
+// The worms by life stage, and a trend of the last 90 simulated days (kept in the page: a reload starts it again).
+const POP = { days: [] };
+function drawPopulation(t, p) {
+  $("#box-pop").hidden = !p;
+  if (!p) return;
+  const env = (t.twin.bed && t.twin.bed.env) || {};
+  const day = (env.day || 1) + (env.hour || 0) / 24;
+  if (POP.days.length && day < POP.days[POP.days.length - 1][0]) POP.days = [];   // the simulation started again
+  if (!POP.days.length || day - POP.days[POP.days.length - 1][0] >= 0.25) POP.days.push([day, p.wormsG, p.cocoons]);
+  POP.days = POP.days.filter((d) => day - d[0] <= 90);
+  const n = (v) => v >= 10000 ? `${Math.round(v / 1000)}k` : String(v);
+  const w = t.worms;
+  $("#box-pop-line").textContent = `Worms (simulation only): ${n(p.adults)} adults, ${n(p.young)} young, ${n(p.cocoons)} cocoons`
+    + (p.inBed ? `, ${n(p.inBed)} out in the bed` : "") + ` · ${p.wormsG} g, ${p.kgPerM2} kg/m²`
+    + (p.crowding > 0 ? `, crowded ${Math.round(p.crowding * 100)} %` : "") + (p.nourish < 0.7 ? `, hungry` : "")
+    + (w ? `. The feeder reckons about ${w.kg} kg of worms` + (w.fallPct !== null && w.fallPct !== undefined ? `, ${w.fallPct} % less than a week ago` : "") + "." : ".");
+  const pts = POP.days, svg = $("#box-pop-trend");
+  if (pts.length < 2) { svg.innerHTML = ""; return; }
+  const x0 = pts[0][0], dx = Math.max(1, pts[pts.length - 1][0] - x0);
+  const top = Math.max(...pts.map((d) => d[1]), 1);
+  const line = pts.map((d) => `${(300 * (d[0] - x0) / dx).toFixed(1)},${(58 - 54 * d[1] / top).toFixed(1)}`).join(" ");
+  svg.innerHTML = `<polyline points="${line}" fill="none" stroke="var(--app-accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`
+    + `<text x="2" y="10" class="box-pop-label">${top} g</text>`;
 }
 const boxDo = async (body, said) => { if (await post("/api/twin/box", body)) core.toast(said); refresh(); };
 $("#btn-insulate").addEventListener("click", (e) => boxDo({ do: "insulate", on: !!e.target.dataset.on }, "Noted"));

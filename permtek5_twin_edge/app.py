@@ -93,6 +93,7 @@ def favicon():
 
 _keeper_memory: dict = {}
 _feeder_memory: dict = {}
+_worm_memory: dict = {}         # the feeder's estimate of the worms, a value a day
 _guide = feeding_guide.load()       # the WormBed5 feeding guide: PermTek-5's data, enforced here
 _diary: list = []                   # what was loaded, fed and given as bedding in this simulation (simulated minutes)
 _guide_seen = {"now": 0.0, "feedN": 0, "load": None}
@@ -117,6 +118,10 @@ def _keep(cfg, bed, out, offline: bool) -> dict:
         if advice.get("eatsPerDay") and truth:    # only a simulation can say how far off the feeder is
             advice["offPct"] = round(100.0 * abs(advice["eatsPerDay"] - truth) / truth)
         kept["feeder"] = advice
+        est = feeder.worms(_worm_memory, advice, feeder._now(bed), ((cfg or {}).get("wormBin") or {}).get("areaM2"))
+        if est:
+            kept["worms"] = est
+        keeper.population(kept, _keeper_memory, est)
     if bed and cfg and (cfg.get("wormBin") or {}).get("cols") and "lastFeed" in (bed.get("wormBin") or {}):
         _follow_guide(cfg, bed, out, kept)
     return kept
@@ -236,7 +241,7 @@ def _twin_state() -> dict:
     return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
             "instance": instance.describe(),
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
-            "feeder": kept.get("feeder"), "guide": kept.get("guide"), "weeds": kept.get("weeds"),
+            "feeder": kept.get("feeder"), "worms": kept.get("worms"), "guide": kept.get("guide"), "weeds": kept.get("weeds"),
             "env": (bed or {}).get("env"),
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"))
@@ -511,6 +516,7 @@ def scenario_start():
         for event in ({"op": "calm"}, {"op": "time", "factor": 1}, {"op": "box", "do": "reset"}):
             sim.gateway("/event", event)
         _feeder_memory.clear()
+        _worm_memory.clear()
         _diary.clear()
         _guide_seen.update(feedN=0, load=None, careN=0)
         _offline["until"] = 0.0

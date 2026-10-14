@@ -169,7 +169,7 @@ def test_the_shape_library_ships_with_the_app_and_lists_every_shape_the_world_us
         assert (folder / shape["file"]).stat().st_size > 200 and shape["what"], name
     used = set(re.findall(r'_mesh\(assets, "([a-z_]+)"\)', Path(world.__file__).read_text())) | {"plant_grown", "plant_seedling"}
     assert used <= set(lib), used - set(lib)
-    assert sum((folder / s["file"]).stat().st_size for s in lib.values()) < 300_000, "the library stays small"
+    assert sum((folder / s["file"]).stat().st_size for s in lib.values()) < 350_000, "the library stays small"
 
 
 def test_a_bed_says_how_thick_its_mulch_is(demo, tmp_path):

@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional
 CATALOGUE: Dict[str, Dict[str, Any]] = {
     "cold-snap": {"title": "Cold snap", "about": "The air drops far below freezing within hours.",
                   "effect": {"airOffsetC": -22.0}, "minutes": 600, "owes": ["frost"]},
+    "cool-spell": {"title": "Cool fortnight", "about": "Two weeks some 9 °C colder than usual, without frost: the worms stop breeding.",
+                   "effect": {"airOffsetC": -9.0}, "minutes": 14 * 1440, "owes": []},
     "heat-wave": {"title": "Heat wave", "about": "Days well above 30 °C: the worm box overheats first.",
                   "effect": {"airOffsetC": 19.0}, "minutes": 1440, "owes": ["heat"]},
     "cloudburst": {"title": "Cloudburst", "about": "Heavy rain fills the tank to its overflow.",

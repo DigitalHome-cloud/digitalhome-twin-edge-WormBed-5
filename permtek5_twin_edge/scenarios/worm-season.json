@@ -1,0 +1,121 @@
+{
+  "title": "A season for the worms",
+  "about": "How does a worm population grow, and why does it stop? Over four simulated months a helper feeds the box each morning with what the worms ate the day before. Adults lay cocoons, the cocoons hatch after about three weeks, the young grow up in six or seven. Then the box gets crowded: fewer cocoons, more of the young die, and the worms level off. Only a simulation can count worms; the numbers come from studies of Eisenia fetida (docs in PermTek-5).",
+  "fresh": true,
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "A helper takes over the daily feeding",
+      "why": "Four months of daily feeding would be 120 confirmations. For this run a helper feeds each morning what the worms ate, keeps the bin damp and takes the finished compost out when it is full. What it feeds is counted, so the feeder still learns from the weight.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "box",
+          "do": "helper",
+          "on": true
+        },
+        "label": "Let the helper feed"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.sim.population.adults",
+          "is": ">",
+          "value": 1000,
+          "say": "adults (simulation only): {v}"
+        }
+      ]
+    },
+    {
+      "title": "Two months go by",
+      "why": "The clock runs at ten hours a second, so a month takes about a minute and a quarter. Watch the cocoons pile up, then the young appear three weeks later.",
+      "do": {
+        "type": "time",
+        "factor": 600,
+        "label": "Run the clock: 10 hours a second"
+      },
+      "expect": [
+        {
+          "read": "days.run",
+          "is": ">=",
+          "value": 60,
+          "say": "{v} days in"
+        },
+        {
+          "read": "bed.wormBin.sim.population.hatched",
+          "is": ">",
+          "value": 5000,
+          "say": "hatched so far: {v}"
+        },
+        {
+          "read": "bed.wormBin.sim.population.wormsG",
+          "is": ">",
+          "value": 1200,
+          "say": "worms: {v} g (from 800)"
+        }
+      ]
+    },
+    {
+      "title": "Four months: the box is full of worms",
+      "why": "Laying slows from about 2 kg of worms per m² of box and stops by 5; more of the young die in a crowded box. So the worms level off instead of growing forever. That is why a box is harvested with some of its worms, or split.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "days.run",
+          "is": ">=",
+          "value": 120,
+          "say": "{v} days in"
+        },
+        {
+          "read": "bed.wormBin.sim.population.kgPerM2",
+          "is": ">",
+          "value": 2,
+          "say": "{v} kg of worms per m² of box"
+        },
+        {
+          "read": "bed.wormBin.sim.population.kgPerM2",
+          "is": "<",
+          "value": 5,
+          "say": "{v} kg per m², below the crowding limit"
+        },
+        {
+          "read": "bed.wormBin.sim.population.crowding",
+          "is": ">",
+          "value": 0,
+          "say": "crowded: {v}"
+        }
+      ],
+      "scored": true
+    },
+    {
+      "title": "Back to normal",
+      "why": "The helper stops and the clock runs at its usual pace.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "helper",
+            "on": false
+          },
+          {
+            "op": "time",
+            "factor": 1
+          }
+        ],
+        "label": "Stop the helper"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    }
+  ]
+}

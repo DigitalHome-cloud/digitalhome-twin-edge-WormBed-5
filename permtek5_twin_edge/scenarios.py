@@ -25,7 +25,11 @@ Readings: bed.<path> (the twin's /bed/state), job.state, last.<kind>.state
 notices (how many), keeper.<rule> (true while that reaction is in force),
 holds.<kind> (true while jobs of that kind are on hold), lockout (true while
 the gantry is locked out), feeder.<key> (the feeder's advice: state, grams,
-eatsPerDay, uneatenG, offPct), composted (cells that got compost), weeds.<key> (the last look over the bed:
+eatsPerDay, uneatenG, offPct), days.run and days.step (simulated days since
+the run or the step began: the simulation's own calendar does not start again
+with a scenario), delta.<any reading> (how much it changed since the step
+began), worms.<key> (the feeder's estimate of the worms:
+kg, kgPerM2, fallPct), composted (cells that got compost), weeds.<key> (the last look over the bed:
 small, byHand, scanned).
 A "proposal" step may carry "factor": the clock is set to it before the job starts. A scenario marked "fresh": true starts from a settled worm box, calm weather
 and the normal clock. A step marked "scored": true counts towards the
@@ -113,6 +117,10 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
         return (kept.get("weeds") or {}).get(path.split(".", 1)[1])
     if path.startswith("feeder."):
         return (kept.get("feeder") or {}).get(path.split(".", 1)[1])
+    if path.startswith("days."):                     # simulated days since the run (days.run) or the step (days.step) began
+        return (kept.get("_days") or {}).get(path.split(".", 1)[1])
+    if path.startswith("worms."):
+        return (kept.get("worms") or {}).get(path.split(".", 1)[1])
     cells = [c for c in (bed.get("cells") or {}).values()]
     if path.startswith("bed."):
         v: Any = bed
@@ -143,7 +151,15 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
 def checks(step: Dict[str, Any], twin, proposals, notices, since: float, kept=None) -> List[Dict[str, Any]]:
     out = []
     for e in step.get("expect") or []:
-        v = read(e["read"], twin, proposals, notices, since, kept)
+        if e["read"].startswith("delta."):          # how much a reading changed since the step began
+            path = e["read"].split(".", 1)[1]
+            now = read(path, twin, proposals, notices, since, kept)
+            base = _run.setdefault("deltaBase", {})
+            if isinstance(now, (int, float)) and not isinstance(now, bool) and path not in base:
+                base[path] = now
+            v = now - base[path] if path in base and isinstance(now, (int, float)) else None
+        else:
+            v = read(e["read"], twin, proposals, notices, since, kept)
         try:
             ok = v is not None and bool(OPS[e["is"]](v, e["value"]))
         except TypeError:
@@ -219,6 +235,13 @@ def state(twin: Optional[Dict[str, Any]], proposals: List[Dict[str, Any]], notic
         return None
     twin = twin or {}
     step, s = run["step"], run["scenario"]
+    env = (twin.get("bed") or {}).get("env") or {}
+    if "day" in env:
+        now = (env["day"] - 1) * 1440.0 + env.get("hour", 0.0) * 60.0
+        _run.setdefault("simStart", now)
+        _run.setdefault("simStepStart", now)
+        kept = {**(kept or {}), "_days": {"run": round((now - _run["simStart"]) / 1440.0, 2),
+                                         "step": round((now - _run["simStepStart"]) / 1440.0, 2)}}
     found = checks(step, twin, proposals, notices, run["since"], kept)
     nothing_to_do = step["do"]["type"] == "none"
     busy = (twin.get("job") or {}).get("state") == "running" and not step.get("noWait")
@@ -251,4 +274,6 @@ def advance(ok: bool = True) -> bool:
                           failed=[r["title"] for r in results if not r["ok"]])
         return False
     _run.update(index=run["index"] + 1, did=False, since=time.time())
+    _run.pop("simStepStart", None)
+    _run.pop("deltaBase", None)
     return True

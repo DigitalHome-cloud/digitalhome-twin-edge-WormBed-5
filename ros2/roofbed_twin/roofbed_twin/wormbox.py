@@ -37,6 +37,14 @@ EACH SIMULATED MINUTE
              down. When worms may leave into the soil (the guild's setting)
              they dodge half the harm and come back when it is good again; in
              a closed box what is lost stays lost.
+  population red wigglers (Eisenia fetida) by life stage: cocoons, young and
+             adults, each kept in cohorts (one a day) that gather degree-days.
+             Adults lay cocoons by temperature, food, moisture and crowding;
+             cocoons hatch, the young grow up, and all of them die of age,
+             of hard conditions and of hunger. Worms that may leave go into
+             the bed when the box is bad, live there a while under a mulch,
+             and come back. `worms_g` is the sum, so eating follows it.
+             The numbers and where they come from are in the table below.
 
 THE SENSORS  (`Sensors.read`) give what real ones would: the value plus a
 little noise; None from a dead one; the old value from a stuck one.
@@ -67,6 +75,35 @@ BEDDING_BUFFERS_PER_KG = 0.3
 BACKS_UP_PCT_PER_L = 4.0                       # percent of moisture a litre the sump cannot take adds to the bin
 MINUTES_PER_DAY = 1440.0
 
+# -- the worm population (Eisenia fetida) --------------------------------------------------
+# From the literature, rounded; "to confirm" against a real box:
+#   laying       one cocoon every second day at 25 °C, rising linearly from 10 °C
+#                (Reinecke & Kriel 1981)
+#   hatching     2.7 young per cocoon after about 23 days at 20-25 °C; slow when cold
+#                (life-cycle study on cattle manure; Reinecke & Kriel 1981)
+#   maturity     40-60 days in good conditions (same study)
+#   crowding     growth and maturing slow with density (Domínguez & Edwards 1997);
+#                vermiculture stocks 1-2 kg of worms per m²
+# Rules of thumb, not from a study: the 80 % viability, the masses, the deaths,
+# the hunger and the life of worms that went into the bed.
+LAY_PER_DAY = 0.5                    # cocoons per adult a day at best
+HATCH_DD = 333.0                     # degree-days above BASE_C: 23 days at 22.5 °C
+MATURE_DD = 650.0                    # degree-days above BASE_C for a hatchling to be adult: 45 days at 22.5 °C
+BASE_C = 8.0
+YOUNG_PER_COCOON, VIABLE = 2.7, 0.8
+HATCHLING_G, ADULT_G = 0.01, 0.45
+CROWDED_KG_M2 = (2.0, 5.0)           # laying and growing up slow from the first to nothing at the second
+AGE_DEATH_PER_DAY = math.log(2) / 365.0   # half the adults of a working box gone in a year
+YOUNG_DEATH_PER_DAY = math.log(2) / 30.0     # most hatchlings never grow up
+HUNGER_DEATH_PER_DAY = 0.02          # adults, when the food has been gone for days (they live on bedding a while); the young twice that
+HUNGER_LEAVE_PER_DAY = 0.02          # hungry worms that may leave go looking in the bed
+NOURISH_DAYS = 3.0                   # how slowly being fed or going hungry builds up
+STRESS_DEATH_PER_DAY = 1.0           # at stress 1, most die within a day
+LEAVE_PER_DAY = 1.0                  # at stress 1, worms that may leave go into the bed this fast
+BED_LIFE_DAYS = 14.0                 # worms in the bed without a mulch; each cm of mulch adds as much again
+CROWDED_YOUNG_DEATH_PER_DAY = 0.08    # extra deaths of the young in a full box: the brake that holds the population
+RETURN_PER_DAY = 0.2                 # back into the box once it is good again
+
 
 def ramp(x, lo, hi):
     """0 at lo, 1 at hi, straight between (lo may be above hi)."""
@@ -82,12 +119,35 @@ def moisture_factor(pct):
     return min(ramp(pct, 40.0, 65.0), ramp(pct, 95.0, 85.0))
 
 
+def lay_temp_factor(c):
+    """Cocoons a worm lays at this core temperature, as a share of the best: linear from 10 to 25 °C."""
+    return min(ramp(c, 10.0, 25.0), ramp(c, 32.0, 27.0))
+
+
+def degree_days(c, days):
+    return max(0.0, min(c, 30.0) - BASE_C) * days
+
+
+def young_g(progress):
+    """A young worm's mass, by how far it has grown up (0: hatched, 1: adult)."""
+    return HATCHLING_G + (ADULT_G - HATCHLING_G) * max(0.0, min(1.0, progress))
+
+
 class WormBox:
     def __init__(self, may_leave=True, air_c=16.0, worms_g=800.0, food_g=400.0, bedding_g=4000.0, castings_g=1000.0,
-                 sump_cap_l=14.0, area_m2=0.48):
-        self.may_leave = may_leave
+                 sump_cap_l=14.0, area_m2=0.48, mulch_cm=0.0):
+        self.may_leave, self.mulch_cm = may_leave, float(mulch_cm or 0.0)
         self.sump_l, self.sump_cap_l, self.area_m2 = 0.0, sump_cap_l, area_m2
-        self.worms_g, self.food_g, self.bedding_g, self.castings_g = worms_g, food_g, bedding_g, castings_g
+        self.food_g, self.bedding_g, self.castings_g = food_g, bedding_g, castings_g
+        # a settled box: most of the mass in adults, some young half grown, a few weeks of cocoons
+        self.adults = 0.85 * worms_g / ADULT_G
+        self.young = [[0.15 * worms_g / young_g(0.5), 0.5 * MATURE_DD]]     # cohorts: [count, degree-days]
+        self.cocoons = [[self.adults * 0.3, dd] for dd in (220.0, 110.0, 0.0)]   # cohorts, oldest first
+        self.in_bed = 0.0                # worms that left the box into the bed
+        self.nourish = 1.0               # 0: starving for days; 1: well fed
+        self.laid = self.hatched = self.matured = self.died = 0.0
+        self.day_n = 0.0                 # simulated days, to start one cohort a day
+        self.lay_day = None
         self.heat_g = food_g             # the uneaten food, weighted by how strongly its kinds heat
         self.moisture = 70.0
         self.edge_c = air_c + EDGE_ABOVE_AIR_C
@@ -171,6 +231,24 @@ class WormBox:
 
     # -- readings of the truth -------------------------------------------------------
 
+    @property
+    def worms_g(self):
+        """The worms in the box, by mass: adults and the young as far as they have grown."""
+        return self.adults * ADULT_G + sum(n * young_g(dd / MATURE_DD) for n, dd in self.young)
+
+    def young_n(self):
+        return sum(n for n, _ in self.young)
+
+    def cocoons_n(self):
+        return sum(n for n, _ in self.cocoons)
+
+    def density_kg_m2(self):
+        return self.worms_g / 1000.0 / self.area_m2
+
+    def crowding(self):
+        """1: room enough; 0: so crowded that no cocoons are laid and the young stop growing."""
+        return ramp(self.density_kg_m2(), CROWDED_KG_M2[1], CROWDED_KG_M2[0])
+
     def weight_g(self):
         return self.worms_g + self.food_g + self.bedding_g + self.castings_g
 
@@ -216,7 +294,8 @@ class WormBox:
         wants = 1.0 - max(ramp(self.food_g, *FOOD_AIRLESS_G), ramp(self.moisture, *WET_AIRLESS_PCT))
         self.air += (wants - self.air) * (1.0 - math.exp(-minutes / 240.0))
 
-        eaten = min(self.food_g, self.eats_per_day() * minutes / MINUTES_PER_DAY)
+        appetite = self.eats_per_day() * minutes / MINUTES_PER_DAY
+        eaten = min(self.food_g, appetite)
         if self.food_g > 0:
             self.heat_g *= (self.food_g - eaten) / self.food_g
         self.acid *= math.exp(-minutes / ACID_BUFFER_MIN)          # castings and bedding buffer it away
@@ -230,8 +309,7 @@ class WormBox:
             self.health = max(0.0, self.health - harm * days)
         elif self.may_leave:
             self.health = min(1.0, self.health + 0.2 * days)       # they come back from the soil
-        if eaten > 0:
-            self.worms_g *= 1.0 + 0.008 * days * self.activity()   # a well-fed population doubles in about three months
+        self.live(days, air_c, eaten / appetite if appetite > 0 else None)
         if self.rest_side is not None:
             was = self.ready()
             self.rest_min += minutes
@@ -244,11 +322,90 @@ class WormBox:
             self.sump_l = self.sump_cap_l
         return {"liquidL": liquid, "eatenG": eaten}
 
+    def live(self, days, air_c, fed=None):
+        """The population over `days`: laying, hatching, growing up, dying, leaving and coming back. `fed`: what
+        they ate as a share of what they would have eaten (None when they ate nothing because they could not)."""
+        c, crowd = self.core_c, self.crowding()
+        if fed is not None:                                           # a box too cold to eat in does not make them hungry
+            self.nourish += (fed - self.nourish) * (1.0 - math.exp(-days / NOURISH_DAYS))
+        hunger = ramp(self.nourish, 0.3, 0.05)
+        stress = self.stress()
+
+        # cocoons: laid into today's cohort; they gather warmth and hatch
+        lay = self.adults * LAY_PER_DAY * lay_temp_factor(c) * moisture_factor(self.moisture) * self.nourish * crowd * self.health * days
+        day = int(self.day_n)
+        self.day_n += days
+        if lay > 0:
+            if self.cocoons and self.lay_day == day:
+                self.cocoons[-1][0] += lay
+            else:
+                self.cocoons.append([lay, 0.0])
+                self.lay_day = day
+            self.laid += lay
+        warmth = degree_days(c, days)
+        hatched = 0.0
+        if c > 35.0:                                                  # cocoons cook in a hot box
+            for co in self.cocoons:
+                co[0] *= math.exp(-days)
+        for co in self.cocoons:
+            co[1] += warmth
+        while self.cocoons and self.cocoons[0][1] >= HATCH_DD:
+            hatched += self.cocoons.pop(0)[0] * YOUNG_PER_COCOON * VIABLE
+        if hatched > 0:
+            self.young.insert(0, [hatched, 0.0])
+            self.hatched += hatched
+
+        # the young grow with warmth and food, slower when crowded; the oldest cohort becomes adult
+        grow = warmth * max(0.2, self.nourish) * max(0.3, crowd)
+        matured = 0.0
+        for co in self.young:
+            co[1] += grow
+        while self.young and self.young[-1][1] >= MATURE_DD:
+            matured += self.young.pop()[0]
+        self.adults += matured
+        self.matured += matured
+        if len(self.young) > 120:                                     # merge the youngest pairs to keep the list short
+            a, b = self.young[0], self.young.pop(1)
+            a[1] = (a[0] * a[1] + b[0] * b[1]) / max(1e-9, a[0] + b[0])
+            a[0] += b[0]
+
+        # dying, and with leave to go: leaving instead of part of it
+        harm = stress * STRESS_DEATH_PER_DAY * (0.5 if self.may_leave else 1.0)
+        die_adult = 1.0 - math.exp(-(AGE_DEATH_PER_DAY + harm + hunger * HUNGER_DEATH_PER_DAY) * days)
+        die_young = 1.0 - math.exp(-(YOUNG_DEATH_PER_DAY + (1.0 - crowd) * CROWDED_YOUNG_DEATH_PER_DAY + harm
+                                     + 2.0 * hunger * HUNGER_DEATH_PER_DAY) * days)
+        died = self.adults * die_adult
+        self.adults -= died
+        for co in self.young:
+            died += co[0] * die_young
+            co[0] *= 1.0 - die_young
+        self.young = [co for co in self.young if co[0] > 0.01]
+        self.died += died
+        if self.may_leave:
+            go = 1.0 - math.exp(-(stress * LEAVE_PER_DAY + hunger * HUNGER_LEAVE_PER_DAY) * days)
+            left = self.adults * go
+            self.adults -= left
+            self.in_bed += left
+            bed_life = BED_LIFE_DAYS * (1.0 + self.mulch_cm) * (0.3 if air_c < -2.0 else 1.0)
+            self.in_bed *= math.exp(-days / bed_life)
+            if stress == 0.0 and hunger == 0.0:
+                back = self.in_bed * (1.0 - math.exp(-RETURN_PER_DAY * days))
+                self.in_bed -= back
+                self.adults += back
+
+    def population(self):
+        """What only a simulation can count: the worms by stage, and how crowded the box is."""
+        return {"cocoons": round(self.cocoons_n()), "young": round(self.young_n()), "adults": round(self.adults),
+                "inBed": round(self.in_bed), "wormsG": round(self.worms_g), "kgPerM2": round(self.density_kg_m2(), 2),
+                "crowding": round(1.0 - self.crowding(), 2), "nourish": round(self.nourish, 2),
+                "laid": round(self.laid), "hatched": round(self.hatched), "matured": round(self.matured), "died": round(self.died)}
+
     def truth(self):
         """What is really going on: only a simulation can show this, a real box cannot."""
         return {"activity": round(self.activity(), 2), "health": round(self.health, 2), "wormsG": round(self.worms_g),
                 "foodG": round(self.food_g), "castingsG": round(self.castings_g), "eatsPerDay": round(self.eats_per_day()),
-                "eatenG": round(self.eaten_g), "air": round(self.air, 2), "acid": round(self.acid, 2), "readyG": round(self.ready_g)}
+                "eatenG": round(self.eaten_g), "air": round(self.air, 2), "acid": round(self.acid, 2), "readyG": round(self.ready_g),
+                "population": self.population()}
 
 
 NOISE = {"wormBin.pH": 0.03, "wormBin.sumpL": 0.03, "wormBin.tempC": 0.1, "wormBin.edgeC": 0.1, "wormBin.moisture": 0.3, "wormBin.weightKg": 0.015, "wormBin.gas": 1.0}

@@ -1,0 +1,155 @@
+{
+  "title": "A month without food",
+  "about": "What happens to the worms when nobody feeds them, and how would you notice? A helper feeds the box for a week so the feeder learns how much the worms eat. Then a month without food: cocoons stop, the worms thin out slowly (they live on the bedding a while), and with leave to go some go into the bed. When feeding starts again, they eat much less than before, with food lying there: the keeper's \"dying back\" notice. No sensor counts worms; the feeder reads it from the weight.",
+  "fresh": true,
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "A week of feeding, at an hour a second",
+      "why": "The helper feeds each morning what was eaten. The feeder watches the box get lighter and reckons how many worms are working: worms eat about half their weight a day. It needs several weighings a day, so the clock runs at one hour a second here (a week takes under three minutes).",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "helper",
+            "on": true
+          },
+          {
+            "op": "time",
+            "factor": 60
+          }
+        ],
+        "label": "Feed for a week"
+      },
+      "expect": [
+        {
+          "read": "days.step",
+          "is": ">=",
+          "value": 7,
+          "say": "{v} days of feeding"
+        },
+        {
+          "read": "feeder.state",
+          "is": "==",
+          "value": "known",
+          "say": "feeder: {v}"
+        },
+        {
+          "read": "worms.kg",
+          "is": ">",
+          "value": 0.3,
+          "say": "the feeder reckons {v} kg of worms"
+        }
+      ]
+    },
+    {
+      "title": "You go away for a month",
+      "why": "No food and no one to water: the clock runs at five hours a second. Laying stops within days. The worms get hungry slowly (they eat the bedding a while), but the bin also dries out, and dryness drives them out or kills them faster than hunger.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "helper",
+            "on": false
+          },
+          {
+            "op": "time",
+            "factor": 300
+          }
+        ],
+        "label": "Stop feeding"
+      },
+      "expect": [
+        {
+          "read": "days.step",
+          "is": ">=",
+          "value": 30,
+          "say": "{v} days away"
+        },
+        {
+          "read": "bed.wormBin.sim.population.nourish",
+          "is": "<",
+          "value": 0.3,
+          "say": "how well fed (simulation only): {v}"
+        },
+        {
+          "read": "bed.wormBin.sim.population.adults",
+          "is": "<",
+          "value": 1000,
+          "say": "adults (simulation only): {v}, from about 1500"
+        }
+      ]
+    },
+    {
+      "title": "Back home: feeding again",
+      "why": "Food again, at an hour a second so the feeder can weigh. They eat much less than before the month away although food lies there. The keeper compares the feeder's estimate with a week and more ago and tells you that fewer worms are working.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "helper",
+            "on": true
+          },
+          {
+            "op": "time",
+            "factor": 60
+          }
+        ],
+        "label": "Feed again"
+      },
+      "expect": [
+        {
+          "read": "days.step",
+          "is": ">=",
+          "value": 2,
+          "say": "{v} days of feeding again"
+        },
+        {
+          "read": "worms.fallPct",
+          "is": ">=",
+          "value": 30,
+          "say": "they eat {v} % less than before"
+        },
+        {
+          "read": "keeper.dying-back",
+          "is": "==",
+          "value": true,
+          "say": "dying-back notice: {v}"
+        }
+      ],
+      "scored": true
+    },
+    {
+      "title": "Back to normal",
+      "why": "The helper stops and the clock runs at its usual pace. Given food, the worms recover over the next weeks.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "helper",
+            "on": false
+          },
+          {
+            "op": "time",
+            "factor": 1
+          }
+        ],
+        "label": "Stop the helper"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    }
+  ]
+}

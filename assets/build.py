@@ -17,6 +17,7 @@ Every mesh is modelled at a unit size and scaled by the world:
     gantry_bridge.obj                     an aluminium profile 1 m long along y, centred
     tree_trunk.obj, tree_canopy.obj       a tree 1 m tall, standing on z = 0
     worm_box*.obj                         the two-bin worm box in a unit cube; its lid, feed hatch and drilled holes
+    worm.obj, cocoon.obj                  a red wiggler and its cocoon, 1 m long along x (scaled to 8 cm and 3 mm)
 
 The same script and parameters give the same files; a hash of this file in
 the output folder lets a second run skip the work.
@@ -230,7 +231,57 @@ def worm_box_holes():
     return new_object("worm_box_holes", bm)
 
 
-BUILDERS = (plant_grown, plant_seedling, bed_soil, gantry_bridge, tree_trunk, tree_canopy, worm_box, worm_box_lid, worm_box_hatch, worm_box_holes, worm_box_lid_holes)
+def _tube(bm, path, radius, sides=8):
+    """A closed tube through the points of `path`, radius(t) for t from 0 to 1 along it."""
+    rings = []
+    for i, p in enumerate(path):
+        t = i / (len(path) - 1)
+        ahead = Vector(path[min(i + 1, len(path) - 1)]) - Vector(path[max(i - 1, 0)])
+        ahead.normalize()
+        side = ahead.cross(Vector((0.0, 0.0, 1.0)))
+        if side.length < 1e-6:
+            side = Vector((1.0, 0.0, 0.0))
+        side.normalize()
+        up = side.cross(ahead)
+        r = radius(t)
+        rings.append([bm.verts.new(Vector(p) + r * (math.cos(a) * side + math.sin(a) * up))
+                      for a in (2 * math.pi * k / sides for k in range(sides))])
+    for one, two in zip(rings, rings[1:]):
+        for k in range(sides):
+            bm.faces.new((one[k], one[(k + 1) % sides], two[(k + 1) % sides], two[k]))
+    for ring, flip in ((rings[0], True), (rings[-1], False)):
+        bm.faces.new(ring[::-1] if flip else ring)
+
+
+def worm():
+    """A red wiggler lying on the bedding: 1 m long along x (the world scales it to about 8 cm), a gentle S,
+    ringed segments, the swollen band (clitellum) a third of the way back, resting on z = 0."""
+    bm = bmesh.new()
+    n = 26
+    path = [((t := i / (n - 1)) - 0.5, 0.06 * math.sin(2.2 * math.pi * t), 0.0) for i in range(n)]
+
+    def radius(t):
+        body = 0.028 * (0.35 + 0.65 * math.sin(math.pi * min(1.0, 0.08 + t * 0.92)) ** 0.5)   # blunt head, thin tail
+        rings = 1.0 + 0.06 * math.cos(2 * math.pi * t * 12)                                     # the segments
+        band = 1.25 if 0.25 < t < 0.36 else 1.0                                                  # the clitellum
+        return body * rings * band
+
+    _tube(bm, path, radius, sides=6)
+    bmesh.ops.translate(bm, verts=bm.verts, vec=(0.0, 0.0, 0.028))
+    return new_object("worm", bm)
+
+
+def cocoon():
+    """A worm cocoon: a small lemon, 1 m long along x (the world scales it to about 3 mm), resting on z = 0."""
+    bm = bmesh.new()
+    n = 8
+    path = [((i / (n - 1)) - 0.5, 0.0, 0.0) for i in range(n)]
+    _tube(bm, path, lambda t: 0.36 * math.sin(math.pi * t) ** 0.8 + 0.01, sides=8)
+    bmesh.ops.translate(bm, verts=bm.verts, vec=(0.0, 0.0, 0.36))
+    return new_object("cocoon", bm)
+
+
+BUILDERS = (plant_grown, plant_seedling, bed_soil, gantry_bridge, tree_trunk, tree_canopy, worm_box, worm_box_lid, worm_box_hatch, worm_box_holes, worm_box_lid_holes, worm, cocoon)
 
 
 def export(obj, out: Path):

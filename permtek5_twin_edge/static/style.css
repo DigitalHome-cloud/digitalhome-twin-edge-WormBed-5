@@ -313,3 +313,7 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
 
 /* a weed the last look over the bed found */
 .bed .cell.weed, .legend .cell.weed { box-shadow: inset 0 0 0 2px #b9d130; }
+
+/* the worm population's trend in the worm box panel */
+.box-pop svg { display: block; width: 100%; height: 60px; border: 1px solid var(--app-border); border-radius: var(--app-radius-sm); }
+.box-pop-label { font-size: 9px; fill: var(--app-text-muted); }

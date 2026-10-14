@@ -133,4 +133,33 @@ def advise(memory: Dict[str, Any], bed: Optional[Dict[str, Any]]) -> Dict[str, A
         grams = min(LEARNING_G, hopper)
     why = (f"the box gets lighter by about {per_day * LOSS_PER_G_EATEN:.0f} g a day, so the worms eat about {per_day:.0f} g a day "
            f"at {box['tempC']:.0f} °C; about {uneaten:.0f} g still lie uneaten")
-    return {"state": "known", "grams": grams, "eatsPerDay": round(per_day), "uneatenG": round(uneaten), "hours": hours, "why": why}
+    return {"state": "known", "grams": grams, "eatsPerDay": round(per_day), "bestPerDay": round(max(r[1] for r in rates)),
+            "uneatenG": round(uneaten), "hours": hours, "why": why}
+
+
+EATS_OWN_WEIGHT_PER_DAY = 0.5             # worms eat about half their weight a day at their best (wormbox.py)
+WORMS_KEEP_DAYS, FALL_DAYS = 30, 7
+
+
+def worms(memory: Dict[str, Any], advice: Dict[str, Any], now_min: float, area_m2: Optional[float]) -> Optional[Dict[str, Any]]:
+    """How many worms there are, as far as the load cells can tell: worms eat about half their weight a day,
+    so the eating rate at the best temperature says how much worm is working. Counted only while food lies
+    uneaten, so a rate held down by an empty box is not taken for fewer worms. Keeps one value a day in
+    `memory` (its own dict: the feeder's starts over when the box is changed, this one must not).
+    Returns {"kg", "kgPerM2", "fallPct"} (fallPct: how much the estimate fell against a week ago), or None."""
+    if advice.get("state") != "known" or not advice.get("eatsPerDay") or (advice.get("uneatenG") or 0) < 100:
+        return memory.get("last")
+    days: List[List[float]] = memory.setdefault("days", [])
+    if days and now_min < days[-1][0]:                # the simulation started again
+        days.clear()
+    best = advice["bestPerDay"] if advice.get("bestPerDay") else advice["eatsPerDay"]
+    kg = best / EATS_OWN_WEIGHT_PER_DAY / 1000.0
+    if not days or now_min - days[-1][0] >= 1440.0:
+        days.append([now_min, kg])
+    else:
+        days[-1][1] = max(days[-1][1], kg)
+    memory["days"] = days[-WORMS_KEEP_DAYS:]
+    before = [d for d in days if now_min - d[0] >= FALL_DAYS * 1440.0]
+    fall = round(100.0 * (1.0 - days[-1][1] / before[-1][1])) if before and before[-1][1] > 0 else None
+    memory["last"] = {"kg": round(days[-1][1], 2), "kgPerM2": round(days[-1][1] / area_m2, 2) if area_m2 else None, "fallPct": fall}
+    return memory["last"]

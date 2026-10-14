@@ -1,0 +1,123 @@
+{
+  "title": "A cool fortnight: cocoons wait",
+  "about": "Compost worms lay most cocoons at 20-25 °C and hardly any below 10 °C, and a cocoon needs warmth to hatch: about three weeks at 22 °C, months in the cold. Here two weeks without frost but some 9 °C colder than usual: few or no cocoons hatch, and they pile up. When it warms up the oldest hatch within about ten days.",
+  "fresh": true,
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "The helper feeds, and the air cools",
+      "why": "Two weeks some 9 °C colder than usual, at five hours a second. The box follows the air down to about 9 °C in its core.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "helper",
+            "on": true
+          },
+          {
+            "op": "time",
+            "factor": 300
+          }
+        ],
+        "label": "Feed and speed up"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": ">=",
+          "value": 300,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    },
+    {
+      "title": "A cool fortnight",
+      "why": "Watch the cocoons: they wait. Only the oldest, nearly ready ones may still hatch on a mild afternoon. The worms are alive but neither breed nor grow much. The step is complete on a cool night late in the fortnight.",
+      "do": {
+        "type": "disturb",
+        "id": "cool-spell",
+        "calmFirst": true,
+        "label": "Send a cool fortnight"
+      },
+      "expect": [
+        {
+          "read": "days.step",
+          "is": ">=",
+          "value": 12,
+          "say": "{v} days of cool"
+        },
+        {
+          "read": "bed.wormBin.tempC",
+          "is": "<",
+          "value": 12,
+          "say": "box core: {v} °C"
+        },
+        {
+          "read": "delta.bed.wormBin.sim.population.hatched",
+          "is": "<",
+          "value": 1000,
+          "say": "hatched in the cool fortnight (simulation only): {v}"
+        },
+        {
+          "read": "bed.wormBin.sim.population.cocoons",
+          "is": ">",
+          "value": 1000,
+          "say": "cocoons waiting: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Warm again",
+      "why": "The cool spell is over. Cocoons gather warmth again; the oldest hatch first, about ten days on.",
+      "do": {
+        "type": "calm",
+        "label": "End the cool spell"
+      },
+      "expect": [
+        {
+          "read": "bed.wormBin.tempC",
+          "is": ">",
+          "value": 14,
+          "say": "box core: {v} °C"
+        },
+        {
+          "read": "delta.bed.wormBin.sim.population.hatched",
+          "is": ">",
+          "value": 500,
+          "say": "hatched since it warmed: {v}"
+        }
+      ],
+      "scored": true
+    },
+    {
+      "title": "Back to normal",
+      "why": "The helper stops and the clock runs at its usual pace.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "box",
+            "do": "helper",
+            "on": false
+          },
+          {
+            "op": "time",
+            "factor": 1
+          }
+        ],
+        "label": "Stop the helper"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    }
+  ]
+}

@@ -127,7 +127,9 @@ def main():
         found = job["result"]["weeds"]
         near = lambda w: min(((w["x"] - x) ** 2 + (w["y"] - y) ** 2) ** 0.5 for x, y, _ in truth)   # noqa: E731
         check("scan_weeds finds every weed, within 15 mm, and nothing else",
-              job["state"] == "done" and len(found) == len(truth) and all(near(w) < 0.015 for w in found), (job["message"], len(truth)))
+              job["state"] == "done" and len(found) == len(truth) and all(near(w) < 0.015 for w in found),
+              (job["message"], len(truth), "after the scan:", sim.gateway("/state")["bed"]["sim"]["weedsAt"],
+               "found:", [[round(w["x"], 3), round(w["y"], 3), w["sizeMm"]] for w in found], "factor:", sim.gateway("/state")["bed"]["env"]["factor"]))
         small = [[w["x"], w["y"]] for w in found if w["sizeMm"] < 30]
         job = sim.run_job({"kind": "stamp", "places": small}, timeout=400)
         check("stamp_weeds presses the small ones under", job["state"] == "done" and job["result"]["stamped"] + job["result"]["skipped"] == len(small), job)

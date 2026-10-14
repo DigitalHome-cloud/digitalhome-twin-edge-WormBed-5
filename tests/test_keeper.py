@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from permtek5_twin_edge import keeper
 
 
@@ -139,3 +141,21 @@ def test_a_full_sump_holds_feeding_until_it_is_well_drained():
     assert r["active"] == ["sump-full"] and r["holds"] == ["feed"]
     assert keeper.evaluate(box(sumpL=9.0, sumpCapacity=14.4), m)["active"] == ["sump-full"], "not yet"
     assert keeper.evaluate(box(sumpL=3.0, sumpCapacity=14.4), m)["active"] == []
+
+
+def test_the_worms_rules_go_by_the_feeders_estimate_crowded_and_dying_back():
+    from permtek5_twin_edge import feeder
+    est_mem, kmem = {}, {}
+    advice = {"state": "known", "eatsPerDay": 1000, "bestPerDay": 1000, "uneatenG": 300}
+    est = feeder.worms(est_mem, advice, 0.0, 0.48)
+    assert est["kg"] == 2.0 and est["kgPerM2"] == pytest.approx(4.17, abs=0.01) and est["fallPct"] is None
+    result = keeper.evaluate(None, kmem)
+    keeper.population(result, kmem, est)
+    assert "crowded" in result["active"] and result["holds"] == [], "a notice, nothing held"
+    for day in range(1, 8):                                       # a week later they eat 40 % less, with food there
+        est = feeder.worms(est_mem, {**advice, "eatsPerDay": 600, "bestPerDay": 600}, day * 1440.0, 0.48)
+    assert est["fallPct"] == 40
+    result = keeper.evaluate(None, kmem)
+    keeper.population(result, kmem, est)
+    assert "dying-back" in result["active"] and "crowded" not in result["active"]
+    assert feeder.worms({}, {**advice, "uneatenG": 0}, 0.0, 0.48) is None, "an empty box says nothing about the worms"

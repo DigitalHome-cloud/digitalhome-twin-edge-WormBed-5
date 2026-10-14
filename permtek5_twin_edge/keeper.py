@@ -25,6 +25,9 @@ REACTION with an id:
     hopper-jam    the scoop comes back empty    hold feeding; the person clears it
     offline       no link to the cloud          work on; queue what is to be written back
     box-full      the worm box is nearly full   the person harvests the compost
+    crowded       the worms eat like a crowded box  the person harvests, or starts a second box
+    dying-back    they eat a third less than a week ago, with food there  the person checks food, moisture, air
+                  (these two go by the feeder's estimate of the worms: `population`)
 
 Reactions are notices to the person, HOLDS on kinds of job (no proposal, and
 a job of that kind is refused) or a LOCKOUT of the gantry (every job
@@ -82,10 +85,14 @@ TEXT = {
     "hopper-jam": "The scoop comes back empty: the hopper is jammed. Feeding is on hold; clear it.",
     "offline": "No link to the cloud: the guild works on, and what it would write back is queued.",
     "box-full": "The worm box is nearly full: harvest the finished compost.",
+    "crowded": "The worms eat like a crowded box (about {kg} kg of worms per m²): they will stop breeding. Harvest the compost with some of the worms in it, or start a second box.",
+    "dying-back": "The worms eat {pct} % less than a week ago although food lies there: fewer are working. Check the food, the moisture and the air.",
 }
 HOLDS = {"frost": ["feed", "water"], "heat": ["feed"], "overflow": ["water"], "sensor": ["feed"], "hopper-jam": ["feed"],
          "overfed": ["feed"], "airless": ["feed"], "box-wet": ["feed"], "sump-full": ["feed"], "sour": ["feed"]}
 LOCKS = {"storm"}
+CROWDED_ON, CROWDED_OFF = 4.0, 3.5      # kg of worms per m² of box, as the feeder estimates them
+DYING_ON = 30                          # % less eating than a week ago, with food there
 ALERTS = {"frost", "heat", "storm", "tank-empty", "tank-falling", "sensor", "overfed", "airless", "sour"}
 
 
@@ -185,6 +192,19 @@ def evaluate(bed: Optional[Dict[str, Any]], memory: Dict[str, Any], offline: boo
     lockout = next((TEXT[rule] for rule in active if rule in LOCKS), None)
     return {"active": active, "holds": holds, "lockout": lockout,
             "notices": [{"id": r, "text": TEXT[r], "level": "alert" if r in ALERTS else "note"} for r in active]}
+
+
+def population(result: Dict[str, Any], memory: Dict[str, Any], est: Optional[Dict[str, Any]]) -> None:
+    """The two rules about the worms themselves. No sensor counts worms: `est` is the feeder's estimate
+    from the eating rate (feeder.worms), or None while it has none."""
+    if not est:
+        return
+    dense = est.get("kgPerM2")
+    if dense is not None and _switch(memory, "crowded", dense >= CROWDED_ON, dense <= CROWDED_OFF):
+        add(result, "crowded", TEXT["crowded"].format(kg=f"{dense:.1f}"))
+    fall = est.get("fallPct")
+    if fall is not None and fall >= DYING_ON:
+        add(result, "dying-back", TEXT["dying-back"].format(pct=fall), level="alert")
 
 
 def refuses(result: Dict[str, Any], kind: str) -> Optional[str]:

@@ -26,6 +26,9 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "box", "do": "insulate", "on"} | {"do": "bedding", "grams"} | {"do": "moisten", "ml"}
                                        | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}
                                        | {"do": "tap"} (the sump runs on into the tank) | {"do": "reset"} (a settled box again)
+                                       | {"do": "helper", "on"} a stand-in for daily care over a long run: each morning the box
+                                         gets a day's eating (counted as the robot's feeding, so the feeder sees it), bedding
+                                         or water when it needs them, and the finished compost goes out when it is full
                                        what a person did at the worm box
 
 A sown cell gets a seedling in the world. Soil moisture is a simple number per
@@ -73,6 +76,9 @@ WEEDS_PER_M2_DAY = 0.4          # how many come up on bare, moist soil
 WEED_START_MM, WEED_MAX_MM, WEED_GROWS_MM_PER_H = 8.0, 80.0, 0.4
 WEED_LIMIT = 60
 STAMPABLE_BELOW_MM = 35.0       # a bigger weed springs back: it has to be pulled
+WORMS_SHOWN = 30                # at most this many adults in view; the young and the cocoons fewer
+WORM_M, COCOON_M = 0.08, 0.004  # an adult red wiggler about 8 cm long, a cocoon 3-4 mm
+WORM_HIDDEN_Z = -5.0            # where a worm waits while it is not in view
 STAMP_REACH_M = 0.025
 COMPOST_FROM_G, COMPOST_KEEPS = 30.0, 0.85   # from this much compost on a cell, its soil loses this share of the usual
 TANK_DEAD_L = 1.0               # under a litre the wick does not reach the water (the worm box's liquid trickles in)
@@ -115,13 +121,15 @@ class GantryDriver:
         seed = int(os.environ.get("PERMTEK5_TWIN_SEED", "5"))
         self.env = Environment(seed=seed)
         self.seed = seed
+        self.mulch_cm = float(self.cfg["bed"].get("mulch_cm") or 0)
         self.new_box()
         self.overflowing = False
         self.shown = {}                  # what the world shows of the box: lid open, wrapping on
         self.weeds = {}                  # id -> {"x", "y", "mm", "shown"}
         self.weed_n = 0
         self.weed_rng = random.Random(seed * 31 + 7)
-        self.mulch_cm = float(self.cfg["bed"].get("mulch_cm") or 0)
+        self.worm_rng = random.Random(seed * 53 + 11)
+        self.worms_shown = {}            # kind -> [[x, y, heading], ...] of the worms in view
         soil_to = (self.cfg.get("wormBin") or {}).get("x")
         self.soil_x = float(soil_to[0]) if soil_to else self.cfg["bed"]["cols"] * self.cfg["world"]["cellM"]
         self.soil_y = float(self.cfg["world"]["y"][1])
@@ -288,6 +296,8 @@ class GantryDriver:
                     self.lid_left_open = bool(e.get("open", True))
                 elif do == "rest":                            # start a harvest: no food for one half; None ends it
                     self.box.rest(e.get("side"))
+                elif do == "helper":
+                    self.helper, self.helper_day = bool(e.get("on", True)), None
                 elif do == "tap":                             # the sump runs on into the tank, as far as there is room
                     self.tank_l += self.box.drain(self.tank_cap - self.tank_l)
                 return
@@ -379,11 +389,13 @@ class GantryDriver:
         """A settled worm box with nothing wrong, as at the start (also a scenario's fresh start)."""
         bin_cfg = self.cfg.get("wormBin") or {}
         self.box = WormBox(may_leave=bool((self.cfg.get("guild") or {}).get("wormsMayLeave", True)), air_c=self.env.air_c(),
-                           sump_cap_l=float(bin_cfg.get("sumpLitres") or 14.0), area_m2=float(bin_cfg.get("areaM2") or 0.48))
+                           sump_cap_l=float(bin_cfg.get("sumpLitres") or 14.0), area_m2=float(bin_cfg.get("areaM2") or 0.48),
+                           mulch_cm=self.mulch_cm)
         self.probes = Sensors(seed=self.seed)
         self.lid_left_open = False       # by a person; a disturbance can open it too
         self.hopper_g, self.hopper_mix, self.last_feed = 0.0, {}, None
         self.hopper_browns_g, self.robot_bedding_g, self.care_n, self.last_care = 0.0, 0.0, 0, None
+        self.helper, self.helper_day = False, None
 
     def show_box(self, x):
         """Open or shut the lid and put the wrapping on or off in the world, when that changed. The feed
@@ -403,6 +415,99 @@ class GantryDriver:
             else:
                 at = node.getField("translation").getSFVec3f()
                 node.getField("translation").setSFVec3f([at[0], at[1], w.get("wrapZ", 0.1) if now else w.get("wrapOffZ", -5.0)])
+
+    def daily_care(self):
+        """The helper's morning round (a scenario's stand-in for a month of confirmed jobs): feed what the
+        worms eat in a day, less what still lies there; keep the bin damp, not wet; harvest when it is full."""
+        box = self.box
+        box.feed(max(0.0, box.eats_per_day() - 0.5 * box.food_g), wet=0.6)     # not in the feeding guide's diary: no hopper, no spot
+        if box.moisture > 80.0:
+            box.add_bedding(300.0)
+            self.robot_bedding_g += 300.0
+        elif box.moisture < 65.0:
+            box.moisten(500.0)
+        if box.weight_g() > 0.7 * FULL_G:                         # the finished compost goes out (counted, so it is no jump)
+            out = max(0.0, box.castings_g - 1000.0)
+            box.castings_g -= out
+            box.taken_g += out
+
+    # -- the worms you can see ---------------------------------------------------
+    # Thousands of worms cannot be drawn, and in a closed box none would show. The world shows a SAMPLE on
+    # the bedding while the lid is open: as many as a log of the real count, so a crowded box and a dying
+    # one look different. They lie in the fed half when one half rests, and lie still when the box is cold.
+
+    def worm_counts(self):
+        p = self.box.population()
+        sample = lambda n, per, k, top: max(0, min(top, round(k * math.log10(max(n, 1) / per))))   # noqa: E731
+        return {"adult": sample(p["adults"], 50, 10, WORMS_SHOWN), "young": sample(p["young"], 200, 6, WORMS_SHOWN // 2),
+                "cocoon": sample(p["cocoons"], 100, 5, WORMS_SHOWN // 3)}
+
+    def place_worm(self, kind, i):
+        """Where one shown worm lies: in the bin, in the fed half when one rests."""
+        x0, x1 = self.cfg["wormBin"]["x"]
+        width = self.cfg["world"]["y"][1]
+        y0, y1 = 0.06 * width, 0.94 * width
+        rest = self.box.rest_side
+        if rest is not None:                                          # the halves lie across the bed, as the feeding spots do
+            y0, y1 = (width / 2 + 0.02, y1) if rest == 0 else (y0, width / 2 - 0.02)
+        return [self.worm_rng.uniform(x0 + 0.06 * (x1 - x0), x1 - 0.06 * (x1 - x0)), self.worm_rng.uniform(y0, y1),
+                self.worm_rng.uniform(0.0, 2 * math.pi)]
+
+    def show_worms(self):
+        w = self.cfg["world"]
+        if not self.cfg["wormBin"].get("cols"):
+            return
+        open_ = self.box.lid_open
+        want = self.worm_counts() if open_ else {"adult": 0, "young": 0, "cocoon": 0}
+        z = float(w.get("binSurfaceZ", w.get("boxTopZ", 0.5) - 0.1))
+        looks = {"adult": ("0.55 0.16 0.14", WORM_M, "worm"), "young": ("0.80 0.40 0.38", WORM_M * 0.45, "worm"),
+                 "cocoon": ("0.78 0.62 0.25", COCOON_M, "cocoon")}
+        for kind, n in want.items():
+            have = self.worms_shown.setdefault(kind, [])
+            while len(have) < n:                                      # bring more into view, made once and reused
+                i = len(have)
+                name = f"WORM_{kind.upper()}_{i}"
+                if self.robot.getFromDef(name) is None:
+                    rgb, size, mesh = looks[kind]
+                    url = self.shape_url(mesh)
+                    geom = f'Mesh {{ url [ "{url}" ] }}' if url else f"Capsule {{ radius 0.03 height 0.9 }}"
+                    turn = "" if url else " rotation 0 1 0 1.5708"
+                    self.robot.getRoot().getField("children").importMFNodeFromString(
+                        -1, f"DEF {name} Pose {{ translation 0 0 {WORM_HIDDEN_Z} rotation 0 0 1 0 children [ Transform {{ scale {size:.4f} {size:.4f} {size:.4f}{turn} "
+                            f"children [ Shape {{ appearance PBRAppearance {{ baseColor {rgb} roughness 0.4 metalness 0 }} geometry {geom} }} ] }} ] }}")
+                at = self.place_worm(kind, i)
+                have.append(at)
+                self.move_worm(name, at, z)
+            while len(have) > n:                                      # and out of view again
+                have.pop()
+                self.move_worm(f"WORM_{kind.upper()}_{len(have)}", None, z)
+        # now and then a few of the adults and young turn and crawl a little; not in a cold box
+        if open_ and self.box.core_c > 8.0 and self.worm_rng.random() < 0.3:
+            for kind in ("adult", "young"):
+                for i, at in enumerate(self.worms_shown.get(kind, [])):
+                    if self.worm_rng.random() < 0.3:
+                        step = WORM_M * 0.15 * (1.0 if kind == "adult" else 0.5)
+                        at[2] += self.worm_rng.uniform(-0.6, 0.6)
+                        at[0] += step * math.cos(at[2])
+                        at[1] += step * math.sin(at[2])
+                        x0, x1 = self.cfg["wormBin"]["x"]
+                        if not (x0 + 0.03 < at[0] < x1 - 0.03) or not (0.03 < at[1] < w["y"][1] - 0.03):
+                            at[:] = self.place_worm(kind, i)
+                        self.move_worm(f"WORM_{kind.upper()}_{i}", at, z)
+
+    def move_worm(self, name, at, z):
+        node = self.robot.getFromDef(name)
+        if node is None:
+            return
+        if at is None:
+            node.getField("translation").setSFVec3f([0.0, 0.0, WORM_HIDDEN_Z])
+            return
+        node.getField("translation").setSFVec3f([at[0], at[1], z + 0.002])
+        node.getField("rotation").setSFRotation([0, 0, 1, at[2]])
+
+    def shape_url(self, name):
+        """The shape library's file for `name` (world.py puts the paths in the config), or None."""
+        return (self.cfg.get("shapes") or {}).get(name)
 
     # -- one step --------------------------------------------------------------
 
@@ -460,7 +565,11 @@ class GantryDriver:
             box.lid_open = self.lid_left_open or env.flag("lidOpen")
             if self.has_bin:
                 self.show_box(now["x"])
+                self.show_worms()
                 box.step(dmin, env.air_c(), env.rain_mm_h())      # its liquid collects in the sump; the tap lets it on
+                if self.helper and self.helper_day != env.day:
+                    self.helper_day = env.day
+                    self.daily_care()
             self.pub_bed.publish(String(data=json.dumps({
                 "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
                 "env": env.snapshot(),
