@@ -34,6 +34,7 @@ show progress.
 import argparse
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -409,7 +410,7 @@ def main():
         shutil.rmtree(frames_dir)
     frames_dir.mkdir(parents=True)
 
-    started = time.time()
+    started, parent = time.time(), os.getppid()
     scene = scene_from(cfg, args.frames, args.shot, worms)
     setup_render(scene, args.width, args.height, args.samples)
     print(f"scene {time.time() - started:.1f}s, {worms} worms", flush=True)
@@ -425,6 +426,10 @@ def main():
     scene.cycles.samples = args.samples
     todo = list(range(1, args.frames + 1, step))
     for i, f in enumerate(todo, 1):
+        if os.getppid() != parent:            # whoever started us is gone (the edge restarted): stop, nobody follows us
+            print("the caller is gone: stopped", flush=True)
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            return 3
         scene.frame_set(f)
         scene.render.filepath = str(frames_dir / f"f_{i:04d}.png")
         bpy.ops.render.render(write_still=True)
