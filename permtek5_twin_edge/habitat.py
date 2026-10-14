@@ -324,7 +324,7 @@ def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]
         crop = library.get(c.crop_id)
         cells.append({
             "id": c.id, "row": c.row, "col": c.col, "crop": c.crop_id,
-            "cropName": crop.name() if crop else c.crop_id, "status": c.status, "sownOn": c.sown_on,
+            "cropName": crop.name() if crop else c.crop_id, "cropNames": dict(crop.names) if crop else {}, "status": c.status, "sownOn": c.sown_on,
             "job": sowing_job(h, c, library),
             "waterMlPerDay": water_ml_per_day(crop, bed) if crop else 0,
             "rgb": [round(v, 3) for v in crop_rgb(c.crop_id)],

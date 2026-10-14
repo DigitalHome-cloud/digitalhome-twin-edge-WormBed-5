@@ -25,6 +25,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .i18n import _, current
+
 DRY_BELOW_PCT = 30.0        # a planted cell under this is proposed for watering
 TANK_DEAD_L = 1.0           # under a litre the wick does not reach the water: the tank counts as empty
 PORTION_G = 300             # what one feeding of the worm box carries
@@ -129,12 +131,12 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
     if bed_state and "sim" in bed_state:           # a twin that grows weeds: look for them, and press the small ones under
         stampable = [w for w in (weeds or {}).get("found", []) if w["do"] == "stamp"]
         if stampable:
-            found.append({"id": "stamp", "kind": "stamp", "title": f"Press {len(stampable)} small weed(s) into the soil",
-                          "detail": "with the stamp; they feed soil life where they stood. Places come from the last look over the bed",
+            found.append({"id": "stamp", "kind": "stamp", "title": _("Press {n} small weed(s) into the soil", n=len(stampable)),
+                          "detail": _("with the stamp; they feed soil life where they stood. Places come from the last look over the bed"),
                           "spec": {"kind": "stamp", "places": [[w["x"], w["y"]] for w in stampable][:30]}})
-        found.append({"id": "scan", "kind": "scan", "title": "Look over the bed for weeds",
-                      "detail": "the tool camera, picture by picture: green that is not at a planted point is a weed"
-                                + (f'; last look: {(weeds or {}).get("when")}' if (weeds or {}).get("when") else ""),
+        found.append({"id": "scan", "kind": "scan", "title": _("Look over the bed for weeds"),
+                      "detail": _("the tool camera, picture by picture: green that is not at a planted point is a weed")
+                                + (_("; last look: {when}", when=(weeds or {}).get("when")) if (weeds or {}).get("when") else ""),
                       "spec": {"kind": "scan"}})
     return [p for p in found if p["kind"] not in (holds or [])]
 
@@ -186,24 +188,24 @@ def _box_care(cfg: Dict[str, Any], state: Dict[str, Any], guide: Dict[str, Any],
     due, have = int(guide.get("brownsDue") or 0), int(hopper.get("brownsGrams") or 0)
     if due > 0 and have > 0:
         grams = min(due, have, 500)
-        out.append({"id": "bedding", "kind": "care", "title": f"Add {grams} g of dry bedding to the worm box",
-                    "detail": f"the feeding guide wants one part of browns to three of scraps; {have} g in the bedding compartment",
+        out.append({"id": "bedding", "kind": "care", "title": _("Add {g} g of dry bedding to the worm box", g=grams),
+                    "detail": _("the feeding guide wants one part of browns to three of scraps; {have} g in the bedding compartment", have=have),
                     "spec": {"kind": "care", "what": "bedding", "grams": grams, "spot": spot}})
     if "box-dry" in active:
-        out.append({"id": "moisten", "kind": "care", "title": "Sprinkle half a litre of water over the worm box",
-                    "detail": f'its moisture reads {box.get("moisture")} %; worms stop in a dry box',
+        out.append({"id": "moisten", "kind": "care", "title": _("Sprinkle half a litre of water over the worm box"),
+                    "detail": _("its moisture reads {pct} %; worms stop in a dry box", pct=box.get("moisture")),
                     "spec": {"kind": "care", "what": "moisten", "ml": 500}})
     sump, cap = box.get("sumpL"), box.get("sumpCapacity")
     room = float(tank.get("capacity") or 0) - float(tank.get("litres") or 0)
     if sump is not None and cap and sump >= 0.5 * cap and room >= 1.0:
-        out.append({"id": "tap", "kind": "tap", "title": f"Open the tap: let the sump's {sump:.0f} l into the tank",
-                    "detail": f"the sump is over half full; the tank has room for {room:.0f} l", "spec": {"kind": "tap"}})
+        out.append({"id": "tap", "kind": "tap", "title": _("Open the tap: let the sump's {l} l into the tank", l=f"{sump:.0f}"),
+                    "detail": _("the sump is over half full; the tank has room for {l} l", l=f"{room:.0f}"), "spec": {"kind": "tap"}})
     harvest = box.get("harvest") or {}
     if harvest.get("side") is None and (box.get("weightKg") or 0) >= REST_FROM_KG and "box-full" not in active:
         side = int(harvest.get("nextSide", 1))
-        out.append({"id": "rest", "kind": "rest", "title": "Start a compost harvest: rest one half of the worm box",
-                    "detail": f'no food goes to that half; the worms move to the other, and in about {harvest.get("readyAfterDays", 10):.0f} days '
-                              "its castings are finished and go back to the bed",
+        out.append({"id": "rest", "kind": "rest", "title": _("Start a compost harvest: rest one half of the worm box"),
+                    "detail": _("no food goes to that half; the worms move to the other, and in about {days} days "
+                                "its castings are finished and go back to the bed", days=f'{harvest.get("readyAfterDays", 10):.0f}'),
                     "spec": {"kind": "rest", "side": side}})
     if harvest.get("ready"):
         live = state.get("cells") or {}
@@ -211,8 +213,8 @@ def _box_care(cfg: Dict[str, Any], state: Dict[str, Any], guide: Dict[str, Any],
         cells = [[int(v) for v in k.split("_")] for _, k in growing[:TOPDRESS_CELLS]]
         if cells:
             out.append({"id": "topdress", "kind": "topdress",
-                        "title": f"Top-dress {len(cells)} cells with finished compost, {TOPDRESS_G} g each",
-                        "detail": "from the rested half of the worm box, to the cells that have had least",
+                        "title": _("Top-dress {n} cells with finished compost, {g} g each", n=len(cells), g=TOPDRESS_G),
+                        "detail": _("from the rested half of the worm box, to the cells that have had least"),
                         "spec": {"kind": "topdress", "cells": cells, "grams": TOPDRESS_G}})
     return out
 
@@ -232,18 +234,19 @@ def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],
     grams = min(int(advice["grams"]) if advice else PORTION_G, int(hopper))
     if box.get("cols") and grams > 0:
         spot = next_spot(cfg, state)
-        out.append({"id": "feed", "kind": "feed", "title": f"Feed the worms: {grams} g from the hopper",
-                    "detail": f'spot {spot + 1} of {box.get("spots", 1)} across the box, in rotation; {int(hopper)} g in the hopper'
-                              + (f'. Why this much: {advice["why"]}' if advice else ""),
+        out.append({"id": "feed", "kind": "feed", "title": _("Feed the worms: {g} g from the hopper", g=grams),
+                    "detail": _("spot {spot} of {spots} across the box, in rotation; {g} g in the hopper",
+                                spot=spot + 1, spots=box.get("spots", 1), g=int(hopper))
+                              + (_(". Why this much: {why}", why=advice["why"]) if advice else ""),
                     "spec": {"kind": "feed", "grams": grams, "spot": spot}})
     for c in cfg["cells"]:
         key = f'{c["row"]}_{c["col"]}'
         status = live.get(key, {}).get("status", c["status"])
-        where = f'row {c["row"] + 1}, column {c["col"] + 1}'
+        where = _("row {row}, column {col}", row=c["row"] + 1, col=c["col"] + 1)
         if status == "CellPlanned" and c.get("job"):
             j = c["job"]
-            out.append({"id": f"plant-{key}", "kind": "plant", "title": f'Sow {c["cropName"]} at {where}',
-                        "detail": f'{j["depthMm"]} mm deep, {j["seeds"]} seeds, keep {j["spacingMm"]} mm clear',
+            out.append({"id": f"plant-{key}", "kind": "plant", "title": _("Sow {crop} at {where}", crop=(c.get("cropNames") or {}).get(current()) or c["cropName"], where=where),
+                        "detail": _("{depth} mm deep, {seeds} seeds, keep {spacing} mm clear", depth=j["depthMm"], seeds=j["seeds"], spacing=j["spacingMm"]),
                         "spec": {"kind": "plant", "row": c["row"], "col": c["col"], "crop": c["crop"],
                                  "depthMm": j["depthMm"], "seeds": j["seeds"]}})
         elif status in ("CellSown", "CellGrowing"):
@@ -253,14 +256,14 @@ def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],
                     and not (wicking and status == "CellGrowing")):
                 dry.append([c["row"], c["col"], c["waterMlPerDay"]])
     if dry:
-        out.append({"id": "water", "kind": "water", "title": f"Water {len(dry)} dry cells",
-                    "detail": f"soil under {DRY_BELOW_PCT:.0f} %; {sum(d[2] for d in dry)} ml in all, a day's need each",
+        out.append({"id": "water", "kind": "water", "title": _("Water {n} dry cells", n=len(dry)),
+                    "detail": _("soil under {pct} %; {ml} ml in all, a day's need each", pct=f"{DRY_BELOW_PCT:.0f}", ml=sum(d[2] for d in dry)),
                     "spec": {"kind": "water", "cells": dry}})
     if planted:
-        out.append({"id": "probe", "kind": "probe", "title": f"Probe the soil of {len(planted)} planted cells",
-                    "detail": "moisture and temperature per cell", "spec": {"kind": "probe", "cells": planted}})
-        out.append({"id": "photo", "kind": "photo", "title": f"Photograph {len(planted)} planted cells",
-                    "detail": "one picture per cell, from above", "spec": {"kind": "photo", "cells": planted}})
+        out.append({"id": "probe", "kind": "probe", "title": _("Probe the soil of {n} planted cells", n=len(planted)),
+                    "detail": _("moisture and temperature per cell"), "spec": {"kind": "probe", "cells": planted}})
+        out.append({"id": "photo", "kind": "photo", "title": _("Photograph {n} planted cells", n=len(planted)),
+                    "detail": _("one picture per cell, from above"), "spec": {"kind": "photo", "cells": planted}})
     return out
 
 

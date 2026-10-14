@@ -60,6 +60,9 @@
         <button type="button" class="app-seg__option" data-theme-pick="dark">☾ dark</button>
         <button type="button" class="app-seg__option" data-theme-pick="light">☀ light</button>
       </div>
+      <div class="app-seg" role="group" aria-label="Language" id="lang-seg">
+        {% for l in i18n.langs %}<button type="button" class="app-seg__option" data-lang="{{ l.id }}" title="{{ l.name }}" lang="{{ l.id }}">{{ l.id|upper }}</button>{% endfor %}
+      </div>
       <p class="app-rail__note">A real habitat, its worlds and pictures stay on this PC. © 2026 D-LAB-5 · GPL-3.0</p>
     </div>
   </nav>
@@ -361,6 +364,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script>window.I18N_BOOT = {{ i18n|tojson }};</script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 {#- The edge layer's own panel code (connections, jobs, chat). scripts/edge-wire.py
     appends these two lines after the last block, where a template that

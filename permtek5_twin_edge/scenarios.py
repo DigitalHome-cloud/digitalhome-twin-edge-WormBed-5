@@ -46,6 +46,8 @@ from __future__ import annotations
 import json
 import operator
 import time
+
+from .i18n import _
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -172,8 +174,8 @@ def checks(step: Dict[str, Any], twin, proposals, notices, since: float, kept=No
             ok = v is not None and bool(OPS[e["is"]](v, e["value"]))
         except TypeError:
             ok = False
-        shown = "–" if v is None else (f"{v:.1f}".rstrip("0").rstrip(".") if isinstance(v, float) else str(v).lower() if isinstance(v, bool) else str(v))
-        out.append({"say": e["say"].replace("{v}", shown), "ok": ok})
+        shown = "–" if v is None else (f"{v:.1f}".rstrip("0").rstrip(".") if isinstance(v, float) else (_("yes") if v else _("no")) if isinstance(v, bool) else str(v))
+        out.append({"say": _(e["say"]).replace("{v}", shown), "ok": ok})
     return out
 
 
@@ -254,8 +256,8 @@ def state(twin: Optional[Dict[str, Any]], proposals: List[Dict[str, Any]], notic
     nothing_to_do = step["do"]["type"] == "none"
     busy = (twin.get("job") or {}).get("state") == "running" and not step.get("noWait")
     did = run["did"] or nothing_to_do
-    return {"id": run["id"], "title": s["title"], "about": s["about"], "index": run["index"], "total": len(s["steps"]),
-            "step": {"title": step["title"], "why": step["why"], "label": step["do"].get("label"), "type": step["do"]["type"]},
+    return {"id": run["id"], "title": _(s["title"]), "about": _(s["about"]), "index": run["index"], "total": len(s["steps"]),
+            "step": {"title": _(step["title"]), "why": _(step["why"]), "label": _(step["do"].get("label") or "") or None, "type": step["do"]["type"]},
             "did": did, "checks": found, "busy": busy, "scored": bool(step.get("scored")),
             "ready": did and not busy and all(c["ok"] for c in found),
             "last": run["index"] == len(s["steps"]) - 1}

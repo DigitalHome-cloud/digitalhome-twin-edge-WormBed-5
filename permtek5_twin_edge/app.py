@@ -35,6 +35,8 @@ from . import operator_view
 from . import feeding_guide
 from . import film
 from . import habitat_store as store
+from . import i18n
+from .i18n import _
 from . import instance
 from . import keeper
 from . import scenarios
@@ -55,6 +57,12 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.jinja_env.auto_reload = True
 
 
+@app.before_request
+def _language() -> None:
+    """Every request speaks the person's language: their choice on the page, else their browser's."""
+    i18n.use(i18n.pick(request.cookies.get("lang"), request.headers.get("Accept-Language")))
+
+
 def body() -> dict:
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -66,7 +74,19 @@ def body() -> dict:
 
 @app.get("/")
 def index() -> str:
-    return render_template("index.html")
+    return render_template("index.html", i18n=_i18n_boot())
+
+
+def _i18n_boot() -> dict:
+    """The page's language, the languages there are, and the catalog: in the page, so it draws translated at once."""
+    lang = i18n.current()
+    return {"lang": lang, "langs": [{"id": l, "name": i18n.NAMES[l]} for l in i18n.LANGS], "catalog": i18n.catalog(lang)}
+
+
+@app.get("/api/i18n")
+def i18n_catalog():
+    """The page's language and its catalog (English text -> translation), and the languages there are."""
+    return jsonify(_i18n_boot())
 
 
 @app.get("/how")
@@ -156,7 +176,7 @@ def _follow_guide(cfg, bed, out, kept: dict) -> None:
     elif not last:
         _guide_seen["feedN"] = 0
     mix = hopper.get("mix") or {}
-    load = feeding_guide.check_load(_guide, mix, _diary, now)
+    load = feeding_guide.check_load(_guide, mix, _diary, now, lang=i18n.current())
     sig = json.dumps(mix, sort_keys=True) if mix else None
     if sig is None:
         _guide_seen["load"] = None
@@ -172,16 +192,17 @@ def _follow_guide(cfg, bed, out, kept: dict) -> None:
     spot = engine.next_spot(cfg, bed)
     grams = advice.get("grams") if advice else engine.PORTION_G
     feed = feeding_guide.check_feed(_guide, float(grams or 0), spot, _diary, now, core_c=box.get("tempC"),
-                                    eats_per_day=advice.get("eatsPerDay"), uneaten_g=advice.get("uneatenG"), spots=spots)
+                                    eats_per_day=advice.get("eatsPerDay"), uneaten_g=advice.get("uneatenG"), spots=spots,
+                                    lang=i18n.current())
     if advice and advice.get("grams"):
         advice["grams"] = min(int(advice["grams"]), int(feed.get("maxGrams", advice["grams"])))
     kept["guide"] = {"load": load, "feed": feed, "week": feeding_guide.week_line(_guide, _diary, now),
                      "brownsDue": feeding_guide.browns_due(_guide, float(grams or 0), _diary, now)}
     if not load["ok"]:
-        keeper.add(kept, "guide-load", f'Feeding guide: {load["text"]} Feeding is on hold until the hopper is emptied.', ["feed"], "alert")
+        keeper.add(kept, "guide-load", _("Feeding guide: {text} Feeding is on hold until the hopper is emptied.", text=load["text"]), ["feed"], "alert")
     if not feed["ok"]:
         if feed["rule"] == "browns":                # the person can do something about this one
-            keeper.add(kept, "guide-browns", f'Feeding guide: {feed["text"]} Feeding is on hold; add dry bedding.', ["feed"])
+            keeper.add(kept, "guide-browns", _("Feeding guide: {text} Feeding is on hold; add dry bedding.", text=feed["text"]), ["feed"])
         else:                                       # rest, spot, cold, amount: nothing to do but wait; no notice
             kept["holds"] = sorted(set(kept["holds"]) | {"feed"})
 
@@ -205,9 +226,9 @@ def _follow_weeds(cfg, bed, twin: dict, kept: dict) -> None:
                      "byHand": len(by_hand), "scanned": bool(_weeds["scan"])}
     if by_hand:
         big, close = sum(1 for w in by_hand if w["why"] == "large"), sum(1 for w in by_hand if w["why"] == "close")
-        keeper.add(kept, "weeds", f"{len(by_hand)} weed(s) are for your hands: "
-                   + ", ".join(p for p in (f"{big} too big for the stamp" if big else "", f"{close} too close to a plant" if close else "") if p)
-                   + ". Only weeds without seed and without creeping roots go to the worm box.")
+        keeper.add(kept, "weeds", _("{n} weed(s) are for your hands: ", n=len(by_hand))
+                   + ", ".join(p for p in (_("{n} too big for the stamp", n=big) if big else "", _("{n} too close to a plant", n=close) if close else "") if p)
+                   + _(". Only weeds without seed and without creeping roots go to the worm box."))
 
 
 def _event(event: dict) -> dict:
@@ -219,6 +240,13 @@ def _event(event: dict) -> dict:
     if event.get("op") == "box" and event.get("do") == "bedding":
         _note(engine.workspace(), {"t": _guide_seen["now"], "what": "bedding", "grams": float(event.get("grams", 500))})
     return out
+
+
+def _env_view(env):
+    """The weather for the page, its disturbances named in the person's language."""
+    if not env:
+        return env
+    return {**env, "disturbances": [{**d, "title": _(d.get("title", ""))} for d in env.get("disturbances") or []]}
 
 
 def _twin_state() -> dict:
@@ -251,7 +279,7 @@ def _twin_state() -> dict:
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
             "feeder": kept.get("feeder"), "worms": kept.get("worms"), "guide": kept.get("guide"), "weeds": kept.get("weeds"),
             "care": kept.get("care"),
-            "env": (bed or {}).get("env"),
+            "env": _env_view((bed or {}).get("env")),
             "operator": _operator(bed, kept["active"]),
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"))
@@ -261,7 +289,7 @@ def _twin_state() -> dict:
 def _operator(bed, active) -> dict:
     """The Operator screen: every reading as a tile, judged as the keeper judges it (operator_view.py)."""
     tiles = operator_view.tiles(bed, active)
-    return {"groups": [{"id": g, "title": title} for g, title in operator_view.GROUPS], "tiles": tiles,
+    return {"groups": [{"id": g, "title": _(title)} for g, title in operator_view.GROUPS], "tiles": tiles,
             "count": operator_view.summary(tiles)}
 
 
@@ -280,7 +308,7 @@ def twin_status():
 def twin_prepare():
     """Write the world for a habitat: CityDemo, or Turtle sent in the body."""
     if sim.running():
-        return jsonify({"errors": ["stop the simulation before preparing another world"]}), 409
+        return jsonify({"errors": [_("stop the simulation before preparing another world")]}), 409
     data = body()
     graph = data.get("graph") or None
     try:
@@ -295,7 +323,7 @@ def twin_prepare():
 @app.post("/api/twin/start")
 def twin_start():
     if engine.config() is None:
-        return jsonify({"errors": ["prepare a world first"]}), 400
+        return jsonify({"errors": [_("prepare a world first")]}), 400
     try:
         sim.start(engine.workspace(), gui=bool(body().get("gui")))
     except RuntimeError as exc:
@@ -318,20 +346,20 @@ def twin_job():
     if data.get("proposal"):
         spec = next((p["spec"] for p in _twin_state()["proposals"] if p["id"] == data["proposal"]), None)
         if spec is None:
-            return jsonify({"errors": ["that proposal is no longer current"]}), 409
+            return jsonify({"errors": [_("that proposal is no longer current")]}), 409
     if not isinstance(spec, dict):
         return jsonify({"errors": ["name a proposal or give a job spec"]}), 400
     kept = _twin_state()["keeper"]
     guide = (kept.get("guide") or {}).get("feed") or {}
     if spec.get("kind") == "feed" and guide.get("ok") is False:
-        return jsonify({"errors": [f'Feeding guide: {guide["text"]}']}), 409
+        return jsonify({"errors": [_("Feeding guide: {text}", text=guide["text"])]}), 409
     why_not = keeper.refuses(kept, str(spec.get("kind")))
     if why_not:                                   # a hold or a lockout: the keeper's word stands over a click
         return jsonify({"errors": [why_not]}), 409
     try:
         return jsonify(_run(spec))
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 def _run(spec: dict) -> dict:
@@ -384,7 +412,7 @@ def _follow_care(cfg, bed, twin, out, kept: dict) -> None:
             _care_jobs.pop(job["id"], None)
             if job["state"] == "done":
                 record = maintenance.done(out, task, today)
-    tasks = maintenance.due(_care_guide, record, today, kept.get("active"))
+    tasks = maintenance.due(_care_guide, record, today, kept.get("active"), lang=i18n.current())
     kept["care"] = {"today": today.isoformat(), "tasks": tasks,
                     "due": {"robot": sum(1 for t in tasks if t["due"] and t["who"] == "robot"),
                             "person": sum(1 for t in tasks if t["due"] and t["who"] == "person")}}
@@ -402,7 +430,7 @@ def care_done():
     try:
         return jsonify(_care_done(str(body().get("id") or "")))
     except ValueError as exc:
-        return jsonify({"errors": [str(exc)]}), 400
+        return jsonify({"errors": [_(str(exc))]}), 400
 
 
 @app.post("/api/twin/hopper")
@@ -422,7 +450,7 @@ def twin_hopper():
     except (TypeError, ValueError):
         return jsonify({"errors": ["grams are numbers"]}), 400
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 @app.post("/api/twin/tank")
@@ -436,7 +464,7 @@ def twin_tank():
     except (TypeError, ValueError):
         return jsonify({"errors": ["litres is a number"]}), 400
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 @app.get("/api/twin/guide")
@@ -449,12 +477,14 @@ def twin_guide():
             text = text.replace("{" + key + "}", str(value))
         return text
 
-    return jsonify({"about": g["about"]["en"], "classes": {k: v["en"] for k, v in g["classes"].items()},
-                    "kinds": [{"id": k, "label": v["label"]["en"], "class": v["class"], "weeklySharePct": v.get("weeklySharePct")}
+    l = i18n.current()
+    say = lambda texts: texts.get(l) or texts["en"]       # noqa: E731  the guide carries its own EN, DE and FR
+    return jsonify({"about": say(g["about"]), "classes": {k: say(v) for k, v in g["classes"].items()},
+                    "kinds": [{"id": k, "label": say(v["label"]), "class": v["class"], "weeklySharePct": v.get("weeklySharePct")}
                               for k, v in g["kinds"].items()],
-                    "rules": [x["browns"]["en"], x["amount"]["en"], fill(x["spot"]["en"], g=r["maxGramsPerSpot"]),
-                              fill(x["rest"]["en"], h=r["minHoursBetweenFeedings"]), fill(x["cold"]["en"], c=r["minCoreC"])],
-                    "preparation": [p["en"] for p in g["preparation"]]})
+                    "rules": [say(x["browns"]), say(x["amount"]), fill(say(x["spot"]), g=r["maxGramsPerSpot"]),
+                              fill(say(x["rest"]), h=r["minHoursBetweenFeedings"]), fill(say(x["cold"]), c=r["minCoreC"])],
+                    "preparation": [say(p) for p in g["preparation"]]})
 
 
 BOX_DOES = {"insulate": ("on", bool, True), "bedding": ("grams", float, 500.0), "moisten": ("ml", float, 500.0),
@@ -474,7 +504,7 @@ def twin_box():
     except (TypeError, ValueError):
         return jsonify({"errors": [f"{key} is a number"]}), 400
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 # ----------------------------------------------------------------- chaos ----
@@ -514,9 +544,9 @@ def twin_disturb():
     try:
         _disturb(str(body().get("id") or ""), body().get("minutes"))
     except ValueError as exc:
-        return jsonify({"errors": [str(exc)]}), 400
+        return jsonify({"errors": [_(str(exc))]}), 400
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
     return jsonify({"ok": True})
 
 
@@ -525,7 +555,7 @@ def twin_calm():
     try:
         _calm()
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
     return jsonify({"ok": True})
 
 
@@ -537,7 +567,7 @@ def twin_time():
     except (TypeError, ValueError):
         return jsonify({"errors": ["factor is a number"]}), 400
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 @app.post("/api/twin/chaos")
@@ -548,7 +578,7 @@ def twin_chaos():
     except (TypeError, ValueError):
         return jsonify({"errors": ["rate is a number"]}), 400
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 @app.post("/api/twin/cancel")
@@ -556,7 +586,7 @@ def twin_cancel():
     try:
         return jsonify(sim.gateway("/cancel", {}))
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 @app.post("/api/twin/estop")
@@ -564,7 +594,7 @@ def twin_estop():
     try:
         return jsonify(sim.gateway("/estop", {"on": bool(body().get("on", True))}))
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 # ------------------------------------------------------------- scenarios ----
@@ -578,10 +608,14 @@ def _scenario_view() -> dict:
     cfg = t.get("config")
     twin = t.get("twin") or {}
     return {"running": bool(t["running"] and twin.get("gantry")),
-            "scenarios": [{"id": k, "title": s["title"], "about": s["about"], "steps": len(s["steps"]),
-                           "unavailable": scenarios.available(s, cfg)} for k, s in scenarios.load_all().items()],
+            "scenarios": [{"id": k, "title": _(s["title"]), "about": _(s["about"]), "steps": len(s["steps"]),
+                           "unavailable": _(scenarios.available(s, cfg) or "") or None} for k, s in scenarios.load_all().items()],
             "run": scenarios.state(twin, t["proposals"], t.get("notices") or [], t.get("keeper")),
-            "score": scenarios.last_score()}
+            "score": _translated_score(scenarios.last_score())}
+
+
+def _translated_score(score):
+    return score and {**score, "title": _(score["title"]), "failed": [_(t) for t in score.get("failed", [])]}
 
 
 @app.get("/api/twin/scenarios")
@@ -592,11 +626,11 @@ def scenario_list():
 @app.post("/api/twin/scenario")
 def scenario_start():
     if not sim.running():
-        return jsonify({"errors": ["start the simulation first"]}), 409
+        return jsonify({"errors": [_("start the simulation first")]}), 409
     try:
         fresh = scenarios.start(str(body().get("id") or ""), engine.config()).get("fresh")
     except ValueError as exc:
-        return jsonify({"errors": [str(exc)]}), 400
+        return jsonify({"errors": [_(str(exc))]}), 400
     if fresh:                                     # a scenario about the worm box starts from a settled box and calm weather
         for event in ({"op": "calm"}, {"op": "time", "factor": 1}, {"op": "box", "do": "reset"}):
             sim.gateway("/event", event)
@@ -630,9 +664,9 @@ def scenario_do():
         if "job" in act:
             _run(act["job"])
     except ValueError as exc:
-        return jsonify({"errors": [str(exc)]}), 400
+        return jsonify({"errors": [_(str(exc))]}), 400
     except RuntimeError as exc:
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
     scenarios.mark_done()
     return jsonify(_scenario_view())
 
@@ -642,9 +676,9 @@ def scenario_next():
     view = _scenario_view()
     run = view["run"]
     if run is None:
-        return jsonify({"errors": ["no scenario is running"]}), 409
+        return jsonify({"errors": [_("no scenario is running")]}), 409
     if not run["ready"] and not body().get("skip"):
-        return jsonify({"errors": ["this step is not complete yet"]}), 409
+        return jsonify({"errors": [_("this step is not complete yet")]}), 409
     finished = not scenarios.advance(ok=bool(run["ready"]))
     return jsonify({**_scenario_view(), "finished": finished})
 
@@ -664,7 +698,7 @@ def twin_cloud():
     try:
         return jsonify(cloudsite.discover(request.args.get("site") or "stage"))
     except cloudsite.NotFound as exc:
-        return jsonify({"errors": [str(exc)]}), 404
+        return jsonify({"errors": [_(str(exc))]}), 404
 
 
 # ------------------------------------------------------------------ film ----
@@ -706,7 +740,7 @@ def film_status():
 @app.post("/api/twin/film")
 def film_start():
     if engine.config() is None:
-        return jsonify({"errors": ["prepare a world first: the film shows the prepared bed"]}), 400
+        return jsonify({"errors": [_("prepare a world first: the film shows the prepared bed")]}), 400
     bad = film.missing()
     if bad:
         return jsonify({"errors": bad}), 400
@@ -714,11 +748,11 @@ def film_start():
     if shot not in film.SHOTS or quality not in film.QUALITY:
         return jsonify({"errors": [f"shot is one of {', '.join(film.SHOTS)}; quality one of {', '.join(film.QUALITY)}"]}), 400
     if any(j["kind"] == "film" and j["state"] in ("queued", "running") and j["spec"].get("shot") == shot for j in edge_routes.JOBS.list()):
-        return jsonify({"errors": ["this film is already being rendered or waits its turn"]}), 409
+        return jsonify({"errors": [_("this film is already being rendered or waits its turn")]}), 409
     try:
         return jsonify(edge_routes.JOBS.submit("film", {"shot": shot, "quality": quality, "adults": _adults()})), 202
     except Exception as exc:                      # the same film is already queued or running
-        return jsonify({"errors": [str(exc)]}), 409
+        return jsonify({"errors": [_(str(exc))]}), 409
 
 
 @app.get("/api/twin/film/<name>")

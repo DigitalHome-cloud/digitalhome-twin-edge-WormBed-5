@@ -47,6 +47,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .i18n import _
+
 FROST_AIR_ON, FROST_AIR_OFF = 1.0, 3.0
 FROST_BOX_ON, FROST_BOX_OFF = 5.0, 7.0
 HEAT_BOX_ON, HEAT_BOX_OFF = 30.0, 28.0
@@ -189,9 +191,9 @@ def evaluate(bed: Optional[Dict[str, Any]], memory: Dict[str, Any], offline: boo
         active.append("offline")
 
     holds = sorted({kind for rule in active for kind in HOLDS.get(rule, [])})
-    lockout = next((TEXT[rule] for rule in active if rule in LOCKS), None)
+    lockout = next((_(TEXT[rule]) for rule in active if rule in LOCKS), None)
     return {"active": active, "holds": holds, "lockout": lockout,
-            "notices": [{"id": r, "text": TEXT[r], "level": "alert" if r in ALERTS else "note"} for r in active]}
+            "notices": [{"id": r, "text": _(TEXT[r]), "level": "alert" if r in ALERTS else "note"} for r in active]}
 
 
 def population(result: Dict[str, Any], memory: Dict[str, Any], est: Optional[Dict[str, Any]]) -> None:
@@ -201,10 +203,10 @@ def population(result: Dict[str, Any], memory: Dict[str, Any], est: Optional[Dic
         return
     dense = est.get("kgPerM2")
     if dense is not None and _switch(memory, "crowded", dense >= CROWDED_ON, dense <= CROWDED_OFF):
-        add(result, "crowded", TEXT["crowded"].format(kg=f"{dense:.1f}"))
+        add(result, "crowded", _(TEXT["crowded"], kg=f"{dense:.1f}"))
     fall = est.get("fallPct")
     if fall is not None and fall >= DYING_ON:
-        add(result, "dying-back", TEXT["dying-back"].format(pct=fall), level="alert")
+        add(result, "dying-back", _(TEXT["dying-back"], pct=fall), level="alert")
 
 
 def refuses(result: Dict[str, Any], kind: str) -> Optional[str]:
@@ -213,8 +215,8 @@ def refuses(result: Dict[str, Any], kind: str) -> Optional[str]:
         return result["lockout"]
     if kind in result.get("holds", []):
         rule = next((r for r in result["active"] if kind in HOLDS.get(r, [])), None)
-        return TEXT[rule] if rule else next((n["text"] for n in result["notices"] if kind in n.get("holds", [])),
-                                            f"Jobs of the kind '{kind}' are on hold.")
+        return _(TEXT[rule]) if rule else next((n["text"] for n in result["notices"] if kind in n.get("holds", [])),
+                                               _("Jobs of the kind '{kind}' are on hold.", kind=kind))
     return None
 
 

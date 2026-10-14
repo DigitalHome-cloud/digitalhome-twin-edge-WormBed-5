@@ -4,6 +4,10 @@
 
 The edge twin of one PermTek-5 **WormBed-5** guild (package and commands: `permtek5-twin-edge`).
 
+In English, German and French (the switch is at the foot of the menu). Every text is in
+`permtek5_twin_edge/i18n/de.json` and `fr.json`, keyed by its English; `scripts/i18n-check.py` lists what a
+catalog lacks, and the tests fail until both are complete.
+
 A local app that turns a [PermTek-5](https://github.com/DigitalHome-cloud/digitalhome-cloud-PermTek-5)
 habitat into a **Webots twin** of its roof bed and gantry robot, runs it over
 **ROS 2**, and shows the **robot's views** while it works. It is an edge of

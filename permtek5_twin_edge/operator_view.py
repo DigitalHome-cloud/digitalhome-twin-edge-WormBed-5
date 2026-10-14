@@ -24,8 +24,15 @@ from typing import Any, Dict, List, Optional
 
 from . import keeper
 from .engine import DRY_BELOW_PCT
+from .i18n import _
 
 GROUPS = [("bed", "Bed"), ("box", "Worm box"), ("feeding", "Feeding"), ("weather", "Weather")]
+# a keeper's rule as a tile names it, in a few words
+RULES = {"sensor": "no trustworthy reading", "frost": "frost", "heat": "heat", "storm": "storm", "overflow": "overflow",
+         "tank-low": "tank low", "tank-empty": "tank empty", "tank-falling": "tank falling", "overfed": "overfed",
+         "airless": "airless", "sump-full": "sump full", "sour": "sour", "box-wet": "box wet", "box-dry": "box dry",
+         "lid": "lid open", "hopper-jam": "hopper jammed", "box-full": "box full", "guide-load": "refused load",
+         "guide-browns": "bedding due"}
 
 # how close to a keeper's threshold counts as "watch" (rules of thumb)
 NEAR_C = 2.0          # °C, air and box
@@ -49,9 +56,13 @@ def _tile(group: str, key: str, label: str, value: Any, unit: str = "", rules: O
     shown = round(value, digits) if isinstance(value, (int, float)) and not isinstance(value, bool) else value
     if digits == 0 and isinstance(shown, float):
         shown = int(shown)
-    out = {"group": group, "key": key, "label": label, "value": shown, "unit": unit, **_state(value, rules or [], active or [], near)}
+    if isinstance(shown, str):
+        shown = _(shown)
+    out = {"group": group, "key": key, "label": _(label), "value": shown, "unit": _(unit), **_state(value, rules or [], active or [], near)}
     if hint and out["state"] != "ok":
-        out["hint"] = hint
+        out["hint"] = _(hint)
+    # in a few words, why it stands as it does: the hint, else the keeper's rule, else how close it is
+    out["why"] = out.get("hint") or (_(RULES.get(out["rule"], out["rule"])) if out["rule"] else _("close to a limit") if out["state"] == "watch" else "")
     return out
 
 
@@ -168,11 +179,14 @@ SENSORS: Dict[str, Dict[str, Any]] = {
 
 
 def sensor(key: str) -> Optional[Dict[str, Any]]:
-    """What stands behind a tile: {"sensor", "where", "method", "every", "limits", "twin"}, or None."""
+    """What stands behind a tile: {"sensor", "where", "method", "every", "limits", "twin"}, or None. In the
+    current language: the limits are written out with the keeper's numbers, and the English text is the key."""
     info = SENSORS.get(key)
     if info and "same" in info:
         info = SENSORS[info["same"]]
-    return info
+    if not info:
+        return None
+    return {k: [_(x) for x in v] if isinstance(v, list) else _(v) for k, v in info.items()}
 
 
 def tiles(bed: Optional[Dict[str, Any]], active: Optional[List[str]] = None) -> List[Dict[str, Any]]:
@@ -195,7 +209,7 @@ def tiles(bed: Optional[Dict[str, Any]], active: Optional[List[str]] = None) -> 
         out.append(_tile("bed", "soilTempC", "soil temperature", bed["soilTempC"], "°C", digits=1))
     if tank.get("capacity"):
         pct = 100.0 * tank.get("litres", 0.0) / tank["capacity"]
-        out.append(_tile("bed", "tank", "tank", tank.get("litres"), f"of {tank['capacity']:.0f} l",
+        out.append(_tile("bed", "tank", "tank", tank.get("litres"), _("of {n} l", n=f"{tank['capacity']:.0f}"),
                          ["tank-empty", "tank-falling", "overflow", "tank-low"], act, near=pct < NEAR_TANK * keeper.TANK_LOW_PCT))
 
     # the worm box: its sensors, and what a person sees at it
@@ -214,7 +228,7 @@ def tiles(bed: Optional[Dict[str, Any]], active: Optional[List[str]] = None) -> 
         out.append(_tile("box", "gas", "gas", gas, "0 fresh … 100", ["airless", "sensor"], act, gas is not None and gas >= NEAR_SHARE * keeper.GAS_ON))
         out.append(_tile("box", "weightKg", "weight", box.get("weightKg"), "kg", ["sensor"], act, digits=2))
         sump, cap = box.get("sumpL"), box.get("sumpCapacity")
-        out.append(_tile("box", "sumpL", "sump", sump, f"of {cap} l" if cap else "l", ["sump-full", "sensor"], act,
+        out.append(_tile("box", "sumpL", "sump", sump, _("of {n} l", n=cap) if cap else "l", ["sump-full", "sensor"], act,
                          sump is not None and bool(cap) and sump >= NEAR_SHARE * keeper.SUMP_ON * cap, 1))
         if isinstance(box.get("fillPct"), (int, float)):
             out.append(_tile("box", "fillPct", "full", box["fillPct"], "%", ["box-full"], act, box["fillPct"] >= keeper.BOX_FULL_PCT - 10))
@@ -229,7 +243,7 @@ def tiles(bed: Optional[Dict[str, Any]], active: Optional[List[str]] = None) -> 
         if "brownsGrams" in hopper:
             out.append(_tile("feeding", "browns", "hopper, dry bedding", hopper.get("brownsGrams", 0), "g", ["guide-browns"], act))
     if box and "fedGrams" in box:
-        out.append(_tile("feeding", "fed", "fed so far", box["fedGrams"], f"g in {box.get('feedings', 0)} portion(s)"))
+        out.append(_tile("feeding", "fed", "fed so far", box["fedGrams"], _("g in {n} portion(s)", n=box.get('feedings', 0))))
 
     # the weather at the guild
     if "airC" in env:

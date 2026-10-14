@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .edge.jobs import Stopped
+from .i18n import _
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "assets" / "demo.py"
@@ -65,8 +66,8 @@ def status(out: Path) -> Dict[str, Any]:
     def info(name: str) -> Optional[Dict[str, Any]]:
         p = Path(out) / name
         return {"name": name, "modified": p.stat().st_mtime, "bytes": p.stat().st_size} if p.exists() else None
-    shots = [{"id": k, "title": v, **{kind: info(name) for kind, name in files(k).items()}} for k, v in SHOTS.items()]
-    return {"missing": missing(), "shots": shots, "quality": QUALITY}
+    shots = [{"id": k, "title": _(v), **{kind: info(name) for kind, name in files(k).items()}} for k, v in SHOTS.items()]
+    return {"missing": [_(m) for m in missing()], "shots": shots, "quality": {k: _(v) for k, v in QUALITY.items()}}
 
 
 def render(bed: Path, out: Path, shot: str, quality: str, progress: Callable[[str, float], None],

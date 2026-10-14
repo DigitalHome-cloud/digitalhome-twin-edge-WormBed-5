@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from .i18n import _
+
 LOSS_PER_G_EATEN = 0.6
 SAMPLE_EVERY_MIN = 10.0
 FIT_MIN, MIN_SPAN_MIN, MIN_SAMPLES = 1440.0, 360.0, 4
@@ -98,7 +100,7 @@ def advise(memory: Dict[str, Any], bed: Optional[Dict[str, Any]]) -> Dict[str, A
     hopper = int(((bed or {}).get("hopper") or {}).get("grams") or 0)
     if box.get("weightKg") is None or box.get("tempC") is None:
         return {"state": "blind", "grams": 0, "eatsPerDay": None, "uneatenG": None, "hours": 0,
-                "why": "no weight or temperature reading: nothing to go by"}
+                "why": _("no weight or temperature reading: nothing to go by")}
     samples = memory.get("samples") or []
     hours = round((samples[-1][0] - samples[0][0]) / 60.0, 1) if samples else 0
     loss = _fit(samples)
@@ -115,7 +117,7 @@ def advise(memory: Dict[str, Any], bed: Optional[Dict[str, Any]]) -> Dict[str, A
         given = float(box.get("fedGrams") or 0) - (samples[0][2] if samples else 0.0)
         grams = int(max(0.0, min(LEARNING_G, hopper, LEARNING_MAX_G - given)))
         return {"state": "learning", "grams": grams, "eatsPerDay": None, "uneatenG": None, "hours": hours,
-                "why": f"learning: {hours} h of weight readings so far, six are needed. Until then small portions only, {LEARNING_MAX_G} g in all"}
+                "why": _("learning: {h} h of weight readings so far, six are needed. Until then small portions only, {g} g in all", h=hours, g=LEARNING_MAX_G)}
     per_day = max(r[1] for r in rates) * temp_factor(box["tempC"])
     # what was fed since the anchor, minus what the weight says was eaten since
     # (the fed total is read now, not from the last sample: a portion just dropped must count at once)
@@ -131,8 +133,8 @@ def advise(memory: Dict[str, Any], bed: Optional[Dict[str, Any]]) -> Dict[str, A
     grams = int(max(0.0, min(want, MAX_G, hopper)) // STEP_G * STEP_G)
     if want >= STEP_G and uneaten == 0 and grams < min(LEARNING_G, hopper):
         grams = min(LEARNING_G, hopper)
-    why = (f"the box gets lighter by about {per_day * LOSS_PER_G_EATEN:.0f} g a day, so the worms eat about {per_day:.0f} g a day "
-           f"at {box['tempC']:.0f} °C; about {uneaten:.0f} g still lie uneaten")
+    why = _("the box gets lighter by about {lost} g a day, so the worms eat about {eat} g a day at {c} °C; about {left} g still lie uneaten",
+            lost=f"{per_day * LOSS_PER_G_EATEN:.0f}", eat=f"{per_day:.0f}", c=f"{box['tempC']:.0f}", left=f"{uneaten:.0f}")
     return {"state": "known", "grams": grams, "eatsPerDay": round(per_day), "bestPerDay": round(max(r[1] for r in rates)),
             "uneatenG": round(uneaten), "hours": hours, "why": why}
 

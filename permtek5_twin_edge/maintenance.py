@@ -56,7 +56,8 @@ def _season_start(months: List[int], today: dt.date) -> Optional[dt.date]:
     return dt.date(year, first, 1)
 
 
-def due(guide: Dict[str, Any], record: Dict[str, Any], today: Any, active: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+def due(guide: Dict[str, Any], record: Dict[str, Any], today: Any, active: Optional[List[str]] = None,
+        lang: str = "en") -> List[Dict[str, Any]]:
     """Every task with whether it is due today: {"id", "who", "due", "reason", "nextOn", "overdueDays", "job"}.
     reason: never | rhythm | season | brought (a keeper's reaction in `active`), or None."""
     now, active = _day(today), active or []
@@ -79,7 +80,7 @@ def due(guide: Dict[str, Any], record: Dict[str, Any], today: Any, active: Optio
         if not reason and any(r in active for r in t.get("bringForwardOn") or []) and (not last or (now - last).days >= 1):
             reason = "brought"
         out.append({"id": t["id"], "who": t["who"], "due": reason is not None, "reason": reason, "nextOn": next_on,
-                    "overdueDays": overdue, "job": t.get("job"), "label": t["label"].get("en"), "why": t["why"].get("en")})
+                    "overdueDays": overdue, "job": t.get("job"), "label": t["label"].get(lang) or t["label"].get("en"), "why": t["why"].get(lang) or t["why"].get("en")})
     return out
 
 

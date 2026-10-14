@@ -415,3 +415,11 @@ button.op-tile:focus-visible { outline: 2px solid var(--app-accent); outline-off
 .film-card h3 { margin-top: 0; }
 .film-card .film { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--app-radius-sm); background: var(--app-bg-sunken); display: block; }
 .film--none { display: grid !important; place-items: center; color: var(--app-text-muted); font-size: 0.875rem; }
+/* the language switch: three, under the theme's two */
+#lang-seg { grid-template-columns: repeat(3, 1fr); margin-top: var(--app-space-2); }
+/* a reading that is a word ("geschlossen", "emballé") rather than a number: smaller, hyphenated, never cut */
+.op-value--word { font-size: 1.15rem; overflow-wrap: normal; hyphens: auto; }
+/* longer words in German and French: the rail's two buttons share the width, and the rail never scrolls sideways */
+.app-rail { overflow-x: hidden; }
+.rail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--app-space-2); }
+.rail-actions .app-linkbutton { white-space: normal; text-align: center; }

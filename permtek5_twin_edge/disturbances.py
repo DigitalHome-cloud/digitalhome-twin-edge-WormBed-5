@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from .i18n import _
+
 CATALOGUE: Dict[str, Dict[str, Any]] = {
     "cold-snap": {"title": "Cold snap", "about": "The air drops far below freezing within hours.",
                   "effect": {"airOffsetC": -22.0}, "minutes": 600, "owes": ["frost"]},
@@ -73,4 +75,4 @@ def chaos_event(rate_per_day: float) -> Dict[str, Any]:
 
 
 def listing() -> List[Dict[str, Any]]:
-    return [{"id": k, "title": d["title"], "about": d["about"], "owes": d["owes"]} for k, d in CATALOGUE.items()]
+    return [{"id": k, "title": _(d["title"]), "about": _(d["about"]), "owes": d["owes"]} for k, d in CATALOGUE.items()]

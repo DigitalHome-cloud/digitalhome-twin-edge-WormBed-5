@@ -14,6 +14,52 @@ const S = { running: false, streams: false, bedKey: "", busy: false, tab: "", la
 
 const say = (err) => core.toast((err.errors || [String(err)]).join("; "), true);
 
+/* The page in the person's language (i18n.py): the English text is the key, `{name}` a value filled in. */
+const I18N = { lang: "en", catalog: {} };
+function tr(text, values) {
+  let out = (text && I18N.catalog[text]) || text || "";
+  if (values) for (const [k, v] of Object.entries(values)) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+const job_ = (word) => tr(String(word || ""));         // a job's kind or state, as the robot names it
+Object.assign(I18N, window.I18N_BOOT || {});
+
+// The page's own text and the template's: every text node and title, label and alt that is exactly an English
+// text in the catalog. Whitespace inside is folded, as the catalog keys are.
+const I18N_ATTRS = ["title", "aria-label", "alt", "placeholder"];
+function translateDom(root) {
+  if (I18N.lang === "en" || !root) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const key = n.nodeValue.replace(/\s+/g, " ").trim();
+    if (key && I18N.catalog[key]) n.nodeValue = n.nodeValue.replace(/\S[\s\S]*\S|\S/, I18N.catalog[key]);
+  }
+  const els = root.querySelectorAll ? [root, ...root.querySelectorAll("[title],[aria-label],[alt],[placeholder]")] : [];
+  for (const el of els) for (const a of I18N_ATTRS) {
+    const v = el.getAttribute && el.getAttribute(a);
+    if (v && I18N.catalog[v.trim()]) el.setAttribute(a, I18N.catalog[v.trim()]);
+  }
+}
+document.documentElement.lang = I18N.lang;
+translateDom(document.body);
+new MutationObserver((changes) => {
+  for (const c of changes) {
+    const el = c.target.nodeType === 1 ? c.target : c.target.parentElement;
+    if (el && el.closest("#core-dialog, #core-toast, #edge-connections, #edge-chat")) translateDom(el);
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
+// The language switch: a cookie the server reads too, then the page again in that language.
+document.querySelectorAll("#lang-seg [data-lang]").forEach((b) => {
+  const on = b.dataset.lang === I18N.lang;
+  b.classList.toggle("app-seg__option--on", on);
+  b.setAttribute("aria-pressed", String(on));
+  b.addEventListener("click", () => {
+    document.cookie = `lang=${b.dataset.lang}; path=/; max-age=31536000; samesite=lax`;
+    location.reload();
+  });
+});
+
 async function post(path, body) {
   try { return await core.api("POST", path, body || {}); }
   catch (err) { say(err); return null; }
@@ -42,7 +88,7 @@ function views(on) {
 
 function drawBed(t) {
   const cfg = t.config, el = $("#bed");
-  if (!cfg) { el.innerHTML = ""; S.bedKey = ""; $("#bed-title").textContent = "Bed"; return; }
+  if (!cfg) { el.innerHTML = ""; S.bedKey = ""; $("#bed-title").textContent = tr("Bed"); return; }
   const b = cfg.bed, key = `${b.id}|${b.rows}|${b.cols}`;
   $("#bed-title").textContent = b.name;
   if (key !== S.bedKey) {
@@ -61,21 +107,22 @@ function drawBed(t) {
   for (const w of (t.weeds && t.weeds.found) || []) (weeds[`${Math.floor(w.y / cell)}_${Math.floor(w.x / cell)}`] ||= []).push(w);
   const wl = t.weeds, sim = t.twin && t.twin.bed && t.twin.bed.sim;
   $("#weeds-line").textContent = !wl ? "" : (wl.scanned
-    ? `Weeds, last look (${wl.when}): ${wl.small} small ones to stamp, ${wl.byHand} for your hands.`
-    : "Weeds: the bed has not been looked over yet.")
-    + (sim ? ` Simulation only: ${sim.weeds} really stand in the bed, ${sim.weedsLarge} of them big.` : "");
+    ? tr("Weeds, last look ({when}): {small} small ones to stamp, {hand} for your hands.", { when: wl.when, small: wl.small, hand: wl.byHand })
+    : tr("Weeds: the bed has not been looked over yet."))
+    + (sim ? " " + tr("Simulation only: {n} really stand in the bed, {big} of them big.", { n: sim.weeds, big: sim.weedsLarge }) : "");
   el.querySelectorAll(".cell").forEach((n) => {
     const k = n.dataset.k, c = planned[k], l = live[k];
     const status = (l && l.status) || (c && c.status) || "";
     const inBin = Number(k.split("_")[1]) >= binFrom;
     n.className = "cell" + (inBin ? " bin" : status ? " " + status.replace("Cell", "").toLowerCase() : "") + (k === headKey ? " head" : "")
       + (weeds[k] ? " weed" : "");
-    if (inBin) { n.style.background = ""; n.title = "worm box"; return; }
+    if (inBin) { n.style.background = ""; n.title = tr("worm box"); return; }
     n.style.background = status === "CellGrowing" || status === "CellSown" ? rgb(c && c.rgb) || "var(--accent)" : "";
     const [r, col] = k.split("_").map(Number);
-    n.title = `row ${r + 1}, column ${col + 1}` + (c ? ` · ${c.cropName}` : "") + (status ? ` · ${status.replace("Cell", "").toLowerCase()}` : "")
-      + (l && l.moisture !== undefined ? ` · soil ${l.moisture} %` : "")
-      + (weeds[k] ? ` · weed ${weeds[k].map((w) => `${w.sizeMm} mm, ${w.do === "stamp" ? "to stamp" : "by hand"}`).join("; ")}` : "");
+    n.title = tr("row {row}, column {col}", { row: r + 1, col: col + 1 }) + (c ? ` · ${(c.cropNames && c.cropNames[I18N.lang]) || c.cropName}` : "")
+      + (status ? ` · ${tr(status.replace("Cell", "").toLowerCase())}` : "")
+      + (l && l.moisture !== undefined ? " · " + tr("soil {pct} %", { pct: l.moisture }) : "")
+      + (weeds[k] ? " · " + tr("weed") + " " + weeds[k].map((w) => `${w.sizeMm} mm, ${w.do === "stamp" ? tr("to stamp") : tr("by hand")}`).join("; ") : "");
   });
 }
 
@@ -83,10 +130,10 @@ function drawJobs(t) {
   const job = t.twin && t.twin.job;
   S.busy = !!(job && job.state === "running");
   $("#job").innerHTML = job
-    ? `<strong>${core.esc(job.kind)}</strong> · ${core.esc(job.state)}${job.feedback ? " · " + core.esc(job.feedback) : ""}`
-      + (job.message ? `<br>${core.esc(job.message)}` : "")
-      + (S.busy ? ' <button id="btn-cancel">Cancel</button>' : "")
-    : "none";
+    ? `<strong>${core.esc(job_(job.kind))}</strong> · ${core.esc(job_(job.state))}${job.feedback ? " · " + core.esc(job.feedback) : ""}`
+      + (job.message ? `<br>${core.esc(tr(job.message))}` : "")
+      + (S.busy ? ` <button id="btn-cancel">${core.esc(tr("Cancel"))}</button>` : "")
+    : core.esc(tr("none"));
   const cancel = $("#btn-cancel");
   if (cancel) cancel.addEventListener("click", () => post("/api/twin/cancel"));
 
@@ -94,21 +141,21 @@ function drawJobs(t) {
   $("#proposals").innerHTML = list.length ? list.map((p) => `
     <div class="proposal">
       <div><strong>${core.esc(p.title)}</strong><br><span class="note">${core.esc(p.detail)}</span></div>
-      <button data-id="${core.esc(p.id)}" ${t.running && t.twin && !S.busy ? "" : "disabled"}>Confirm</button>
-    </div>`).join("") : '<p class="note">nothing to propose</p>';
+      <button data-id="${core.esc(p.id)}" ${t.running && t.twin && !S.busy ? "" : "disabled"}>${core.esc(tr("Confirm"))}</button>
+    </div>`).join("") : `<p class="note">${core.esc(tr("nothing to propose"))}</p>`;
   $("#proposals").querySelectorAll("button").forEach((b) =>
     b.addEventListener("click", async () => { b.disabled = true; await post("/api/twin/job", { proposal: b.dataset.id }); refresh(); }));
 
   const hist = ((t.twin && t.twin.history) || []).slice().reverse();
   $("#history").innerHTML = hist.length ? hist.map((j) => {
     const r = j.result || {};
-    const what = r.moisture ? `soil ${r.moisture.join(", ")} %` : r.givenMl ? `${r.givenMl.reduce((a, b) => a + b, 0)} ml`
-      : r.weeds ? `${r.weeds.length} weeds in ${r.pictures} pictures` : r.stamped !== undefined ? `${r.stamped} stamped`
-      : r.grams ? `${r.grams} g` : r.givenG ? `${r.givenG.reduce((a, b) => a + b, 0)} g of compost`
-      : r.photos ? `${r.photos.length} pictures` : "";
-    return `<div class="${j.state === "done" ? "" : "bad"}">${core.esc(j.kind)} · ${core.esc(j.state)}`
-      + `${j.message ? " · " + core.esc(j.message) : ""}${what ? " · " + core.esc(what) : ""}</div>`;
-  }).join("") : "nothing yet";
+    const what = r.moisture ? tr("soil {pct} %", { pct: r.moisture.join(", ") }) : r.givenMl ? `${r.givenMl.reduce((a, b) => a + b, 0)} ml`
+      : r.weeds ? tr("{n} weeds in {p} pictures", { n: r.weeds.length, p: r.pictures }) : r.stamped !== undefined ? tr("{n} stamped", { n: r.stamped })
+      : r.grams ? `${r.grams} g` : r.givenG ? tr("{g} g of compost", { g: r.givenG.reduce((a, b) => a + b, 0) })
+      : r.photos ? tr("{n} pictures", { n: r.photos.length }) : "";
+    return `<div class="${j.state === "done" ? "" : "bad"}">${core.esc(job_(j.kind))} · ${core.esc(job_(j.state))}`
+      + `${j.message ? " · " + core.esc(tr(j.message)) : ""}${what ? " · " + core.esc(what) : ""}</div>`;
+  }).join("") : core.esc(tr("nothing yet"));
 }
 
 function stats(t) {
@@ -120,27 +167,27 @@ function stats(t) {
   }
   const driest = cells ? Math.min(...Object.values(cells).filter((c) => c.status !== "CellPlanned").map((c) => c.moisture)) : null;
   const g = t.twin && t.twin.gantry;
-  const rows = !t.prepared ? [["–", "bed"]] : [
-    [`${t.bed.lengthCm} × ${t.bed.widthCm}`, "bed, cm"],
-    [`${t.bed.rows} × ${t.bed.cols}`, "rows × columns"],
-    [by.CellPlanned || 0, "planned"],
-    [by.CellSown || 0, "sown"],
-    [by.CellGrowing || 0, "growing"],
-    [driest === null || !isFinite(driest) ? "–" : `${driest.toFixed(0)} %`, "driest soil"],
-    [g ? `${(g.x * 1000).toFixed(0)} · ${(g.y * 1000).toFixed(0)}` : "–", "tool x · y, mm"],
+  const rows = !t.prepared ? [["–", tr("bed")]] : [
+    [`${t.bed.lengthCm} × ${t.bed.widthCm}`, tr("bed, cm")],
+    [`${t.bed.rows} × ${t.bed.cols}`, tr("rows × columns")],
+    [by.CellPlanned || 0, tr("planned")],
+    [by.CellSown || 0, tr("sown")],
+    [by.CellGrowing || 0, tr("growing")],
+    [driest === null || !isFinite(driest) ? "–" : `${driest.toFixed(0)} %`, tr("driest soil")],
+    [g ? `${(g.x * 1000).toFixed(0)} · ${(g.y * 1000).toFixed(0)}` : "–", tr("tool x · y, mm")],
   ];
   // the bed as a system: the tank under it and the worm box at its end, when it has them
   const bedState = (t.twin && t.twin.bed) || {};
   if (t.prepared && t.bed.tankLitres) {
     const tank = bedState.tank;
-    rows.push([tank ? `${tank.litres.toFixed(0)} / ${tank.capacity.toFixed(0)} l` : `${t.bed.tankLitres} l`, "tank"]);
+    rows.push([tank ? `${tank.litres.toFixed(0)} / ${tank.capacity.toFixed(0)} l` : `${t.bed.tankLitres} l`, tr("tank")]);
   }
   if (t.prepared && t.bed.wormBinCm) {
     const box = bedState.wormBin, hopper = bedState.hopper;
     // a dead probe gives no reading: say so instead of showing a number
-    const temp = box && typeof box.tempC === "number" ? `${box.tempC.toFixed(0)} °C` : "no reading";
-    rows.push([box ? `${temp} · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, "worm box"]);
-    if (hopper) rows.push([`${hopper.grams} g${hopper.brownsGrams ? ` · ${hopper.brownsGrams} g` : ""}`, hopper.brownsGrams ? "hopper: scraps · bedding" : "hopper"]);
+    const temp = box && typeof box.tempC === "number" ? `${box.tempC.toFixed(0)} °C` : tr("no reading");
+    rows.push([box ? `${temp} · ${box.moisture.toFixed(0)} %` : `${t.bed.wormBinCm} cm`, tr("worm box")]);
+    if (hopper) rows.push([`${hopper.grams} g${hopper.brownsGrams ? ` · ${hopper.brownsGrams} g` : ""}`, hopper.brownsGrams ? tr("hopper: scraps · bedding") : tr("hopper")]);
   }
   $("#overview").innerHTML = rows.map(([v, k]) => `<div class="app-stat"><dt>${core.esc(String(v))}</dt><dd>${core.esc(k)}</dd></div>`).join("");
 }
@@ -152,31 +199,31 @@ function draw(t) {
   const stopped = !!(t.twin && t.twin.bed && t.twin.bed.stopped);
   S.busy = !!(t.twin && t.twin.job && t.twin.job.state === "running");
   const hero = $("#twin-status");
-  hero.textContent = !t.prepared ? "Prepare a world from the habitat."
+  hero.textContent = tr(!t.prepared ? "Prepare a world from the habitat."
     : !t.running ? "The world is ready. Start the simulation."
     : !ready ? "Starting Webots and the gantry…"
     : stopped ? "E-stop: the gantry holds its position."
-    : S.busy ? "The gantry is working." : "The gantry waits for a job you confirm.";
+    : S.busy ? "The gantry is working." : "The gantry waits for a job you confirm.");
   hero.className = "app-hero__title edge-hero__title " + (stopped ? "hero--next" : !t.prepared || !t.running ? "hero--next" : S.busy || !ready ? "hero--working" : "hero--done");
   // one edge runs one Perma5Guild: its name, its type (WormBed5) and its robot (Gantry5-gen1)
   const guild = t.guild;
-  $("#hero-eyebrow").textContent = (guild ? `${guild.name} · ${guild.type} · ${guild.robotName}` : "Roof-bed twin")
-    + ` · ${t.source === "citydemo" ? "CityDemo (invented)" : t.source}${t.meshes ? " · Blender meshes" : ""}`;
-  $("#shell-meta").textContent = t.prepared ? `${guild ? "Perma5Guild · " : ""}${t.bed.name} · ${t.cells} planted cells` : "";
+  $("#hero-eyebrow").textContent = (guild ? `${guild.name} · ${guild.type} · ${guild.robotName}` : tr("Roof-bed twin"))
+    + ` · ${t.source === "citydemo" ? tr("CityDemo (invented)") : t.source}${t.meshes ? " · " + tr("Blender meshes") : ""}`;
+  $("#shell-meta").textContent = t.prepared ? `${guild ? "Perma5Guild · " : ""}${t.bed.name} · ${tr("{n} planted cells", { n: t.cells })}` : "";
   $("#badge-sim").hidden = !ready;
   $("#badge-estop").hidden = !stopped;
   const miss = $("#twin-missing");
   miss.hidden = !t.missing.length;
-  miss.innerHTML = t.missing.map((m) => `<li>${core.esc(m)}</li>`).join("");
+  miss.innerHTML = t.missing.map((m) => `<li>${core.esc(tr(m))}</li>`).join("");
   if (!t.running && t.exit !== undefined && t.exit !== 0 && t.log) {
     miss.hidden = false;
-    miss.innerHTML += `<li>the simulation ended (exit ${t.exit}): <code>${core.esc(t.log.slice(-3).join(" | "))}</code></li>`;
+    miss.innerHTML += `<li>${core.esc(tr("the simulation ended (exit {code}):", { code: t.exit }))} <code>${core.esc(t.log.slice(-3).join(" | "))}</code></li>`;
   }
   drawAttention(t);
   const assumed = $("#twin-assumed");               // parts a WormBed5 guild has that the map does not show yet
   assumed.hidden = !(t.assumed || []).length;
-  assumed.textContent = assumed.hidden ? "" : `Not on your map yet, so assumed here: ${t.assumed.join("; ")}. `
-    + "Add them to the bed on the Map in PermTek-5 to set your own sizes.";
+  assumed.textContent = assumed.hidden ? "" : tr("Not on your map yet, so assumed here: {parts}.", { parts: t.assumed.map((a) => tr(a)).join("; ") })
+    + " " + tr("Add them to the bed on the Map in PermTek-5 to set your own sizes.");
   drawEnv(t);
   drawBox(t, ready);
   drawCare(t);
@@ -196,33 +243,35 @@ function draw(t) {
   $("#chk-window").disabled = t.running;
   $("#btn-prepare").disabled = t.running;
   $("#btn-estop").disabled = !ready;
-  $("#btn-estop").textContent = stopped ? "Release e-stop" : "E-stop";
+  $("#btn-estop").textContent = stopped ? tr("Release e-stop") : tr("E-stop");
+  $("#btn-estop").dataset.on = stopped ? "" : "1";
   $("#axes").textContent = g ? `x ${(g.x * 1000).toFixed(0)} · y ${(g.y * 1000).toFixed(0)} · z ${(g.z * 1000).toFixed(0)} mm` : "";
   const sel = $("#sel-source"), want = (t.habitats || []).map((h) => h.graph).join("|");
   if (sel.dataset.have !== want) {            // the areas this edge holds that have a growing bed
     sel.dataset.have = want;
-    sel.innerHTML = '<option value="">CityDemo (invented)</option>' + (t.habitats || []).map((h) =>
-      `<option value="${core.esc(h.graph)}">${core.esc(h.graph)} · ${h.cells} cells</option>`).join("");
+    sel.innerHTML = `<option value="">${core.esc(tr("CityDemo (invented)"))}</option>` + (t.habitats || []).map((h) =>
+      `<option value="${core.esc(h.graph)}">${core.esc(h.graph)} · ${core.esc(tr("{n} cells", { n: h.cells }))}</option>`).join("");
     sel.value = t.source === "citydemo" ? "" : t.source;
   }
   sel.disabled = t.running;
-  if ((t.recorded || []).length) core.toast(`${t.recorded.length} sown cell(s) written to the habitat`);
+  if ((t.recorded || []).length) core.toast(tr("{n} sown cell(s) written to the habitat", { n: t.recorded.length }));
   views(!!ready);
   stats(t);
   drawBed(t);
   drawJobs(t);
   const job = t.twin && t.twin.job;
-  $("#strip-job").textContent = !t.running ? "" : job ? `job: ${job.kind} · ${job.state}${job.feedback && job.state === "running" ? " · " + job.feedback : ""}` : "no job";
+  $("#strip-job").textContent = !t.running ? "" : job ? tr("job: {kind} · {state}", { kind: job_(job.kind), state: job_(job.state) })
+    + (job.feedback && job.state === "running" ? " · " + job.feedback : "") : tr("no job");
 }
 
 async function refresh() {
   try { draw(await core.api("GET", "/api/twin")); }
-  catch (err) { $("#twin-status").textContent = (err.errors || ["the page lost its server"])[0]; }
+  catch (err) { $("#twin-status").textContent = (err.errors || [tr("the page lost its server")])[0]; }
 }
 
 $("#btn-prepare").addEventListener("click", async () => {
   const graph = $("#sel-source").value;
-  if (await post("/api/twin/prepare", graph ? { graph } : {})) core.toast("World written from the habitat");
+  if (await post("/api/twin/prepare", graph ? { graph } : {})) core.toast(tr("World written from the habitat"));
   refresh();
 });
 $("#btn-start").addEventListener("click", async () => {
@@ -233,9 +282,9 @@ $("#btn-start").addEventListener("click", async () => {
 });
 try { $("#chk-window").checked = localStorage.getItem("permtek5-twin-edge-window") === "1"; } catch (_) { /* private window */ }
 $("#btn-stop").addEventListener("click", async () => { views(false); await post("/api/twin/stop"); refresh(); });
-const fillHopper = async (mix, said) => { if (await post("/api/twin/hopper", mix ? { mix } : { grams: 0 })) core.toast(said); refresh(); };
+const fillHopper = async (mix, said) => { if (await post("/api/twin/hopper", mix ? { mix } : { grams: 0 })) core.toast(tr(said)); refresh(); };
 $("#btn-hopper").addEventListener("click", () => fillHopper({ vegetable: 600, fruit: 300, coffee: 100 }, "Hopper: 1 kg, the usual mix"));
-$("#btn-browns").addEventListener("click", async () => { if (await post("/api/twin/hopper", { browns: 1000 })) core.toast("Bedding compartment: 1 kg"); refresh(); });
+$("#btn-browns").addEventListener("click", async () => { if (await post("/api/twin/hopper", { browns: 1000 })) core.toast(tr("Bedding compartment: 1 kg")); refresh(); });
 $("#btn-hopper-empty").addEventListener("click", () => fillHopper(null, "Hopper emptied"));
 $("#btn-hopper-mix").addEventListener("click", () => {
   const mix = {};
@@ -251,12 +300,12 @@ $("#btn-hopper-mix").addEventListener("click", () => {
   $("#guide-about").textContent = g.about;
   $("#hopper-kinds").innerHTML = g.kinds.map((k) => `
     <label class="kind kind--${core.esc(k.class)}"><span>${core.esc(k.label)} <em>${core.esc(g.classes[k.class])}${k.weeklySharePct ? `, ≤ ${k.weeklySharePct} %` : ""}</em></span>
-      <input type="number" min="0" step="50" value="0" data-kind="${core.esc(k.id)}" aria-label="${core.esc(k.label)}, grams"> g</label>`).join("");
+      <input type="number" min="0" step="50" value="0" data-kind="${core.esc(k.id)}" aria-label="${core.esc(tr("{kind}, grams", { kind: k.label }))}"> g</label>`).join("");
   $("#guide-rules").innerHTML = [...g.rules, ...g.preparation].map((r) => `<li>${core.esc(r)}</li>`).join("");
 })();
-$("#btn-tank").addEventListener("click", async () => { if (await post("/api/twin/tank", {})) core.toast("Tank refilled"); refresh(); });
+$("#btn-tank").addEventListener("click", async () => { if (await post("/api/twin/tank", {})) core.toast(tr("Tank refilled")); refresh(); });
 $("#btn-estop").addEventListener("click", async () => {
-  await post("/api/twin/estop", { on: $("#btn-estop").textContent === "E-stop" });
+  await post("/api/twin/estop", { on: !!$("#btn-estop").dataset.on });
   refresh();
 });
 
@@ -280,7 +329,7 @@ function showTab(name) {
 function railOpen(open, remember = false) {
   $("#rail").classList.toggle("app-rail--closed", !open);
   $("#rail-toggle").setAttribute("aria-expanded", String(open));
-  $("#rail-toggle").setAttribute("aria-label", open ? "Hide menu" : "Show menu");
+  $("#rail-toggle").setAttribute("aria-label", open ? tr("Hide menu") : tr("Show menu"));
   if (remember) try { localStorage.setItem("permtek5-twin-edge-rail", open ? "open" : "closed"); } catch (_) { /* private window */ }
 }
 
@@ -322,26 +371,26 @@ async function refreshLink() {
     // the approval page is the site's own /link, whatever host the cloud printed
     const url = S.linkSite ? `${S.linkSite}/link?user_code=${encodeURIComponent(link.user_code)}` : link.url;
     box.hidden = false;
-    box.innerHTML = `<span>Approve this code as an admin of your site:</span>
+    box.innerHTML = `<span>${core.esc(tr("Approve this code as an admin of your site:"))}</span>
       <span class="link-code">${core.esc(link.user_code || "")}</span>
-      <span><a href="${core.esc(url)}" target="_blank" rel="noopener noreferrer">Open the approval page ↗</a>
-      <span class="note"> · ${core.esc(link.status || "waiting for approval")}</span></span>`;
+      <span><a href="${core.esc(url)}" target="_blank" rel="noopener noreferrer">${core.esc(tr("Open the approval page"))} ↗</a>
+      <span class="note"> · ${core.esc(tr(link.status || "waiting for approval"))}</span></span>`;
   } else if (link.state === "failed") {
     box.hidden = false;
-    box.innerHTML = `<span class="bad">Linking failed: ${core.esc(link.error || "")}</span>`;
+    box.innerHTML = `<span class="bad">${core.esc(tr("Linking failed: {why}", { why: link.error || "" }))}</span>`;
   } else if (linked.length) {
     box.hidden = false;
     box.innerHTML = linked.map(([name, p]) =>
-      `<span><strong>${core.esc(name)}</strong> · linked to ${core.esc((p.tenant && p.tenant.name) || p.site || "a site")}`
-      + `${(p.spaces || []).length ? " · " + p.spaces.length + " group(s)" : ""}</span>`).join("")
-      + `<span class="note">Sync, then choose the site as the twin's source on the Simulation tab.</span>`;
+      `<span><strong>${core.esc(name)}</strong> · ${core.esc(tr("linked to {site}", { site: (p.tenant && p.tenant.name) || p.site || tr("a site") }))}`
+      + `${(p.spaces || []).length ? " · " + core.esc(tr("{n} group(s)", { n: p.spaces.length })) : ""}</span>`).join("")
+      + `<span class="note">${core.esc(tr("Sync, then choose the site as the twin's source on the Setup screen."))}</span>`;
   } else {
     box.hidden = true;
   }
 }
 
 $("#btn-link").addEventListener("click", startLink);
-$("#btn-sync").addEventListener("click", async () => { if (await post("/api/knowledge/sync", {})) core.toast("Syncing the site's knowledge…"); });
+$("#btn-sync").addEventListener("click", async () => { if (await post("/api/knowledge/sync", {})) core.toast(tr("Syncing the site's knowledge…")); });
 refreshLink();
 setInterval(refreshLink, 3000);
 
@@ -363,31 +412,31 @@ function drawBox(t, ready) {
   for (const id of ["#btn-insulate", "#btn-bedding", "#btn-moisten", "#btn-lid", "#btn-tap"]) $(id).disabled = !ready || !has;
   if (!has) { $("#box-sim").textContent = ""; drawPopulation(t, null); return; }
   const f = t.feeder;
-  $("#box-feeder").textContent = !f ? "" : `Feeder: ${f.why}.` + (f.state === "known" ? ` It would feed ${f.grams} g now.` : "");
+  $("#box-feeder").textContent = !f ? "" : tr("Feeder: {why}.", { why: f.why }) + (f.state === "known" ? " " + tr("It would feed {g} g now.", { g: f.grams }) : "");
   // the feeding guide: why the next feeding waits, and the week on record
   const guide = t.guide, week = guide && guide.week;
-  $("#box-guide").textContent = !guide ? "" : "Feeding guide: "
+  $("#box-guide").textContent = !guide ? "" : tr("Feeding guide:") + " "
     + (!guide.load.ok ? `${guide.load.text} ` : "")
-    + (!guide.feed.ok ? `no feeding now. ${guide.feed.text}${guide.feed.againInMin ? ` (${Math.ceil(guide.feed.againInMin / 60)} h to go)` : ""} `
-      : guide.load.ok ? "the next feeding is in order. " : "")
-    + `This week: ${week.scrapsG} g of scraps in ${week.feedings} feeding(s), ${week.brownsG} g of dry bedding`
-    + (week.refusedLoads ? `, ${week.refusedLoads} hopper load(s) refused` : "") + "."
-    + (guide.brownsDue ? ` Dry bedding due with the next feeding: ${guide.brownsDue} g.` : "");
+    + (!guide.feed.ok ? tr("no feeding now.") + ` ${guide.feed.text}${guide.feed.againInMin ? " " + tr("({h} h to go)", { h: Math.ceil(guide.feed.againInMin / 60) }) : ""} `
+      : guide.load.ok ? tr("the next feeding is in order.") + " " : "")
+    + tr("This week: {scraps} g of scraps in {n} feeding(s), {browns} g of dry bedding", { scraps: week.scrapsG, n: week.feedings, browns: week.brownsG })
+    + (week.refusedLoads ? ", " + tr("{n} hopper load(s) refused", { n: week.refusedLoads }) : "") + "."
+    + (guide.brownsDue ? " " + tr("Dry bedding due with the next feeding: {g} g.", { g: guide.brownsDue }) : "");
   // the compost harvest: which half rests, and what has gone back to the bed
   const h = box.harvest, cells = Object.values((t.twin.bed.cells) || {}).filter((c) => c.compostG > 0).length;
-  $("#box-harvest").textContent = !h ? "" : "Compost: "
-    + (h.side === null ? "both halves are fed. " : h.ready ? `half ${h.side + 1} has rested ${h.restDays} days: its castings are ready to go to the bed. `
-      : `half ${h.side + 1} rests (${h.restDays} of ${h.readyAfterDays} days); the worms are moving to the other half. `)
-    + (box.takenGrams ? `${box.takenGrams} g taken so far, onto ${cells} cell(s).` : "");
+  $("#box-harvest").textContent = !h ? "" : tr("Compost:") + " "
+    + (h.side === null ? tr("both halves are fed.") : h.ready ? tr("half {half} has rested {days} days: its castings are ready to go to the bed.", { half: h.side + 1, days: h.restDays })
+      : tr("half {half} rests ({days} of {of} days); the worms are moving to the other half.", { half: h.side + 1, days: h.restDays, of: h.readyAfterDays })) + " "
+    + (box.takenGrams ? tr("{g} g taken so far, onto {n} cell(s).", { g: box.takenGrams, n: cells }) : "");
   const sim = box.sim;
-  $("#box-sim").textContent = !sim ? "" : `The box: worms ${sim.wormsG} g, health ${Math.round(sim.health * 100)} %, `
-    + `working at ${Math.round(sim.activity * 100)} %, eat ${sim.eatsPerDay} g a day, ${sim.foodG} g uneaten, ${sim.castingsG} g castings`
-    + (f && f.offPct !== undefined ? `. The feeder's estimate is off by ${f.offPct} %.` : ".")
-    + (box.wormsMayLeave ? " Worms may leave into the soil." : " The box is closed.");
+  $("#box-sim").textContent = !sim ? "" : tr("The box: worms {g} g, health {health} %, working at {work} %, eat {eat} g a day, {food} g uneaten, {castings} g castings",
+      { g: sim.wormsG, health: Math.round(sim.health * 100), work: Math.round(sim.activity * 100), eat: sim.eatsPerDay, food: sim.foodG, castings: sim.castingsG })
+    + (f && f.offPct !== undefined ? ". " + tr("The feeder's estimate is off by {pct} %.", { pct: f.offPct }) : ".")
+    + " " + (box.wormsMayLeave ? tr("Worms may leave into the soil.") : tr("The box is closed."));
   drawPopulation(t, sim && sim.population);
-  $("#btn-insulate").textContent = box.insulated ? "Wrapping taken off" : "Box wrapped";
+  $("#btn-insulate").textContent = tr(box.insulated ? "Wrapping taken off" : "Box wrapped");
   $("#btn-insulate").dataset.on = box.insulated ? "" : "1";
-  $("#btn-lid").textContent = box.lidOpen ? "Lid closed" : "Lid left open";
+  $("#btn-lid").textContent = tr(box.lidOpen ? "Lid closed" : "Lid left open");
   $("#btn-lid").dataset.open = box.lidOpen ? "" : "1";
 }
 // The worms by life stage, and a trend of the last 90 simulated days (kept in the page: a reload starts it again).
@@ -402,10 +451,11 @@ function drawPopulation(t, p) {
   POP.days = POP.days.filter((d) => day - d[0] <= 90);
   const n = (v) => v >= 10000 ? `${Math.round(v / 1000)}k` : String(v);
   const w = t.worms;
-  $("#box-pop-line").textContent = `Worms: ${n(p.adults)} adults, ${n(p.young)} young, ${n(p.cocoons)} cocoons`
-    + (p.inBed ? `, ${n(p.inBed)} out in the bed` : "") + ` · ${p.wormsG} g, ${p.kgPerM2} kg/m²`
-    + (p.crowding > 0 ? `, crowded ${Math.round(p.crowding * 100)} %` : "") + (p.nourish < 0.7 ? `, hungry` : "")
-    + (w ? `. The feeder reckons about ${w.kg} kg of worms` + (w.fallPct !== null && w.fallPct !== undefined ? `, ${w.fallPct} % less than a week ago` : "") + "." : ".");
+  $("#box-pop-line").textContent = tr("Worms: {adults} adults, {young} young, {cocoons} cocoons", { adults: n(p.adults), young: n(p.young), cocoons: n(p.cocoons) })
+    + (p.inBed ? ", " + tr("{n} out in the bed", { n: n(p.inBed) }) : "") + ` · ${p.wormsG} g, ${p.kgPerM2} kg/m²`
+    + (p.crowding > 0 ? ", " + tr("crowded {pct} %", { pct: Math.round(p.crowding * 100) }) : "") + (p.nourish < 0.7 ? ", " + tr("hungry") : "")
+    + (w ? ". " + tr("The feeder reckons about {kg} kg of worms", { kg: w.kg })
+      + (w.fallPct !== null && w.fallPct !== undefined ? ", " + tr("{pct} % less than a week ago", { pct: w.fallPct }) : "") + "." : ".");
   const pts = POP.days, svg = $("#box-pop-trend");
   if (pts.length < 2) { svg.innerHTML = ""; return; }
   const x0 = pts[0][0], dx = Math.max(1, pts[pts.length - 1][0] - x0);
@@ -429,20 +479,19 @@ function land(t) {
 function drawAttention(t) {
   const kept = t.keeper || {}, list = (kept.notices || []).slice().sort((a, b) => (a.level === "alert" ? 0 : 1) - (b.level === "alert" ? 0 : 1));
   $("#twin-notices").innerHTML = list.map((n) => `<li class="notice notice--${n.level === "alert" ? "alarm" : "watch"}">`
-    + `<span class="op-word">${n.level === "alert" ? "alarm" : "note"}</span> ${core.esc(n.text)}</li>`).join("");
+    + `<span class="op-word">${core.esc(tr(n.level === "alert" ? "alarm" : "note"))}</span> ${core.esc(n.text)}</li>`).join("");
   const alerts = list.filter((n) => n.level === "alert").length;
-  const notes = list.length - alerts, n = (k, word) => k ? `${k} ${word}${k > 1 ? "s" : ""}` : "";
-  $("#attention-count").textContent = [n(alerts, "alarm"), n(notes, "note")].filter(Boolean).join(" · ");
+  const notes = list.length - alerts, n = (k, one, many) => k ? tr(k > 1 ? many : one, { n: k }) : "";
+  $("#attention-count").textContent = [n(alerts, "{n} alarm", "{n} alarms"), n(notes, "{n} note", "{n} notes")].filter(Boolean).join(" · ");
   $("#attention-none").hidden = list.length > 0;
   const holds = kept.holds || [];
   $("#attention-holds").hidden = !holds.length && !kept.lockout;
-  $("#attention-holds").innerHTML = (kept.lockout ? `<span class="chip chip--alarm">gantry locked out</span> ` : "")
-    + holds.map((h) => `<span class="chip">${core.esc(h)} on hold</span>`).join(" ");
+  $("#attention-holds").innerHTML = (kept.lockout ? `<span class="chip chip--alarm">${core.esc(tr("gantry locked out"))}</span> ` : "")
+    + holds.map((h) => `<span class="chip">${core.esc(tr("{kind} on hold", { kind: job_(h) }))}</span>`).join(" ");
   $("#attention").classList.toggle("attention--alarm", alerts > 0 || !!kept.lockout);
 }
 
 // Every reading as a tile: its value, and how it stands as the keeper judges it (operator_view.py).
-const OP_RULE = { sensor: "no trustworthy reading" };
 function drawOperator(t) {
   const op = t.operator, tiles = (op && op.tiles) || [];
   SENS.tiles = Object.fromEntries(tiles.map((x) => [x.key, x]));
@@ -452,12 +501,12 @@ function drawOperator(t) {
     if (!mine.length) return "";
     return `<section class="app-panel op-group"><h2 class="app-panel__title">${core.esc(g.title)}</h2><div class="op-grid">`
       + mine.map((x) => {
-        const v = x.value === null || x.value === undefined ? "no reading" : String(x.value);
-        const why = x.hint || (x.rule ? (OP_RULE[x.rule] || x.rule.replace(/-/g, " ")) : x.state === "watch" ? "close to a limit" : "");
-        return `<button type="button" class="op-tile op-tile--${x.state}" data-key="${core.esc(x.key)}" title="${core.esc(why || "the sensor and how it measures")}">`
+        const v = x.value === null || x.value === undefined ? tr("no reading") : String(x.value);
+        const why = x.why || "";
+        return `<button type="button" class="op-tile op-tile--${x.state}" data-key="${core.esc(x.key)}" title="${core.esc(why || tr("the sensor and how it measures"))}">`
           + `<span class="op-label">${core.esc(x.label)}</span>`
-          + `<span class="op-value">${core.esc(v)} <span class="op-unit">${core.esc(x.unit || "")}</span></span>`
-          + `<span class="op-state"><span class="op-word">${x.state}</span>${why ? ` · ${core.esc(why)}` : ""}</span></button>`;
+          + `<span class="op-value${typeof x.value === "number" ? "" : " op-value--word"}">${core.esc(v)} <span class="op-unit">${core.esc(x.unit || "")}</span></span>`
+          + `<span class="op-state"><span class="op-word">${core.esc(tr(x.state))}</span>${why ? ` · ${core.esc(why)}` : ""}</span></button>`;
       }).join("") + "</div></section>";
   }).join("");
   const el = $("#op-groups");
@@ -477,24 +526,24 @@ $("#op-groups").addEventListener("click", (e) => {
   if (!tile) return;
   const x = SENS.tiles[tile.dataset.key], info = SENS.info && SENS.info[tile.dataset.key];
   if (!x) return;
-  const v = x.value === null || x.value === undefined ? "no reading" : `${x.value} ${x.unit || ""}`;
+  const v = x.value === null || x.value === undefined ? tr("no reading") : `${x.value} ${x.unit || ""}`;
   const row = (k, html) => `<dt>${k}</dt><dd>${html}</dd>`;
   core.dialog(x.label[0].toUpperCase() + x.label.slice(1),
-    `<p class="sensor-now op-tile--${x.state}"><strong>${core.esc(v)}</strong> · <span class="op-word">${x.state}</span>`
-    + `${x.hint || x.rule ? ` · ${core.esc(x.hint || x.rule.replace(/-/g, " "))}` : ""}</p>`
-    + (!info ? '<p class="note">No details for this reading.</p>' : `<dl class="sensor-facts">`
-      + row("Sensor", core.esc(info.sensor)) + row("Where", core.esc(info.where))
-      + row("How it measures", core.esc(info.method)) + row("How often", core.esc(info.every))
-      + row("Limits", info.limits.length ? `<ul>${info.limits.map((l) => `<li>${core.esc(l)}</li>`).join("")}</ul>` : "none set")
-      + row("In this twin", core.esc(info.twin)) + "</dl>")
-    + '<menu class="sensor-menu"><button value="close" class="primary">Close</button></menu>');
+    `<p class="sensor-now op-tile--${x.state}"><strong>${core.esc(v)}</strong> · <span class="op-word">${core.esc(tr(x.state))}</span>`
+    + `${x.why ? ` · ${core.esc(x.why)}` : ""}</p>`
+    + (!info ? `<p class="note">${core.esc(tr("No details for this reading."))}</p>` : `<dl class="sensor-facts">`
+      + row(tr("Sensor"), core.esc(info.sensor)) + row(tr("Where"), core.esc(info.where))
+      + row(tr("How it measures"), core.esc(info.method)) + row(tr("How often"), core.esc(info.every))
+      + row(tr("Limits"), info.limits.length ? `<ul>${info.limits.map((l) => `<li>${core.esc(l)}</li>`).join("")}</ul>` : core.esc(tr("none set")))
+      + row(tr("In this twin"), core.esc(info.twin)) + "</dl>")
+    + `<menu class="sensor-menu"><button value="close" class="primary">${core.esc(tr("Close"))}</button></menu>`);
 });
 
 // What only the simulation knows: the worms by life stage (drawPopulation), the box's insides, the soil life.
 function drawTruth(t) {
   const bed = t.twin && t.twin.bed, life = bed && bed.sim && bed.sim.soilLife;
   $("#soil-life").textContent = typeof life === "number"
-    ? `Soil life in the bed: ${Math.round(life * 100)} %. An index of how good the bed has been for soil life lately, not a count.` : "";
+    ? tr("Soil life in the bed: {pct} %. An index of how good the bed has been for soil life lately, not a count.", { pct: Math.round(life * 100) }) : "";
   $("#truth-none").hidden = !!(t.running && bed);
 }
 
@@ -504,15 +553,18 @@ function drawStrip(t, ready) {
   // the keeper's alerts are what an operator acts on; a reading at alarm without one (a dead sensor) still counts
   const alerts = (kept.notices || []).filter((n) => n.level === "alert").length, alarms = alerts || count.alarm || 0;
   const notes = (kept.notices || []).length - alerts;
-  $("#strip-clock").textContent = env ? env.clock : t.running ? "starting…" : t.prepared ? "stopped" : "";
+  $("#strip-clock").textContent = env ? clock(env.clock) : t.running ? tr("starting…") : t.prepared ? tr("stopped") : "";
   const a = $("#strip-alerts");
   a.hidden = !ready || (!alarms && !notes);
-  a.textContent = alarms ? `⚠ ${alarms} alarm${alarms > 1 ? "s" : ""}` : `${notes} note${notes > 1 ? "s" : ""}`;
+  a.textContent = alarms ? "⚠ " + tr(alarms > 1 ? "{n} alarms" : "{n} alarm", { n: alarms }) : tr(notes > 1 ? "{n} notes" : "{n} note", { n: notes });
   a.classList.toggle("strip__alerts--alarm", alarms > 0);
   $("#dot-operator").hidden = !alarms;
   $("#dot-robot").hidden = !ready || !(t.proposals || []).length;
   $("#dot-care").hidden = !((t.care && t.care.tasks) || []).some((x) => x.due && x.who === "person");
 }
+
+// The simulated clock as the robot says it ("day 3 · 14:05"), in the person's language.
+const clock = (text) => String(text || "").replace(/^day (\d+)/, (_, d) => tr("day {d}", { d }));
 
 // The care calendar (maintenance.py): what is due now, by whom, and what comes next. An older server hides it.
 const CARE_WHY = { never: "not done yet", rhythm: "its time has come", season: "its months have begun", brought: "the keeper brings it forward" };
@@ -520,36 +572,37 @@ function drawCare(t) {
   const care = t.care;
   $("#care-panel").hidden = !care;
   if (!care) return;
-  $("#care-today").textContent = `simulated date ${care.today}`;
+  $("#care-today").textContent = tr("simulated date {date}", { date: care.today });
   const due = care.tasks.filter((x) => x.due), next = care.tasks.filter((x) => !x.due && x.nextOn).sort((a, b) => a.nextOn.localeCompare(b.nextOn));
-  $("#care-due").innerHTML = !due.length ? `<li class="note">Nothing is due.</li>` : due.map((x) => `<li class="care-${x.who}">
-      <span class="care-who">${x.who === "robot" ? "robot" : "you"}</span> <strong>${core.esc(x.label)}</strong>
-      <span class="note">· ${core.esc(CARE_WHY[x.reason] || "")}${x.overdueDays ? `, ${x.overdueDays} day(s) late` : ""}</span>
-      ${x.who === "person" ? `<button data-care="${core.esc(x.id)}">Done</button>` : `<span class="note"> · done when the robot's job is</span>`}
+  $("#care-due").innerHTML = !due.length ? `<li class="note">${core.esc(tr("Nothing is due."))}</li>` : due.map((x) => `<li class="care-${x.who}">
+      <span class="care-who">${core.esc(tr(x.who === "robot" ? "robot" : "you"))}</span> <strong>${core.esc(x.label)}</strong>
+      <span class="note">· ${core.esc(tr(CARE_WHY[x.reason] || ""))}${x.overdueDays ? ", " + core.esc(tr("{n} day(s) late", { n: x.overdueDays })) : ""}</span>
+      ${x.who === "person" ? `<button data-care="${core.esc(x.id)}">${core.esc(tr("Done"))}</button>` : `<span class="note"> · ${core.esc(tr("done when the robot's job is"))}</span>`}
       <div class="note">${core.esc(x.why)}</div></li>`).join("");
-  $("#care-next").innerHTML = next.slice(0, 12).map((x) => `<li class="care-${x.who}"><span class="care-who">${x.who === "robot" ? "robot" : "you"}</span>
+  $("#care-next").innerHTML = next.slice(0, 12).map((x) => `<li class="care-${x.who}"><span class="care-who">${core.esc(tr(x.who === "robot" ? "robot" : "you"))}</span>
       ${core.esc(x.label)} <span class="note">· ${x.nextOn}</span></li>`).join("");
 }
 // The year: the seasonal tasks month by month, from the care guide the edge holds. Once; an older server hides it.
 (async function loadCareYear() {
   let g;
   try { g = await core.api("GET", "/api/twin/care/guide"); } catch (_) { return; }
-  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], now = new Date().getMonth() + 1;
-  const en = (x) => (x && (x.en || Object.values(x)[0])) || "";
+  const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2026, i, 1).toLocaleString(I18N.lang, { month: "short" }));
+  const now = new Date().getMonth() + 1;
+  const en = (x) => (x && (x[I18N.lang] || x.en || Object.values(x)[0])) || "";     // the guide carries EN, DE and FR
   const seasonal = g.tasks.filter((x) => (x.months || []).length);
   $("#care-about").textContent = en(g.about);
-  $("#care-year").innerHTML = `<thead><tr><th scope="col">Task</th>${MONTHS.map((m, i) => `<th scope="col" class="${i + 1 === now ? "now" : ""}">${m}</th>`).join("")}</tr></thead><tbody>`
-    + seasonal.map((x) => `<tr><th scope="row" title="${core.esc(en(x.why))}">${core.esc(en(x.label))} <span class="note">· ${x.who === "robot" ? "robot" : "you"}</span></th>`
+  $("#care-year").innerHTML = `<thead><tr><th scope="col">${core.esc(tr("Task"))}</th>${MONTHS.map((m, i) => `<th scope="col" class="${i + 1 === now ? "now" : ""}">${m}</th>`).join("")}</tr></thead><tbody>`
+    + seasonal.map((x) => `<tr><th scope="row" title="${core.esc(en(x.why))}">${core.esc(en(x.label))} <span class="note">· ${core.esc(tr(x.who === "robot" ? "robot" : "you"))}</span></th>`
       + MONTHS.map((_, i) => `<td class="${i + 1 === now ? "now" : ""}">${x.months.includes(i + 1) ? `<span class="care-mark care-mark--${x.who}"></span>` : ""}</td>`).join("") + "</tr>").join("")
     + "</tbody>";
 })();
 $("#care-due").addEventListener("click", async (e) => {
   const id = e.target.dataset && e.target.dataset.care;
   if (!id) return;
-  if (await post("/api/twin/care/done", { id })) core.toast("Noted as done");
+  if (await post("/api/twin/care/done", { id })) core.toast(tr("Noted as done"));
   refresh();
 });
-const boxDo = async (body, said) => { if (await post("/api/twin/box", body)) core.toast(said); refresh(); };
+const boxDo = async (body, said) => { if (await post("/api/twin/box", body)) core.toast(tr(said)); refresh(); };
 $("#btn-insulate").addEventListener("click", (e) => boxDo({ do: "insulate", on: !!e.target.dataset.on }, "Noted"));
 $("#btn-bedding").addEventListener("click", () => boxDo({ do: "bedding", grams: 500 }, "500 g of dry bedding"));
 $("#btn-moisten").addEventListener("click", () => boxDo({ do: "moisten", ml: 500 }, "Half a litre sprinkled"));
@@ -567,13 +620,13 @@ function drawEnv(t) {
   if (!CH.loaded) return;
   panel.hidden = false;
   $("#env-line").textContent = env
-    ? `${env.clock} · air ${env.airC} °C · wind ${env.windMs} m/s · rain ${env.rainMmH} mm/h`
-    : "The weather runs with the simulation.";
+    ? `${clock(env.clock)} · ` + tr("air {c} °C · wind {w} m/s · rain {r} mm/h", { c: env.airC, w: env.windMs, r: env.rainMmH })
+    : tr("The weather runs with the simulation.");
   const kept = t.keeper || {};
-  const lines = (env ? env.disturbances : []).map((d) => `${d.title}, ${d.leftMin} min left`);
-  if (kept.lockout) lines.push("the gantry is locked out");
-  if ((kept.holds || []).length) lines.push(`on hold: ${kept.holds.join(", ")}`);
-  if (kept.queued) lines.push(`${kept.queued} result(s) wait for the network`);
+  const lines = (env ? env.disturbances : []).map((d) => tr("{what}, {min} min left", { what: d.title, min: d.leftMin }));
+  if (kept.lockout) lines.push(tr("the gantry is locked out"));
+  if ((kept.holds || []).length) lines.push(tr("on hold: {kinds}", { kinds: kept.holds.map(job_).join(", ") }));
+  if (kept.queued) lines.push(tr("{n} result(s) wait for the network", { n: kept.queued }));
   $("#env-active").innerHTML = lines.map((l) => `<li>${core.esc(l)}</li>`).join("");
   for (const [sel, v] of [["#sel-factor", env && env.factor], ["#sel-chaos", env && env.chaosRate]]) {
     const el = $(sel);
@@ -592,7 +645,7 @@ async function loadChaos() {
     <button class="scenario-item" data-id="${core.esc(d.id)}" disabled>
       <strong>${core.esc(d.title)}</strong><span>${core.esc(d.about)}</span></button>`).join("");
   $("#chaos-list").querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
-    if (await post("/api/twin/disturb", { id: b.dataset.id })) core.toast("Sent");
+    if (await post("/api/twin/disturb", { id: b.dataset.id })) core.toast(tr("Sent"));
     refresh();
   }));
 }
@@ -616,15 +669,15 @@ async function refreshScenarios() {
   const run = v.run;
   const score = $("#scenario-score");                    // a chaos run ends with a score
   score.hidden = !!run || !v.score;
-  if (v.score) score.textContent = `${v.score.title}: ${v.score.passed} of ${v.score.of} reactions as expected`
-    + (v.score.failed.length ? `. Missed: ${v.score.failed.join(", ")}` : "");
+  if (v.score) score.textContent = tr("{title}: {passed} of {of} reactions as expected", { title: v.score.title, passed: v.score.passed, of: v.score.of })
+    + (v.score.failed.length ? ". " + tr("Missed: {what}", { what: v.score.failed.join(", ") }) : "");
   $("#scenario-pick").hidden = !!run;
   $("#scenario-run").hidden = !run;
   if (!run) {
     $("#scenario-list").innerHTML = v.scenarios.map((s) => `
       <button class="scenario-item" data-id="${core.esc(s.id)}" ${v.running && !s.unavailable ? "" : "disabled"}>
         <strong>${core.esc(s.title)}</strong>
-        <span class="note">${s.steps} steps${s.unavailable ? " · " + core.esc(s.unavailable) : v.running ? "" : " · start the simulation first"}</span>
+        <span class="note">${core.esc(tr("{n} steps", { n: s.steps }))}${s.unavailable ? " · " + core.esc(s.unavailable) : v.running ? "" : " · " + core.esc(tr("start the simulation first"))}</span>
       </button>`).join("");
     $("#scenario-list").querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
       $("#chk-scenario-auto").checked = false;
@@ -634,7 +687,7 @@ async function refreshScenarios() {
     return;
   }
   $("#scenario-title").textContent = run.title;
-  $("#scenario-count").textContent = `step ${run.index + 1} of ${run.total}`;
+  $("#scenario-count").textContent = tr("step {i} of {n}", { i: run.index + 1, n: run.total });
   $("#scenario-step").textContent = run.step.title;
   $("#scenario-about").hidden = run.index !== 0;          // what the scenario is about, on its first step
   $("#scenario-about").textContent = run.about;
@@ -646,9 +699,9 @@ async function refreshScenarios() {
   // done and as expected: nothing more to do. Done but not as expected (something else changed the
   // bed meanwhile): the action can be repeated, or the step skipped.
   doBtn.disabled = SC.acting || run.busy || (run.did && run.ready);
-  if (run.did && !run.ready && !run.busy && run.step.label) doBtn.textContent = `${run.step.label} again`;
+  if (run.did && !run.ready && !run.busy && run.step.label) doBtn.textContent = tr("{action} again", { action: run.step.label });
   $("#btn-scenario-skip").hidden = run.ready || run.last;
-  nextBtn.textContent = run.last ? "Finish" : "Next step";
+  nextBtn.textContent = tr(run.last ? "Finish" : "Next step");
   nextBtn.disabled = !run.ready || SC.acting;
   if ($("#chk-scenario-auto").checked && !SC.acting) {             // your one confirmation for the whole scenario
     if (!run.did && run.step.type !== "none" && !run.busy) scenarioDo();
@@ -667,7 +720,7 @@ async function scenarioNext() {
   SC.acting = true;
   const r = await post("/api/twin/scenario/next");
   SC.acting = false;
-  if (r && r.finished) core.toast("Scenario finished");
+  if (r && r.finished) core.toast(tr("Scenario finished"));
   refreshScenarios();
 }
 
@@ -700,24 +753,26 @@ async function refreshFilm() {
   if (job) $("#film-progress").value = job.progress || 0;
   const last = f.job && !job ? f.job : null, shotOf = (j) => (j && j.spec && j.spec.shot) || "";
   const title = (id) => ((f.shots || []).find((x) => x.id === id) || {}).title || id;
-  $("#film-status").textContent = job ? `rendering “${title(shotOf(job))}” · ${job.phase}${(f.waiting || []).length ? ` · ${f.waiting.length} more waiting` : ""}`
-    : last && last.state === "failed" ? `the last film failed: ${last.error}`
-    : last && last.state === "cancelled" ? "the last film was cancelled"
-    : !f.prepared ? "prepare a world first" : "";
+  const phase = (p) => String(p || "").replace(/^frame (\d+) of (\d+)$/, (_, i, n) => tr("frame {i} of {n}", { i, n })).replace(/^the still$/, tr("the still"));
+  $("#film-status").textContent = job ? tr("rendering “{title}” · {phase}", { title: title(shotOf(job)), phase: phase(job.phase) })
+      + ((f.waiting || []).length ? " · " + tr("{n} more waiting", { n: f.waiting.length }) : "")
+    : last && last.state === "failed" ? tr("the last film failed: {why}", { why: last.error })
+    : last && last.state === "cancelled" ? tr("the last film was cancelled")
+    : !f.prepared ? tr("prepare a world first") : "";
   // one card per shot: its film (or still), and a button; redrawn only when something changed
   const busy = f.missing.length > 0 || !f.prepared, waiting = f.waiting || [];
   const want = JSON.stringify([busy, shotOf(job), waiting, (f.shots || []).map((x) => [x.id, x.film && x.film.modified, x.poster && x.poster.modified])]);
   if (want === F.shown) return;
   F.shown = want;
   $("#film-shots").innerHTML = (f.shots || []).map((x) => {
-    const when = x.film ? `rendered ${new Date(x.film.modified * 1000).toLocaleString()}` : x.poster ? "only the still so far" : "not rendered yet";
+    const when = x.film ? tr("rendered {when}", { when: new Date(x.film.modified * 1000).toLocaleString(I18N.lang) }) : tr(x.poster ? "only the still so far" : "not rendered yet");
     const media = x.film
       ? `<video class="film" controls loop muted playsinline preload="metadata" ${x.poster ? `poster="/api/twin/film/${x.poster.name}?t=${x.poster.modified}"` : ""} src="/api/twin/film/${x.film.name}?t=${x.film.modified}"></video>`
-      : x.poster ? `<img class="film" alt="A still of ${core.esc(x.title)}" src="/api/twin/film/${x.poster.name}?t=${x.poster.modified}">`
-      : `<div class="film film--none">no film yet</div>`;
-    const doing = shotOf(job) === x.id ? "rendering now" : waiting.includes(x.id) ? "waits its turn" : "";
-    return `<section class="app-panel film-card"><h3>${core.esc(x.title)}${doing ? ` <span class="tag">${doing}</span>` : ""}</h3>${media}
-      <div class="hero-controls"><button data-shot="${x.id}" class="${x.film ? "" : "primary"}" ${busy || doing ? "disabled" : ""}>${x.film ? "Render again" : "Render"}</button>
+      : x.poster ? `<img class="film" alt="${core.esc(tr("A still of {what}", { what: x.title }))}" src="/api/twin/film/${x.poster.name}?t=${x.poster.modified}">`
+      : `<div class="film film--none">${core.esc(tr("no film yet"))}</div>`;
+    const doing = shotOf(job) === x.id ? tr("rendering now") : waiting.includes(x.id) ? tr("waits its turn") : "";
+    return `<section class="app-panel film-card"><h3>${core.esc(x.title)}${doing ? ` <span class="tag">${core.esc(doing)}</span>` : ""}</h3>${media}
+      <div class="hero-controls"><button data-shot="${x.id}" class="${x.film ? "" : "primary"}" ${busy || doing ? "disabled" : ""}>${core.esc(tr(x.film ? "Render again" : "Render"))}</button>
       <span class="note">${when}</span></div></section>`;
   }).join("");
 }
@@ -725,7 +780,7 @@ $("#film-shots").addEventListener("click", async (e) => {
   const shot = e.target.dataset && e.target.dataset.shot;
   if (!shot) return;
   e.target.disabled = true;
-  if (await post("/api/twin/film", { shot, quality: $("#sel-film-quality").value })) core.toast("Rendering: it takes a while");
+  if (await post("/api/twin/film", { shot, quality: $("#sel-film-quality").value })) core.toast(tr("Rendering: it takes a while"));
   F.shown = "";
   refreshFilm();
 });
@@ -743,7 +798,7 @@ document.querySelectorAll("#theme-seg [data-theme-pick]").forEach((b) =>
   b.addEventListener("click", () => { core.applyTheme(b.dataset.themePick); markTheme(); }));
 document.addEventListener("core:theme", markTheme);
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", markTheme);
-if (document.body.dataset.version) $("#rail-about-label").textContent = `About · v${document.body.dataset.version}`;
+if (document.body.dataset.version) $("#rail-about-label").textContent = `${tr("About")} · v${document.body.dataset.version}`;
 {
   let saved = null;
   try { saved = localStorage.getItem("permtek5-twin-edge-rail"); } catch (_) { /* private window */ }
