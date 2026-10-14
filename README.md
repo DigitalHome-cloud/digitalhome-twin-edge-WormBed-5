@@ -112,7 +112,23 @@ world again and render again.
 
 **The worm box** is two bins: a working bin above the soil on a sump that
 catches the liquid. Its sensors (two temperatures, moisture, weight, gas,
-acidity, sump level, lid) read with noise and can fail. Around it:
+acidity, sump level, lid) read with noise and can fail.
+
+It is watered from inside by a **mist line** under the lid, from the rain
+barrel through a valve the edge opens (`water.py`: half a litre a minute, one
+dose at a time, never past 85 %). The edge proposes the mist line when:
+- the box is dry;
+- the box is hot (water on top cools it as it evaporates);
+- the care calendar's three-day routine finds it under 70 %. If it reads moist
+  enough, the routine's look is all, and the task counts as done.
+
+Frost and a soaked box hold it back. Without rain in the barrel the gantry
+sprinkles through the feed hatch from the tank. Like every proposal, a person
+confirms it. A soaked or airless box gets the robot's dry bedding from the
+hopper's second compartment. The scenario **The worm box runs dry** walks
+through it.
+
+Around the box:
 
 | Part | What it does |
 |---|---|

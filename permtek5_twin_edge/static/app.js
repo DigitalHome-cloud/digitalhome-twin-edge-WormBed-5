@@ -404,7 +404,9 @@ function drawLoop(v) {
     || li(core.esc(tr(r.running ? "nothing due" : "–")), "note");
   $("#loop-holds").innerHTML = (ctl.lockout ? `<span class="chip chip--alarm">${core.esc(tr("gantry locked out"))}</span> ` : "")
     + (ctl.holds || []).map((h) => `<span class="chip chip--watch">${core.esc(tr("{kind} on hold", { kind: job_(h) }))}</span>`).join(" ");
-  $("#loop-issues").innerHTML = (ctl.issues || []).map((n) => li(core.esc(n.text), n.level === "alert" ? "bad" : "")).join("");
+  $("#loop-issues").innerHTML = (ctl.issues || []).map((n) => li(core.esc(n.text) + (n.proposal
+    ? `<span class="loop-fix">${core.esc(tr("Proposed: {what}", { what: n.proposal.title }))} <button class="primary" data-loop-job="${core.esc(n.proposal.id)}">${core.esc(tr("Confirm"))}</button></span>` : ""),
+    n.level === "alert" ? "bad" : "")).join("");
   $("#loop-proposals").innerHTML = (ctl.proposals || []).map((p) => li(`${core.esc(p.title)} <button class="primary" data-loop-job="${core.esc(p.id)}">${core.esc(tr("Confirm"))}</button>`)).join("")
     + (ctl.proposalCount > 3 ? li(`<a href="#robot">${core.esc(tr("{n} more on the Robot screen", { n: ctl.proposalCount - 3 }))}</a>`, "note") : "")
     + (!(ctl.issues || []).length && !(ctl.proposals || []).length && r.running ? li(core.esc(tr("nothing waits for you")), "note") : "");

@@ -72,7 +72,7 @@ perma:Gantry5Gen1 a skos:Concept ; skos:inScheme perma:RobotModels ; skos:topCon
 
 perma:WaterStoreKinds a skos:ConceptScheme ;
     skos:prefLabel "Water stores"@en , "Wasserspeicher"@de , "Réserves d'eau"@fr ;
-    skos:hasTopConcept perma:RainBarrel , perma:TankPipes , perma:WormBoxSump , perma:GardenTank .
+    skos:hasTopConcept perma:RainBarrel , perma:TankPipes , perma:WormBoxSump , perma:WormBoxBin , perma:GardenTank .
 perma:RainBarrel a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
     skos:prefLabel "Rain barrel"@en , "Regentonne"@de , "Récupérateur d'eau de pluie"@fr ;
     skos:definition "Collects rain from a catchment; a tap at its foot lets it on."@en .
@@ -82,6 +82,9 @@ perma:TankPipes a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topC
 perma:WormBoxSump a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
     skos:prefLabel "Worm box sump"@en , "Sumpf der Wurmkiste"@de , "Puisard du bac à vers"@fr ;
     skos:definition "The worm box's lower bin: it catches the liquid that drips from the worms' bin."@en .
+perma:WormBoxBin a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
+    skos:prefLabel "Worm box bin"@en , "Arbeitskiste der Wurmkiste"@de , "Bac de travail du bac à vers"@fr ;
+    skos:definition "The worm box's working bin, as a place water goes to: a mist line under its lid waters the bedding with clean water, the box closed. It stores nothing; its moisture probe says when it needs some."@en .
 perma:GardenTank a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
     skos:prefLabel "Garden tank"@en , "Gartentank"@de , "Cuve de jardin"@fr ;
     skos:definition "A tank elsewhere on the site, e.g. in the garden by the fruit trees: it takes what the guild's own bed does not need."@en .

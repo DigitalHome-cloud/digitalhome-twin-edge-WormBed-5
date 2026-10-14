@@ -25,7 +25,7 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "weeds", "count", "large"} a flush of weeds | {"op": "weeds", "pull": "large" | "all"} pulled by hand
                                      {"op": "stamp", "x", "y"}  the stamp pressed down at a place
                                      {"op": "dry", "percent" | "to"}  hot, dry days in one go (scenarios)
-                                     {"op": "box", "do": "insulate", "on"} | {"do": "bedding", "grams"} | {"do": "moisten", "ml"}
+                                     {"op": "box", "do": "insulate", "on"} | {"do": "bedding", "grams"} | {"do": "moisten", "ml"} | {"do": "moisture", "percent"}
                                        | {"do": "takeout", "grams"} | {"do": "dump", "grams"} | {"do": "lid", "open"}
                                        | {"do": "tap"} (the sump runs on into the tank) | {"do": "reset"} (a settled box again)
                                        | {"do": "helper", "on"} a stand-in for daily care over a long run: each morning the box
@@ -267,7 +267,7 @@ class GantryDriver:
             if op == "valve":                                 # a tap or an edge valve: by its id, or by the kinds it joins
                 vid = e.get("id") or self.water.valve_between(e.get("from"), e.get("to"))
                 if vid:
-                    self.water.open(vid, bool(e.get("open", True)))
+                    self.water.open(vid, bool(e.get("open", True)), e.get("litres"))
                 return
             if op == "store":                                 # a scenario sets a barrel's, a garden tank's or the sump's level
                 if e.get("kind") == "WormBoxSump":
@@ -350,6 +350,8 @@ class GantryDriver:
                     self.box.add_bedding(min(float(e.get("grams", 500)), 5000.0))
                 elif do == "moisten":
                     self.box.moisten(min(float(e.get("ml", 500)), 5000.0))
+                elif do == "moisture":                        # a scenario's shortcut: the bedding dried (or soaked) to this
+                    self.box.moisture = max(30.0, min(98.0, float(e.get("percent", 70))))
                 elif do == "takeout":
                     self.box.take_out(float(e.get("grams", 0)))
                 elif do == "dump":

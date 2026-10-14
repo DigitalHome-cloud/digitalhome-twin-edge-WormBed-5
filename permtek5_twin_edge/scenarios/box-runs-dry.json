@@ -1,0 +1,124 @@
+{
+  "title": "The worm box runs dry",
+  "about": "A warm dry spell dries the worm box's bedding. The mist line under its lid waters it from the rain barrel, with the box closed: the edge proposes it, you confirm. In frost it waits.",
+  "fresh": true,
+  "needs": [
+    "wormBin",
+    "tank"
+  ],
+  "steps": [
+    {
+      "title": "The bedding dries out",
+      "why": "Worms breathe through their skin: below about half its moisture the bedding is too dry, and they slow down. The moisture probe in the box tells the keeper.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "box",
+          "do": "moisture",
+          "percent": 45
+        },
+        "label": "Let the box dry out"
+      },
+      "expect": [
+        {
+          "read": "keeper.box-dry",
+          "is": "==",
+          "value": true,
+          "say": "the keeper sees a dry box: {v}"
+        },
+        {
+          "read": "proposals.valve-mist",
+          "is": ">=",
+          "value": 1,
+          "say": "the mist line proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Mist the box from the rain barrel",
+      "scored": true,
+      "why": "The mist line is a drip hose under the lid, fed from the barrel through a valve the edge opens. Rainwater, no chlorine, and the box stays closed. It runs half a litre a minute and stops when the dose is given.",
+      "do": {
+        "type": "proposal",
+        "id": "valve-mist",
+        "label": "Confirm the mist line"
+      },
+      "noWait": true,
+      "expect": [
+        {
+          "read": "bed.wormBin.moisture",
+          "is": ">=",
+          "value": 55,
+          "say": "the box's moisture: {v} %"
+        },
+        {
+          "read": "bed.water.mistedL",
+          "is": ">",
+          "value": 0.5,
+          "say": "misted from the barrel: {v} l"
+        }
+      ]
+    },
+    {
+      "title": "A cold snap",
+      "why": "The air falls far below freezing. The keeper holds feeding and watering, the worm box's too: water on frozen bedding freezes the worms.",
+      "do": {
+        "type": "disturb",
+        "id": "cold-snap",
+        "calmFirst": true,
+        "label": "Send a cold snap"
+      },
+      "expect": [
+        {
+          "read": "keeper.frost",
+          "is": "==",
+          "value": true,
+          "say": "frost: {v}"
+        },
+        {
+          "read": "holds.moisten",
+          "is": "==",
+          "value": true,
+          "say": "watering the box on hold: {v}"
+        }
+      ]
+    },
+    {
+      "title": "In frost the dry box waits",
+      "scored": true,
+      "why": "The box dries again, but nothing is proposed while it is freezing: the keeper says the box is dry, and the mist line waits for warmer air.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "box",
+          "do": "moisture",
+          "percent": 45
+        },
+        "label": "Let the box dry out again"
+      },
+      "expect": [
+        {
+          "read": "keeper.box-dry",
+          "is": "==",
+          "value": true,
+          "say": "the keeper sees a dry box: {v}"
+        },
+        {
+          "read": "proposals.valve-mist",
+          "is": "==",
+          "value": 0,
+          "say": "the mist line proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Calm again",
+      "why": "The cold passes. Once the air and the box are clearly warmer, the keeper lets go of the hold and the mist line is proposed again.",
+      "do": {
+        "type": "calm",
+        "label": "End the cold snap"
+      },
+      "expect": []
+    }
+  ]
+}

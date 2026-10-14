@@ -112,8 +112,8 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None,
               holds: Optional[List[str]] = None, advice: Optional[Dict[str, Any]] = None,
               guide: Optional[Dict[str, Any]] = None, active: Optional[List[str]] = None,
-              weeds: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-    """The jobs the gantry could do now. Proposals only: a person confirms each before anything moves.
+              weeds: Optional[Dict[str, Any]] = None, care_due: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """The jobs the gantry (and the edge's valves) could do now. Proposals only: a person confirms each before anything moves.
 
     Sowing: every planned cell not sown yet. Watering: planted cells whose soil
     is dry, each with what its crop wants for a day. A probe pass and a photo
@@ -123,11 +123,14 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
     `guide` is the feeding guide's view (app._follow_guide): how much dry bedding is due.
     `active` are the keeper's reactions in force. From these come the box's care: bedding,
     water, draining the sump, resting one half for harvest, and compost back to the cells.
+    `care_due` are the care calendar's tasks due today (maintenance.py): the mist line's routine.
+    A proposal may name the hold it falls under ("hold"), when that is not its kind: watering the
+    worm box is "moisten", whether by the mist line (a valve) or the gantry (a care job).
     Whether this is the right MONTH to sow is PermTek-5's calendar, not decided here.
     """
     if not cfg:
         return []
-    found = _box_care(cfg, bed_state or {}, guide or {}, active or []) + _proposals(cfg, bed_state, advice)
+    found = _box_care(cfg, bed_state or {}, guide or {}, active or [], care_due or []) + _proposals(cfg, bed_state, advice)
     if bed_state and "sim" in bed_state:           # a twin that grows weeds: look for them, and press the small ones under
         stampable = [w for w in (weeds or {}).get("found", []) if w["do"] == "stamp"]
         if stampable:
@@ -138,7 +141,7 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
                       "detail": _("the tool camera, picture by picture: green that is not at a planted point is a weed")
                                 + (_("; last look: {when}", when=(weeds or {}).get("when")) if (weeds or {}).get("when") else ""),
                       "spec": {"kind": "scan"}})
-    return [p for p in found if p["kind"] not in (holds or [])]
+    return [p for p in found if p.get("hold", p["kind"]) not in (holds or []) and p["kind"] not in (holds or [])]
 
 
 SMALL_WEED_BELOW_MM = 30    # under this the stamp presses a weed into the soil; above, a person pulls it
@@ -170,6 +173,37 @@ LIQUID_TO_BED_SHARE = 1 / 3  # of the worm liquid, what goes to the bed's own ta
 REFILL_BELOW_SHARE = 0.4     # the tank pipes this empty and the barrel holding water: refill from the barrel
 REFILL_FROM_L = 20.0         # what the barrel must hold for a refill to be worth it
 TOPDRESS_CELLS, TOPDRESS_G = 6, 50
+MIST_BELOW_PCT = 70.0       # the routine tops the box up when its moisture reads under this
+MIST_TO_PCT = 72.0          # and aims for this: 0.1 l of water is about 1 % in the simulated box
+WET_BOX_RULES = ("box-wet", "airless", "overfed")   # what dry bedding mends; the robot brings it from the hopper
+
+
+def _box_water(box: Dict[str, Any], active: List[str], care_due, kinds: Dict[str, Any], joins: Dict[Any, Any]) -> List[Dict[str, Any]]:
+    """Water for the worm box: by the mist line under its lid from the rain barrel (the box stays closed), or by the
+    gantry through the feed hatch from the tank when there is no mist line or the barrel is dry. For a dry box, a
+    hot one (water on top cools as it evaporates), and the care calendar's routine when the probe reads it under
+    MIST_BELOW_PCT. Frost and a soaked box hold it ("moisten", keeper.HOLDS). No reading, no water."""
+    moisture = box.get("moisture")
+    if not isinstance(moisture, (int, float)):
+        return []
+    dry, hot = "box-dry" in active, "heat" in active and moisture < 80
+    routine = "mist" in care_due and moisture < MIST_BELOW_PCT
+    if not (dry or hot or routine):
+        return []
+    litres = round(max(0.3 if hot else 0.2, min(1.5, (MIST_TO_PCT - moisture) / 10.0)), 1)
+    why = (_("its moisture reads {pct} %; worms stop in a dry box", pct=moisture) if dry
+           else _("a hot box: water on top cools it as it evaporates; its moisture reads {pct} %", pct=moisture) if hot
+           else _("the routine look: its moisture reads {pct} %, under {low} %", pct=moisture, low=f"{MIST_BELOW_PCT:.0f}"))
+    mist, barrel = joins.get(("RainBarrel", "WormBoxBin")), kinds.get("RainBarrel")
+    if mist and mist["kind"] == "EdgeValve" and not mist.get("open") and barrel and barrel.get("litres", 0) >= litres + 0.5:
+        return [{"id": "valve-mist", "kind": "valve", "hold": "moisten",
+                 "title": _("Mist the worm box from the rain barrel: {l} l", l=f"{litres:g}"),
+                 "detail": why + _("; the mist line under the lid, the box stays closed"),
+                 "spec": {"kind": "valve", "what": "mist", "from": "RainBarrel", "to": "WormBoxBin", "litres": litres}}]
+    if dry:                                       # no mist line, or the barrel is dry: the gantry, from the tank
+        return [{"id": "moisten", "kind": "care", "hold": "moisten", "title": _("Sprinkle half a litre of water over the worm box"),
+                 "detail": why, "spec": {"kind": "care", "what": "moisten", "ml": 500}}]
+    return []
 
 
 def next_spot(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]]) -> int:
@@ -181,28 +215,28 @@ def next_spot(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]]) -> int:
     return fed[int(box.get("feedings", 0)) % len(fed)]
 
 
-def _box_care(cfg: Dict[str, Any], state: Dict[str, Any], guide: Dict[str, Any], active: List[str]) -> List[Dict[str, Any]]:
-    """What the worm box needs besides food. The robot does the routine part; a person confirms."""
+def _box_care(cfg: Dict[str, Any], state: Dict[str, Any], guide: Dict[str, Any], active: List[str],
+              care_due: List[str] = ()) -> List[Dict[str, Any]]:
+    """What the worm box needs besides food. The robot (and the edge's valves) do the routine part; a person confirms."""
     box, hopper, tank = state.get("wormBin") or {}, state.get("hopper") or {}, state.get("tank") or {}
     if not (cfg.get("wormBin") or {}).get("cols") or "harvest" not in box:
         return []
     out: List[Dict[str, Any]] = []
     spot = next_spot(cfg, state)
     due, have = int(guide.get("brownsDue") or 0), int(hopper.get("brownsGrams") or 0)
-    if due > 0 and have > 0:
-        grams = min(due, have, 500)
+    wet_rule = next((r for r in WET_BOX_RULES if r in active), None)
+    if have > 0 and (due > 0 or wet_rule):
+        grams = min(max(due, 500 if wet_rule else 0), have, 500)
         out.append({"id": "bedding", "kind": "care", "title": _("Add {g} g of dry bedding to the worm box", g=grams),
-                    "detail": _("the feeding guide wants one part of browns to three of scraps; {have} g in the bedding compartment", have=have),
+                    "detail": _("the box is too wet or short of air; dry bedding takes up water and lets air in; {have} g in the bedding compartment", have=have)
+                    if wet_rule else _("the feeding guide wants one part of browns to three of scraps; {have} g in the bedding compartment", have=have),
                     "spec": {"kind": "care", "what": "bedding", "grams": grams, "spot": spot}})
-    if "box-dry" in active:
-        out.append({"id": "moisten", "kind": "care", "title": _("Sprinkle half a litre of water over the worm box"),
-                    "detail": _("its moisture reads {pct} %; worms stop in a dry box", pct=box.get("moisture")),
-                    "spec": {"kind": "care", "what": "moisten", "ml": 500}})
     sump, cap = box.get("sumpL"), box.get("sumpCapacity")
     room = float(tank.get("capacity") or 0) - float(tank.get("litres") or 0)
     water = state.get("water") or {}
     kinds = {s["kind"]: s for s in water.get("stores") or []}
     joins = {(kinds_of(water, v["from"]), kinds_of(water, v["to"])): v for v in water.get("valves") or []}
+    out += _box_water(box, active, care_due, kinds, joins)
     if sump is not None and cap and sump >= 0.5 * cap:
         garden = kinds.get("GardenTank")
         garden_room = (garden["capacity"] - garden.get("litres", 0.0)) if garden else 0.0

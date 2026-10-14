@@ -341,7 +341,8 @@ def _twin_state() -> dict:
             "operator": _operator(bed, kept["active"]),
             "learning": _learning(cfg, bed),
             "habitats": store.habitats(), "recorded": recorded,
-            "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"))
+            "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"),
+                                           [t["id"] for t in (kept.get("care") or {}).get("tasks") or [] if t.get("due")])
                           if not kept["lockout"] else [])}
 
 
@@ -412,7 +413,8 @@ def twin_job():
     guide = (kept.get("guide") or {}).get("feed") or {}
     if spec.get("kind") == "feed" and guide.get("ok") is False:
         return jsonify({"errors": [_("Feeding guide: {text}", text=guide["text"])]}), 409
-    why_not = keeper.refuses(kept, str(spec.get("kind")))
+    hold = "moisten" if spec.get("what") in ("moisten", "mist") else str(spec.get("kind"))    # watering the worm box
+    why_not = keeper.refuses(kept, str(spec.get("kind"))) or keeper.refuses(kept, hold)
     if why_not:                                   # a hold or a lockout: the keeper's word stands over a click
         return jsonify({"errors": [why_not]}), 409
     try:
@@ -431,11 +433,14 @@ def _run(spec: dict) -> dict:
             _care_done(task)
         return out
     if spec.get("kind") == "valve":                   # an edge valve: open it; it closes itself when done (water.py)
-        out = {**_event({"op": "valve", "from": spec.get("from"), "to": spec.get("to"), "open": True}), "done": "the valve was opened"}
+        valve = {"op": "valve", "from": spec.get("from"), "to": spec.get("to"), "open": True}
+        if spec.get("litres"):                         # a dose: the mist line
+            valve["litres"] = float(spec["litres"])
+        out = {**_event(valve), "done": "the valve was opened"}
         if spec.get("from") == "WormBoxSump":
-            sump_task = maintenance.task_for_job(_care_guide, {"kind": "tap"})
-            if sump_task:
-                _care_done(sump_task)
+            task = task or maintenance.task_for_job(_care_guide, {"kind": "tap"})
+        if task:
+            _care_done(task)
         return out
     if spec.get("kind") == "rest":
         return {**_event({"op": "box", "do": "rest", "side": spec.get("side")}), "done": "one half of the box now rests"}
@@ -479,6 +484,12 @@ def _follow_care(cfg, bed, twin, out, kept: dict) -> None:
             if job["state"] == "done":
                 record = maintenance.done(out, task, today)
     tasks = maintenance.due(_care_guide, record, today, kept.get("active"), lang=i18n.current())
+    # the mist line's routine is a look first: when the probe reads the box moist enough, the look is the task done
+    moisture = (bed.get("wormBin") or {}).get("moisture")
+    mist = next((t for t in tasks if t["id"] == "mist" and t["due"] and t["reason"] != "brought"), None)
+    if mist and isinstance(moisture, (int, float)) and moisture >= engine.MIST_BELOW_PCT:
+        record = maintenance.done(out, "mist", today)
+        tasks = maintenance.due(_care_guide, record, today, kept.get("active"), lang=i18n.current())
     kept["care"] = {"today": today.isoformat(), "tasks": tasks,
                     "due": {"robot": sum(1 for t in tasks if t["due"] and t["who"] == "robot"),
                             "person": sum(1 for t in tasks if t["due"] and t["who"] == "person")}}

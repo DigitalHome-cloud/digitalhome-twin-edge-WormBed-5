@@ -462,6 +462,7 @@ button.op-tile:focus-visible { outline: 2px solid var(--app-accent); outline-off
 .loop-list { list-style: none; padding: 0; margin: var(--app-space-2) 0; display: grid; gap: 6px; font-size: 0.9rem; }
 .loop-list li { overflow-wrap: anywhere; }
 .loop-list li.bad { color: var(--app-danger); }
+.loop-fix { display: block; margin-top: 2px; color: var(--app-text); font-size: 0.85rem; }
 .loop-list li.ok::before { content: "✓ "; color: var(--app-success); }
 .loop-list button { margin-left: 6px; padding: 2px 10px; font-size: 0.8rem; }
 .loop-card--chaos .loop-list { text-align: left; }

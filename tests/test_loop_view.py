@@ -76,3 +76,13 @@ def test_run_shows_the_clock_and_the_season_and_a_paused_clock():
     assert view["run"]["season"] == "spring" and view["run"]["date"] == "2026-04-03" and not view["run"]["paused"]
     paused = running(twin={"gantry": {}, "cameras": ["a", "b"], "bed": {"env": {**ENV, "factor": 0}}})
     assert loop_view.loop(paused, None, disturbances.CATALOGUE)["run"]["paused"]
+
+
+def test_a_notice_the_robot_can_see_to_shows_its_proposal_and_leaves_the_list():
+    kept = {"active": ["box-dry"], "holds": [], "lockout": None,
+            "notices": [{"id": "box-dry", "text": "The worm box is drying out", "level": "note"}]}
+    proposals = [{"id": "valve-mist", "title": "Mist the worm box from the rain barrel: 1.5 l", "kind": "valve"},
+                 {"id": "probe", "title": "Probe", "kind": "probe"}]
+    ctl = loop_view.loop(running(keeper=kept, proposals=proposals), None, disturbances.CATALOGUE)["control"]
+    assert ctl["issues"][0]["proposal"]["id"] == "valve-mist"
+    assert [p["id"] for p in ctl["proposals"]] == ["probe"] and ctl["proposalCount"] == 1

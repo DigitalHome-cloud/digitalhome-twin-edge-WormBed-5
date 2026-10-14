@@ -23,6 +23,11 @@ from .i18n import _
 from .operator_view import RULES
 
 STAGES = ("prepare", "run", "observe", "control")
+# a keeper's notice the robot or a valve can see to: the proposals that do it (engine.py). In Control the notice
+# shows its proposal beside it, to confirm, instead of a chore for the person.
+COVERS = {"box-dry": ("valve-mist", "moisten"), "heat": ("valve-mist",), "box-wet": ("bedding",), "airless": ("bedding",),
+          "overfed": ("bedding",), "sump-full": ("valve-bed", "valve-garden", "tap"), "barrel-refill": ("valve-barrel",),
+          "tank-low": ("valve-barrel",), "tank-empty": ("valve-barrel",)}
 READY = ("world", "webots", "gantry", "cameras")
 WAITING = {"world": "the world to be prepared", "webots": "Webots to start", "gantry": "the gantry to connect to Webots",
            "cameras": "the robot's cameras"}
@@ -91,7 +96,13 @@ def loop(state: Dict[str, Any], scenario: Optional[Dict[str, Any]], catalogue: D
     monkey = chaos(state, catalogue)
     ready = ready or readiness(state, [], 0.0)
 
-    issues = [{"id": n["id"], "text": n["text"], "level": n.get("level", "note"), "holds": n.get("holds") or []} for n in notices]
+    by_id = {p["id"]: p for p in proposals}
+    issues = []
+    for n in notices:
+        fix = next((by_id[i] for i in COVERS.get(n["id"], ()) if i in by_id), None)
+        issues.append({"id": n["id"], "text": n["text"], "level": n.get("level", "note"), "holds": n.get("holds") or [],
+                       "proposal": fix and {"id": fix["id"], "title": fix["title"]}})
+    covered = {i["proposal"]["id"] for i in issues if i["proposal"]}
     issues.sort(key=lambda n: n["level"] != "alert")
     person_due = [t for t in due if t.get("who") == "person"]
     run_step = (scenario or {}).get("run") or None
@@ -115,7 +126,7 @@ def loop(state: Dict[str, Any], scenario: Optional[Dict[str, Any]], catalogue: D
         "control": {"maintenance": [{"id": t["id"], "label": t.get("label") or t["id"], "who": t.get("who"), "job": t.get("job"),
                                      "reason": t.get("reason"), "overdueDays": t.get("overdueDays", 0)} for t in due],
                     "issues": issues, "holds": kept.get("holds") or [], "lockout": kept.get("lockout"),
-                    "proposals": [{"id": p["id"], "title": p["title"], "kind": p.get("kind")} for p in proposals[:3]],
-                    "proposalCount": len(proposals)},
+                    "proposals": [{"id": p["id"], "title": p["title"], "kind": p.get("kind")} for p in proposals if p["id"] not in covered][:3],
+                    "proposalCount": len(proposals) - len(covered)},
         "chaos": monkey,
     }

@@ -32,7 +32,7 @@ def test_a_calm_day_needs_nothing():
 def test_frost_holds_feeding_and_watering_and_lets_go_only_when_clearly_warmer():
     m = {}
     r = keeper.evaluate(bed(air=-6.0, box=9.0), m)
-    assert r["active"] == ["frost"] and r["holds"] == ["feed", "water"] and r["lockout"] is None
+    assert r["active"] == ["frost"] and r["holds"] == ["feed", "moisten", "water"] and r["lockout"] is None
     assert ids(bed(air=2.0, box=9.0), m) == ["frost"], "between the two thresholds it holds"
     assert ids(bed(air=4.0, box=6.0), m) == ["frost"], "the air recovered, the box has not"
     assert ids(bed(air=4.0, box=8.0), m) == []
@@ -92,7 +92,7 @@ def test_hopper_jam_offline_and_a_full_box():
 def test_several_at_once_add_up():
     b = bed(air=-8.0, wind=22.0, box=None, tank=0.0)
     r = keeper.evaluate(b, {})
-    assert set(r["active"]) == {"frost", "storm", "tank-empty", "sensor"} and r["lockout"] and r["holds"] == ["feed", "water"]
+    assert set(r["active"]) == {"frost", "storm", "tank-empty", "sensor"} and r["lockout"] and r["holds"] == ["feed", "moisten", "water"]
     assert [n["level"] for n in r["notices"]] == ["alert"] * 4
 
 

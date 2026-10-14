@@ -8,15 +8,21 @@ they are, and this module moves water into and out of them through two small ada
     w = WaterSystem(cfg["water"])                          # from bed.json (habitat.py: water_for)
     w.rain(mm)                                             # each look: the roof's rain into the barrel
     w.open("valve id", True)                               # a person opened a tap, or the edge an edge valve
+    w.open("mist id", True, litres=0.5)                    # a dose: it closes once that much has run
     tank_l = w.step(minutes, tank_l, tank_cap, box)        # open valves move water, as far as there is room
     w.state()                                              # for /bed/state: stores, valves, rain lost
 
 A valve lets FLOW_L_PER_MIN through while it is open and closes itself when its source is empty or its target
-full (a person or the edge would close it then). Worm liquid that reaches the garden tank is counted apart, so
+full (a person or the edge would close it then), or when the dose it was opened for has run. The worm box's bin
+(WormBoxBin) is a place water goes to, not a store: the MIST LINE under its lid wets the bedding at
+MIST_L_PER_MIN and stops at MIST_STOP_PCT moisture, whatever is left of its dose. Worm liquid that reaches the garden tank is counted apart, so
 the page can say what share of it is worm liquid. Every number is a rule of thumb.
 """
 
 FLOW_L_PER_MIN = 5.0          # a gravity tap with a hose: about a bucket every two minutes
+MIST_L_PER_MIN = 0.5          # a drip or mist hose under the worm box's lid
+MIST_STOP_PCT = 85.0          # the bedding's moisture at which the mist line stops: wet enough
+L_PER_PCT = 0.1               # litres that raise the simulated box's moisture one point (wormbox.py: moisten)
 
 
 class WaterSystem:
@@ -35,6 +41,7 @@ class WaterSystem:
         self.overflowing = set()
         self.to_bed_l = 0.0                           # worm liquid given to the bed's tank pipes, and to the garden, in all
         self.to_garden_l = 0.0
+        self.to_bin_l = 0.0                           # clean water the mist line gave the worm box, in all
 
     # -- what is where ----------------------------------------------------------------
 
@@ -70,9 +77,10 @@ class WaterSystem:
                 self.levels[sid] = self.cap(sid)
                 self.overflowing.add(sid)
 
-    def open(self, vid, on=True):
+    def open(self, vid, on=True, litres=None):
         if vid in self.valves:
             self.valves[vid]["open"] = bool(on)
+            self.valves[vid]["dose"] = float(litres) if on and litres else None
             return True
         return False
 
@@ -92,9 +100,15 @@ class WaterSystem:
                 continue
             have = (box.sump_l if box is not None else 0.0) if src["kind"] == "WormBoxSump" else \
                 tank_l if src["kind"] == "TankPipes" else self.litres(v["from"])
-            room = tank_cap - tank_l if dst["kind"] == "TankPipes" else \
-                ((box.sump_cap_l - box.sump_l) if box is not None else 0.0) if dst["kind"] == "WormBoxSump" else self.cap(v["to"]) - self.litres(v["to"])
-            move = max(0.0, min(FLOW_L_PER_MIN * minutes, have, room))
+            if dst["kind"] == "WormBoxBin":           # the mist line: as long as the dose lasts and the bedding is not wet
+                room = 0.0 if box is None else max(0.0, (MIST_STOP_PCT - box.moisture) * L_PER_PCT)
+            else:
+                room = tank_cap - tank_l if dst["kind"] == "TankPipes" else \
+                    ((box.sump_cap_l - box.sump_l) if box is not None else 0.0) if dst["kind"] == "WormBoxSump" else self.cap(v["to"]) - self.litres(v["to"])
+            if v.get("dose") is not None:
+                room = min(room, v["dose"])
+            rate = MIST_L_PER_MIN if dst["kind"] == "WormBoxBin" else FLOW_L_PER_MIN
+            move = max(0.0, min(rate * minutes, have, room))
             worm = src["kind"] == "WormBoxSump" or (src["kind"] in self.worm_l and self.litres(v["from"]) > 0
                                                     and self.worm_l[v["from"]] / self.litres(v["from"]) > 0.5)
             # out of the source
@@ -113,14 +127,20 @@ class WaterSystem:
                     self.to_bed_l += move
             elif dst["kind"] == "WormBoxSump" and box is not None:
                 box.sump_l += move
+            elif dst["kind"] == "WormBoxBin":
+                if box is not None:
+                    box.moisten(move * 1000.0)
+                self.to_bin_l += move
             else:
                 self.levels[v["to"]] += move
                 if worm:
                     self.worm_l[v["to"]] += move
                     if dst["kind"] == "GardenTank":
                         self.to_garden_l += move
-            if move <= 1e-6 or have - move <= 0.05 or room - move <= 0.05:
-                v["open"] = False                     # empty, or full: the tap is closed again
+            if v.get("dose") is not None:
+                v["dose"] -= move
+            if move <= 1e-6 or have - move <= 0.05 or room - move <= 0.005:
+                v["open"], v["dose"] = False, None    # empty, full or the dose given: the valve is closed again
         return tank_l
 
     def state(self):
@@ -135,4 +155,5 @@ class WaterSystem:
         return {"stores": stores,
                 "valves": [{"id": vid, "name": v.get("name", ""), "kind": v["kind"], "from": v["from"], "to": v["to"], "open": v["open"]}
                            for vid, v in self.valves.items()],
-                "lostL": round(self.lost_l, 1), "wormToBedL": round(self.to_bed_l, 2), "wormToGardenL": round(self.to_garden_l, 2)}
+                "lostL": round(self.lost_l, 1), "wormToBedL": round(self.to_bed_l, 2), "wormToGardenL": round(self.to_garden_l, 2),
+                "mistedL": round(self.to_bin_l, 2)}

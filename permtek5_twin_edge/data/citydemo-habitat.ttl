@@ -102,11 +102,15 @@ id:store-s-citypipes a perma:WaterStore ; rdfs:label "Tank pipes" ; perma:inGuil
     perma:storeKind perma:TankPipes ; perma:capacityL 202.0 ; perma:holds perma:CleanWater , perma:WormLiquid .
 id:store-s-citysump a perma:WaterStore ; rdfs:label "Worm box sump" ; perma:inGuild id:guild-g-cityroof ;
     perma:storeKind perma:WormBoxSump ; perma:capacityL 14.4 ; perma:holds perma:WormLiquid .
+id:store-s-citybin a perma:WaterStore ; rdfs:label "Worm box bin" ; perma:inGuild id:guild-g-cityroof ;
+    perma:storeKind perma:WormBoxBin ; perma:holds perma:CleanWater .
 id:store-s-citygardentank a perma:WaterStore ; rdfs:label "Tank by the trees" ; perma:inGuild id:guild-g-cityroof ;
     perma:inZone id:zone-z-citygarden ; perma:storeKind perma:GardenTank ; perma:capacityL 300.0 ;
     perma:holds perma:CleanWater , perma:WormLiquid .
 id:valve-v-citybarrel a perma:Valve ; rdfs:label "Barrel tap" ; perma:inGuild id:guild-g-cityroof ;
     perma:flowFrom id:store-s-citybarrel ; perma:flowTo id:store-s-citypipes ; perma:valveKind perma:ManualTap .
+id:valve-v-citymist a perma:Valve ; rdfs:label "Mist line" ; perma:inGuild id:guild-g-cityroof ;
+    perma:flowFrom id:store-s-citybarrel ; perma:flowTo id:store-s-citybin ; perma:valveKind perma:EdgeValve .
 id:valve-v-citysumpbed a perma:Valve ; rdfs:label "Sump to the bed" ; perma:inGuild id:guild-g-cityroof ;
     perma:flowFrom id:store-s-citysump ; perma:flowTo id:store-s-citypipes ; perma:valveKind perma:EdgeValve .
 id:valve-v-citysumpgarden a perma:Valve ; rdfs:label "Sump to the garden" ; perma:inGuild id:guild-g-cityroof ;

@@ -19,18 +19,21 @@ REACTION with an id:
     airless       the gas sensor smells rot     hold feeding; the person adds dry bedding
     sump-full     the lower bin is full of liquid  hold feeding; the tap is opened
     sour          the pH probe reads acid       hold feeding; the person adds eggshell and bedding
-    box-wet       the box is soaked             hold feeding; the person adds dry bedding
-    box-dry       the box is drying out         the person sprinkles water
+    box-wet       the box is soaked             hold feeding and watering it; dry bedding (the robot's from the hopper, or by hand)
+    box-dry       the box is drying out         water: the mist line or the gantry is proposed, else the person
     lid           the lid stands open           the person closes it
     hopper-jam    the scoop comes back empty    hold feeding; the person clears it
     offline       no link to the cloud          work on; queue what is to be written back
     box-full      the worm box is nearly full   the person harvests the compost
     crowded       the worms eat like a crowded box  the person harvests, or starts a second box
     dying-back    they eat a third less than a week ago, with food there  the person checks food, moisture, air
-    barrel-refill the tank pipes are low and the rain barrel holds water  the person opens the barrel's tap
+    barrel-refill the tank pipes are low and the rain barrel holds water  its edge valve is proposed, or the person opens its tap
     barrel-full   the rain barrel is full and overflows   rain is lost: the person refills the tank from it, or adds a barrel
     garden-full   the garden tank is full   the person uses its liquid on the trees; the sump has nowhere else to go
                   (these two go by the feeder's estimate of the worms: `population`)
+
+Watering the worm box is held as "moisten", whichever way it comes (the mist line, a valve; or the
+gantry's sprinkling, a care job): frost and a soaked box hold it.
 
 Reactions are notices to the person, HOLDS on kinds of job (no proposal, and
 a job of that kind is refused) or a LOCKOUT of the gantry (every job
@@ -84,22 +87,22 @@ TEXT = {
     "sensor": "A worm box sensor gives no trustworthy reading: feeding is on hold until it does.",
     "overfed": "The worm box's core runs much hotter than its edge: too much food is composting. Feeding is on hold; take some out and add dry bedding.",
     "airless": "The worm box smells: it is short of air. Feeding is on hold; mix in dry bedding.",
-    "sump-full": "The worm box's sump is full and backs up into the bin. Feeding is on hold; open the tap to let it into the tank.",
+    "sump-full": "The worm box's sump is full and backs up into the bin. Feeding is on hold; let it into the tank or the garden tank.",
     "sour": "The worm box is turning sour. Feeding is on hold; mix in crushed eggshell and dry bedding, and no citrus for a while.",
-    "box-wet": "The worm box is soaked. Feeding is on hold; add dry bedding and check that it drains.",
-    "box-dry": "The worm box is drying out: sprinkle water over it.",
+    "box-wet": "The worm box is soaked. Feeding and watering it are on hold; it needs dry bedding, and check that it drains.",
+    "box-dry": "The worm box is drying out: it needs water, from the mist line or by hand.",
     "lid": "The worm box's lid stands open: close it.",
     "hopper-jam": "The scoop comes back empty: the hopper is jammed. Feeding is on hold; clear it.",
     "offline": "No link to the cloud: the guild works on, and what it would write back is queued.",
     "box-full": "The worm box is nearly full: harvest the finished compost.",
     "crowded": "The worms eat like a crowded box (about {kg} kg of worms per m²): they will stop breeding. Harvest the compost with some of the worms in it, or start a second box.",
     "dying-back": "The worms eat {pct} % less than a week ago although food lies there: fewer are working. Check the food, the moisture and the air.",
-    "barrel-refill": "The tank pipes are low and the rain barrel holds water: open the barrel's tap.",
+    "barrel-refill": "The tank pipes are low and the rain barrel holds water: let the barrel refill them.",
     "barrel-full": "The rain barrel is full and overflows: rain is being lost. Refill the tank pipes from it, or add a second barrel.",
     "garden-full": "The garden tank is full: use its liquid on the trees, or the sump's liquid has nowhere to go but the bed.",
 }
-HOLDS = {"frost": ["feed", "water"], "heat": ["feed"], "overflow": ["water"], "sensor": ["feed"], "hopper-jam": ["feed"],
-         "overfed": ["feed"], "airless": ["feed"], "box-wet": ["feed"], "sump-full": ["feed"], "sour": ["feed"]}
+HOLDS = {"frost": ["feed", "water", "moisten"], "heat": ["feed"], "overflow": ["water"], "sensor": ["feed"], "hopper-jam": ["feed"],
+         "overfed": ["feed"], "airless": ["feed"], "box-wet": ["feed", "moisten"], "sump-full": ["feed"], "sour": ["feed"]}
 LOCKS = {"storm"}
 CROWDED_ON, CROWDED_OFF = 4.0, 3.5      # kg of worms per m² of box, as the feeder estimates them
 DYING_ON = 30                          # % less eating than a week ago, with food there

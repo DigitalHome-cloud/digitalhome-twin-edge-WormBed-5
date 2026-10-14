@@ -93,6 +93,26 @@
       ]
     },
     {
+      "id": "mist",
+      "who": "robot",
+      "label": {
+        "en": "Keep the worm box moist",
+        "de": "Die Wurmkiste feucht halten",
+        "fr": "Garder le bac à vers humide"
+      },
+      "why": {
+        "en": "Worms breathe through their skin and need the bedding as damp as a wrung-out sponge (60–80 %). The mist line under the lid tops it up with rainwater, the box closed; when the probe reads it moist enough, there is nothing to do.",
+        "de": "Würmer atmen über die Haut und brauchen die Einstreu so feucht wie ein ausgedrückter Schwamm (60–80 %). Die Sprühleitung unter dem Deckel füllt mit Regenwasser nach, die Kiste bleibt zu; meldet der Fühler genug Feuchte, ist nichts zu tun.",
+        "fr": "Les vers respirent par la peau et veulent une litière humide comme une éponge essorée (60–80 %). La rampe de brumisation sous le couvercle complète à l'eau de pluie, bac fermé ; si la sonde la dit assez humide, il n'y a rien à faire."
+      },
+      "everyDays": 3,
+      "job": "valve:mist",
+      "bringForwardOn": [
+        "box-dry",
+        "heat"
+      ]
+    },
+    {
       "id": "weeds",
       "who": "robot",
       "label": {
@@ -397,6 +417,6 @@
     }
   ],
   "jobs": {
-    "en": "The robot's tasks name the twin edge's job that does them (feed, probe, care:bedding, tap, scan, photo, topdress): when that job is done, so is the task."
+    "en": "The robot's tasks name the twin edge's job that does them (feed, probe, care:bedding, tap, valve:mist, scan, photo, topdress): when that job is done, so is the task."
   }
 }

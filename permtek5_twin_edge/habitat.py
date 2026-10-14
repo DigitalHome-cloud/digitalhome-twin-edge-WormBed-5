@@ -367,7 +367,7 @@ WORMBED5 = {"worm_bin_cm": 40, "tank_pipes": 8, "tank_pipe_mm": 110}
 WORMBED5_WATER = {"catchment_m2": 8.0, "runoff": 0.8, "barrel_l": 200.0, "garden_tank_l": 300.0}
 SUMP_DEPTH_M = 0.03                  # the sump's depth: PermTek-5's sumpLitres() rule
 #: Said when a guild's water is assumed, so the page can translate it (it has no numbers that change)
-WATER_ASSUMED = "rain from 8 m² of roof into a 200 l barrel whose tap refills the tank pipes, and a 300 l garden tank the sump can drain to"
+WATER_ASSUMED = "rain from 8 m² of roof into a 200 l barrel whose valves refill the tank pipes and mist the worm box, and a 300 l garden tank the sump can drain to"
 
 
 def water_for(h: Habitat, bed: Bed) -> Tuple[Dict[str, Any], Optional[str]]:
@@ -383,9 +383,11 @@ def water_for(h: Habitat, bed: Bed) -> Tuple[Dict[str, Any], Optional[str]]:
         stores = [WaterStore(base + "barrel", "Rain barrel", gid, "RainBarrel", WORMBED5_WATER["barrel_l"], ["CleanWater"]),
                   WaterStore(base + "pipes", "Tank pipes", gid, "TankPipes", None, ["CleanWater", "WormLiquid"]),
                   WaterStore(base + "sump", "Worm box sump", gid, "WormBoxSump", None, ["WormLiquid"]),
+                  WaterStore(base + "bin", "Worm box bin", gid, "WormBoxBin", None, ["CleanWater"]),
                   WaterStore(base + "garden", "Garden tank", gid, "GardenTank", WORMBED5_WATER["garden_tank_l"], ["CleanWater", "WormLiquid"])]
         catchments = [RainCatchment(base + "roof", "Roof beside the bed", gid, WORMBED5_WATER["catchment_m2"], base + "barrel", WORMBED5_WATER["runoff"])]
-        valves = [Valve(base + "barrel-tap", "Barrel tap", gid, base + "barrel", base + "pipes", "ManualTap"),
+        valves = [Valve(base + "barrel-tap", "Barrel tap", gid, base + "barrel", base + "pipes", "EdgeValve"),
+                  Valve(base + "mist", "Mist line", gid, base + "barrel", base + "bin", "EdgeValve"),
                   Valve(base + "sump-bed", "Sump to the bed", gid, base + "sump", base + "pipes", "EdgeValve"),
                   Valve(base + "sump-garden", "Sump to the garden", gid, base + "sump", base + "garden", "EdgeValve")]
     else:
@@ -399,6 +401,8 @@ def water_for(h: Habitat, bed: Bed) -> Tuple[Dict[str, Any], Optional[str]]:
             return float(bed.tank_litres)                 # the bed's own pipes: what the driver's tank holds
         if s.kind == "WormBoxSump":
             return sump_l
+        if s.kind == "WormBoxBin":                    # a place water goes to, not a store: no litres
+            return 0.0
         return float(s.capacity_l or 0.0)
     return ({"catchments": [{"id": c.id, "name": c.name, "m2": c.m2, "runoff": c.runoff, "storeId": c.store_id} for c in catchments],
              "stores": [{"id": s.id, "name": s.name, "kind": s.kind, "capacityL": capacity(s), "holds": s.holds,
