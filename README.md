@@ -156,6 +156,62 @@ this repository. `scripts/check-public.sh` runs before every commit.
 The first run creates `.venv` and installs the requirements. Any other option
 goes straight to the app, e.g. `./run.sh --no-update-check`.
 
+**The Loop** is the home screen. It runs as a cycle, like plan–do–check–act:
+
+```
+ Prepare ──► Run ──► Observe ──► Control ──┐
+               ▲                           │
+               └──────── back to Run ──────┘
+                 (the Chaos Monkey in the middle)
+```
+
+- **Prepare.** Choose the habitat, a scenario and a starting month, then
+  press **Prepare and start**. It writes the world, starts Webots and the
+  gantry, and waits for both cameras. A checklist shows how far it is: the
+  world, Webots, the gantry connected, the cameras. If the start fails or
+  hangs, it says why from the simulation's log, and offers to start without
+  the Webots window.
+- **Run.** The simulated day and night, the date and season, and the weather.
+  The clock runs at 1 to 120 minutes a second, or stands paused.
+  **A normal year** (`scenarios/normal-year.json`) runs through a generic
+  temperate year from the month you choose. It is no site's climate.
+  Without it, the weather is the mild, seasonless kind the guided scenarios
+  are written for. A scenario's run profile (`"run"`) sets the clock, the
+  seasons and the random trouble.
+- **Observe.** The readings at a glance (ok, watch, alarm), what needs a look,
+  and the scenario's current step.
+- **Control.** Two lanes:
+  - *Maintenance*: the care calendar's tasks due, yours with **Done**;
+  - *Human in the loop*: the keeper's notices and holds, and the robot's
+    proposals to **Confirm**.
+- **Chaos Monkey.** Weather and broken parts, at random or **Throw one now**.
+  Each one owes a reaction from the keeper, and the card ticks it off when it
+  comes.
+
+The stage that needs you glows. Detail stays on the Operator, Robot, Care and
+Scenario screens.
+
+**In Webots**, double-click the gantry (or right-click › Show Robot Window).
+This opens **the guild's robot window** (`ros2/roofbed_twin/robot_windows/wormbed5`):
+- **Buttons** for what a person does at the bed: the lid, wrapping the box,
+  the sump's tap, dry bedding, water, the hopper, the tank, the barrel's tap,
+  and the e-stop.
+- **Same as the page:** each button sends the same event the page's buttons
+  do, so the keeper and the Operator screen see it alike. The Loop lists it
+  under Observe.
+- **No jogging:** the gantry is not moved from the window; its jobs stay
+  proposals you confirm.
+- **Offline:** the window speaks Webots' window protocol itself, so it needs
+  no internet.
+
+Webots looks for the window in its project, the folder above the world, so
+`world.py` copies it there (inside `mydocs/`).
+
+If the twin starts but the gantry never connects, the edge was probably
+started from a terminal with its own `TMPDIR`, such as a snap's (PyCharm's).
+Webots and its controller then looked for each other in two places. The launch
+now pins both to `/tmp`.
+
 The header has **About**, which shows the installed version, checks github.com
 for a newer one and links to the repository. On a pip or pipx install it can
 **update itself**: it runs pip against the latest tag, shows what pip said, and

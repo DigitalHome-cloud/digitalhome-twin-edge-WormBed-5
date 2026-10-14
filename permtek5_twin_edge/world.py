@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -66,6 +67,20 @@ def _look(frm: Tuple[float, float, float], at: Tuple[float, float, float]) -> st
     s = 2 * math.sin(angle)
     ax, ay, az = (m[2][1] - m[1][2]) / s, (m[0][2] - m[2][0]) / s, (m[1][0] - m[0][1]) / s
     return f"{_f(ax)} {_f(ay)} {_f(az)} {_f(angle)}"
+
+
+def _robot_window(out_dir: Path) -> None:
+    """The gantry's robot window (ros2/roofbed_twin/robot_windows/wormbed5): Webots looks for it in the world's
+    project, plugins/robot_windows/<name>/, and takes the folder ABOVE the world's for the project (it expects
+    worlds in a worlds/ folder). So it is copied there with the world; every guild's world finds the same one."""
+    src = Path(__file__).resolve().parent.parent / "ros2" / "roofbed_twin" / "robot_windows" / "wormbed5"
+    if not src.is_dir():                         # an installed edge without the ROS sources: Webots shows its generic window
+        return
+    dst = Path(out_dir).resolve().parent / "plugins" / "robot_windows" / "wormbed5"
+    dst.mkdir(parents=True, exist_ok=True)
+    for f in src.iterdir():
+        if f.is_file():
+            shutil.copyfile(f, dst / f.name)
 
 
 def _box(name: str, pos, size, rgb, rough: float = 1.0, metal: float = 0.0) -> str:
@@ -121,6 +136,7 @@ def _gantry(length: float, width: float, zmax: float, assets: Optional[Path]) ->
     return f"""Robot {{
   name "gantry"
   controller "<extern>"
+  window "wormbed5"
   supervisor TRUE
   children [
     {rails}
@@ -358,5 +374,6 @@ DirectionalLight {{ ambientIntensity 0.3 direction 0.5 -0.4 -0.6 intensity 0.6 }
     out_dir.mkdir(parents=True, exist_ok=True)
     world, config = out_dir / "roofbed.wbt", out_dir / "bed.json"
     world.write_text("\n".join(w) + "\n", encoding="utf-8")
+    _robot_window(out_dir)
     config.write_text(json.dumps(cfg, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     return {"world": str(world), "config": str(config)}

@@ -117,7 +117,7 @@
       "id": "page",
       "type": "frontend",
       "label": "Twin page",
-      "sublabel": "views · jobs · Confirm",
+      "sublabel": "loop · jobs · Confirm",
       "pos": [
         500,
         60
@@ -401,7 +401,7 @@
       "title": "The loop",
       "items": [
         "Map the bed in PermTek-5; it syncs here",
-        "The world is generated: bed, tank pipes, worm box",
+        "Prepare, run, observe, control: the Loop screen",
         "What was sown goes back to the map"
       ]
     },

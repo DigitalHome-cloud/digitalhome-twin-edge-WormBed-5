@@ -32,6 +32,10 @@ began), worms.<key> (the feeder's estimate of the worms:
 kg, kgPerM2, fallPct), care.due.<task> / care.reason.<task> / care.count.<who>
 (the care calendar, maintenance.py), composted (cells that got compost), weeds.<key> (the last look over the bed:
 small, byHand, scanned).
+A scenario may carry a "run" profile: {"fresh": true, "seasons": true, "startMonth": 4, "factor": 30,
+"chaos": 0}: a fresh box, the generic year's seasons from that month (or the month the person picked),
+the clock, and random trouble per simulated day (app.py _scenario_begin). Without "seasons" the weather
+is the mild seasonless one the guided scenarios are written for.
 A "proposal" step may carry "factor": the clock is set to it before the job starts. A scenario marked "fresh": true starts from a settled worm box, calm weather
 and the normal clock. A step marked "scored": true counts towards the
 run's score: how many scored steps came out as expected.

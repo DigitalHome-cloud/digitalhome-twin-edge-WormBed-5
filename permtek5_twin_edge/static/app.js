@@ -199,8 +199,7 @@ function draw(t) {
   const stopped = !!(t.twin && t.twin.bed && t.twin.bed.stopped);
   S.busy = !!(t.twin && t.twin.job && t.twin.job.state === "running");
   const hero = $("#twin-status");
-  hero.textContent = tr(!t.prepared ? "Prepare a world from the habitat."
-    : !t.running ? "The world is ready. Start the simulation."
+  hero.textContent = tr(!t.running ? "Choose the habitat and a scenario, then start."
     : !ready ? "Starting Webots and the gantry…"
     : stopped ? "E-stop: the gantry holds its position."
     : S.busy ? "The gantry is working." : "The gantry waits for a job you confirm.");
@@ -232,9 +231,7 @@ function draw(t) {
   drawTruth(t);
   drawStrip(t, ready);
   S.ready = !!ready;
-  $("#btn-go-operator").hidden = !ready;
-  $("#btn-start").classList.toggle("pulse", !!(t.prepared && !t.running && !t.missing.length));
-  for (const [id, on] of [["#step-source", true], ["#step-prepare", !!t.prepared], ["#step-start", !!ready]]) $(id).classList.toggle("step--done", on);
+  $("#btn-go").classList.toggle("pulse", !t.running && !t.missing.length);
   land(t);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
   $("#btn-hopper-empty").disabled = $("#btn-hopper-mix").disabled = $("#btn-browns").disabled = $("#btn-hopper").disabled;
@@ -317,15 +314,188 @@ $("#btn-estop").addEventListener("click", async () => {
   refresh();
 });
 
+/* ----------------------------------------------------------------- loop -- */
+// The home screen: Prepare, then Run, Observe, Control and back to Run, with the
+// Chaos Monkey in the middle (loop_view.py on the server). The stage the twin is
+// in now glows; each card shows its part and opens the screen with the detail.
+
+const L = { scenarios: "", months: false, gui: false };
+const MONTHS = () => Array.from({ length: 12 }, (_, i) => new Date(2026, i, 1).toLocaleString(I18N.lang, { month: "long" }));
+const READY_SAY = { world: tr("the world"), webots: tr("Webots"), gantry: tr("the gantry connected"), cameras: tr("the cameras") };
+const SEASON = { winter: tr("winter"), spring: tr("spring"), summer: tr("summer"), autumn: tr("autumn") };
+
+function li(html, cls = "") { return `<li${cls ? ` class="${cls}"` : ""}>${html}</li>`; }
+
+function drawLoop(v) {
+  // which stage is now
+  for (const st of ["prepare", "run", "observe", "control"]) $(`#stage-${st}`).classList.toggle("loop-card--now", v.now === st);
+  $("#stage-chaos").classList.toggle("loop-card--now", (v.chaos.active || []).length > 0);
+  $("#dot-loop").hidden = v.now !== "control";
+
+  // Prepare: the choices (filled once), the checklist, what failed
+  if (!L.months) {
+    L.months = true;
+    $("#sel-month").innerHTML = MONTHS().map((m, i) => `<option value="${i + 1}">${core.esc(m)}</option>`).join("");
+    $("#sel-month").value = String(new Date().getMonth() + 1);
+  }
+  L.list = v.scenarios || [];
+  const want = JSON.stringify((v.scenarios || []).map((x) => [x.id, x.unavailable]));
+  if (L.scenarios !== want) {
+    L.scenarios = want;
+    const sel = $("#sel-scenario"), had = sel.value;
+    const list = (v.scenarios || []).slice().sort((a, b) => (b.seasons - a.seasons) || a.title.localeCompare(b.title));
+    sel.innerHTML = `<option value="">${core.esc(tr("No scenario: just run"))}</option>` + list.map((x) =>
+      `<option value="${core.esc(x.id)}" ${x.unavailable ? "disabled" : ""}>${core.esc(x.title)}${x.unavailable ? " · " + core.esc(x.unavailable) : ""}</option>`).join("");
+    sel.value = had || (list.find((x) => x.seasons && !x.unavailable) || {}).id || "";
+    pickScenario(v);
+  }
+  const r = v.ready || {}, go = v.go || {};
+  const starting = go.state === "running";
+  $("#ready-steps").innerHTML = (r.steps || []).map((x) => li(core.esc(READY_SAY[x.id] || x.id),
+    x.done ? "ready-step--done" : starting && r.next === x.id ? "ready-step--now" : "")).join("");
+  $("#ready-steps").hidden = !starting && !r.running && go.state !== "failed" && !r.failed;
+  const bad = go.state === "failed" ? go.error : r.failed;
+  const msg = bad || r.slow || "";
+  $("#ready-msg").hidden = !msg;
+  $("#ready-msg").textContent = msg;
+  $("#ready-msg").classList.toggle("bad", !!bad);
+  $("#ready-log").hidden = !(msg && (r.log || []).length);
+  $("#ready-log").textContent = (r.log || []).join("\n");
+  $("#btn-go-nowindow").hidden = !(msg && $("#chk-window").checked);
+  $("#ready-rendering").hidden = !(v.rendering && (starting || !r.running));
+  $("#btn-go").disabled = starting;
+  $("#btn-go").textContent = tr(starting ? "Starting…" : r.running ? "Begin this scenario" : "Prepare and start");
+  $("#sel-source").disabled = $("#chk-window").disabled = r.running || starting;
+
+  // Run: the clock, day or night, the season, the weather
+  const run = v.run || {};
+  $("#loop-sky").textContent = !r.running ? "" : run.night ? "☾" : "☀";
+  $("#loop-sky").classList.toggle("loop-sky--night", !!run.night);
+  $("#loop-clock").textContent = !r.running ? tr("not running") : [clock(run.clock), run.date && new Date(run.date).toLocaleDateString(I18N.lang, { day: "numeric", month: "long" }),
+    run.season && SEASON[run.season]].filter(Boolean).join(" · ");
+  $("#loop-weather").textContent = !r.running ? "" : [run.airC != null && `${run.airC} °C`, run.rainMmH ? tr("rain {mm} mm/h", { mm: run.rainMmH }) : tr("dry"),
+    run.sunrise != null && tr("sun {from}–{to}", { from: hm(run.sunrise), to: hm(run.sunset) }), run.paused && tr("paused")].filter(Boolean).join(" · ");
+  const f = $("#loop-factor");
+  if (document.activeElement !== f && run.factor != null) f.value = String([0, 1, 10, 30, 120].reduce((a, b) => Math.abs(b - run.factor) < Math.abs(a - run.factor) ? b : a));
+  f.disabled = !r.ready;
+
+  // Observe: the readings at a glance, what needs a look, the scenario's step
+  const c = (r.running && (v.observe || {}).count) || {};
+  $("#loop-counts").innerHTML = !r.running ? "" : [["ok", c.ok], ["watch", c.watch], ["alarm", c.alarm]].map(([k, n]) =>
+    `<span class="chip chip--${k}">${core.esc(tr(k))} ${n || 0}</span>`).join(" ");
+  const obs = r.running ? v.observe || {} : {};
+  $("#loop-attention").innerHTML = (obs.attention || []).map((n) => li(core.esc(n.text), n.level === "alert" ? "bad" : "")).join("");
+  const ACT_SAY = { lid: tr("the lid"), wrap: tr("the wrapping"), tap: tr("the sump's tap opened"), bedding: tr("dry bedding added"),
+    moisten: tr("water sprinkled"), hopper: tr("hopper filled"), tank: tr("tank refilled"), barrel: tr("the barrel's tap opened"), estop: tr("E-stop") };
+  $("#loop-webots").innerHTML = (obs.inWebots || []).slice().reverse().map((a) => li(core.esc(tr("In Webots, {when}: {what}", { when: clock(a.clock), what: ACT_SAY[a.act] || a.act })), "note")).join("");
+  const step = obs.step;
+  $("#loop-step").hidden = !step;
+  if (step) {
+    $("#loop-step-title").textContent = `${step.title} · ${step.index + 1}/${step.total}: ${step.step.title}`;
+    $("#loop-step-checks").innerHTML = (step.checks || []).map((k) => li(core.esc(k.say), k.ok ? "ok" : "")).join("");
+    $("#btn-loop-next").hidden = !step.ready || step.last;
+  }
+
+  // Control: maintenance that is due, and what needs a person (nothing while the twin does not run)
+  const ctl = r.running ? v.control || {} : {};
+  $("#loop-maintenance").innerHTML = (ctl.maintenance || []).map((x) => li(`${core.esc(tr(x.label))} <span class="tag">${core.esc(tr(x.who === "person" ? "you" : "robot"))}</span>`
+    + (x.overdueDays ? ` <span class="note">${core.esc(tr("{n} day(s) late", { n: x.overdueDays }))}</span>` : "")
+    + (x.who === "person" ? ` <button data-loop-care="${core.esc(x.id)}">${core.esc(tr("Done"))}</button>` : ""))).join("")
+    || li(core.esc(tr(r.running ? "nothing due" : "–")), "note");
+  $("#loop-holds").innerHTML = (ctl.lockout ? `<span class="chip chip--alarm">${core.esc(tr("gantry locked out"))}</span> ` : "")
+    + (ctl.holds || []).map((h) => `<span class="chip chip--watch">${core.esc(tr("{kind} on hold", { kind: job_(h) }))}</span>`).join(" ");
+  $("#loop-issues").innerHTML = (ctl.issues || []).map((n) => li(core.esc(n.text), n.level === "alert" ? "bad" : "")).join("");
+  $("#loop-proposals").innerHTML = (ctl.proposals || []).map((p) => li(`${core.esc(p.title)} <button class="primary" data-loop-job="${core.esc(p.id)}">${core.esc(tr("Confirm"))}</button>`)).join("")
+    + (ctl.proposalCount > 3 ? li(`<a href="#robot">${core.esc(tr("{n} more on the Robot screen", { n: ctl.proposalCount - 3 }))}</a>`, "note") : "")
+    + (!(ctl.issues || []).length && !(ctl.proposals || []).length && r.running ? li(core.esc(tr("nothing waits for you")), "note") : "");
+
+  // the Chaos Monkey
+  const ch = v.chaos || {}, cs = $("#loop-chaos");
+  if (document.activeElement !== cs) cs.value = String(ch.rate >= 4 ? 6 : ch.rate >= 1 ? 2 : 0);
+  cs.disabled = $("#btn-chaos-now").disabled = !r.ready;
+  $("#loop-chaos-active").innerHTML = (ch.active || []).map((d) => li(`<strong>${core.esc(d.title)}</strong> <span class="note">${core.esc(tr("{h} h left", { h: Math.round((d.leftMin || 0) / 6) / 10 }))}</span>`
+    + (d.owes || []).map((o) => ` <span class="chip chip--${o.came ? "ok" : "watch"}">${o.came ? "✓" : "…"} ${core.esc(o.say || o.rule)}</span>`).join(""))).join("")
+    || (r.running ? li(core.esc(tr(ch.rate ? "quiet for now" : "asleep")), "note") : "");
+  translateDom($("#loop"));
+}
+
+const hm = (h) => `${String(Math.floor(h)).padStart(2, "0")}:${String(Math.round((h % 1) * 60)).padStart(2, "0")}`;
+
+function pickScenario() {
+  const x = (L.list || []).find((s) => s.id === $("#sel-scenario").value);
+  $("#lbl-month").hidden = !(x && x.seasons);
+  $("#scenario-about-pick").textContent = x ? x.about : tr("The twin runs in mild weather without seasons; you can begin a scenario later.");
+}
+
+async function refreshLoop() {
+  if (S.tab !== "loop") return;
+  try { drawLoop(await core.api("GET", "/api/twin/loop")); } catch (_) { /* the main refresh says the server is gone */ }
+}
+
+// The ring behind the cards, as on the portal's home: a dotted circle through Run, Observe and Control, its arrows
+// between them, and a line from Prepare into Run. Drawn from where the cards are; hidden on a narrow screen.
+function ringLoop() {
+  const box = $("#loop"), svg = $("#loop-ring");
+  if (!box || box.offsetParent === null) return;
+  const at = (id) => { const r = $(id).getBoundingClientRect(), b = box.getBoundingClientRect(); return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2, r }; };
+  const c = at("#stage-chaos"), run = at("#stage-run"), obs = at("#stage-observe"), ctl = at("#stage-control"), prep = at("#stage-prepare");
+  const narrow = Math.abs(run.x - ctl.x) > 4 || Math.abs(c.y - obs.y) > 40;
+  svg.setAttribute("width", box.clientWidth); svg.setAttribute("height", box.clientHeight);
+  if (narrow) { svg.innerHTML = ""; return; }
+  const rx = Math.max(60, obs.x - c.x), ry = Math.max(60, (ctl.y - run.y) / 2);
+  const arrow = (deg) => {
+    const a = deg * Math.PI / 180, x = c.x + rx * Math.cos(a), y = c.y + ry * Math.sin(a);
+    const tx = -rx * Math.sin(a), ty = ry * Math.cos(a), turn = Math.atan2(ty, tx) * 180 / Math.PI;
+    return `<path d="M -8 -7 L 3 0 L -8 7" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${turn.toFixed(1)})"/>`;
+  };
+  const px = prep.r.right - box.getBoundingClientRect().left;
+  svg.innerHTML = `<ellipse class="loop__ellipse" cx="${c.x}" cy="${c.y}" rx="${rx}" ry="${ry}"/>`
+    + `<g class="loop__arrows">${[-45, 45, 135, 225].map(arrow).join("")}</g>`
+    + `<path class="loop__lead" d="M ${px} ${run.y} L ${run.r.left - box.getBoundingClientRect().left - 6} ${run.y}"/>`
+    + `<path class="loop__arrows" d="M -8 -7 L 3 0 L -8 7" transform="translate(${run.r.left - box.getBoundingClientRect().left - 6} ${run.y})"/>`;
+}
+window.addEventListener("resize", ringLoop);
+new ResizeObserver(() => ringLoop()).observe($("#loop"));
+
+async function go(gui) {
+  const month = $("#lbl-month").hidden ? undefined : Number($("#sel-month").value);
+  const graph = $("#sel-source").value || undefined, scenario = $("#sel-scenario").value;
+  try { localStorage.setItem("permtek5-twin-edge-window", gui ? "1" : ""); } catch (_) { /* private window */ }
+  if (await post("/api/twin/go", { graph, gui, scenario, month })) core.toast(tr("Starting: the checklist shows how far it is"));
+  refreshLoop();
+}
+$("#btn-go").addEventListener("click", () => go($("#chk-window").checked));
+$("#btn-go-nowindow").addEventListener("click", () => { $("#chk-window").checked = false; go(false); });
+$("#sel-scenario").addEventListener("change", pickScenario);
+$("#loop-factor").addEventListener("change", async (e) => { await post("/api/twin/time", { factor: Number(e.target.value) }); refreshLoop(); });
+$("#loop-chaos").addEventListener("change", async (e) => { await post("/api/twin/chaos", { rate: Number(e.target.value) }); refreshLoop(); });
+$("#btn-chaos-now").addEventListener("click", async () => {
+  const d = await post("/api/twin/chaos/now", {});
+  if (d) core.toast(tr("The Chaos Monkey throws: {what}", { what: d.title }));
+  refreshLoop();
+});
+$("#btn-loop-next").addEventListener("click", async () => { await post("/api/twin/scenario/next", {}); refreshLoop(); });
+$("#loop").addEventListener("click", async (e) => {
+  const care = e.target.dataset && e.target.dataset.loopCare, job = e.target.dataset && e.target.dataset.loopJob;
+  if (!care && !job) return;
+  e.target.disabled = true;
+  if (care && await post("/api/twin/care/done", { id: care })) core.toast(tr("Noted as done"));
+  if (job) await post("/api/twin/job", { proposal: job });
+  refreshLoop();
+  refresh();
+});
+setInterval(refreshLoop, 1500);
+
 /* ---------------------------------------------------------------- shell -- */
 // The rail's own buttons call core's (its header stays in the page, hidden).
 
-const TABS = ["setup", "operator", "robot", "care", "sim", "film", "connections", "chat"];
+const TABS = ["loop", "operator", "robot", "care", "sim", "film", "connections", "chat"];
 
 function showTab(name) {
-  const tab = TABS.includes(name) ? name : "setup";
+  const tab = TABS.includes(name) ? name : "loop";          // "#setup", the old home, lands on the loop too
   S.tab = tab;
   for (const t of TABS) $(`#tab-${t}`).hidden = t !== tab;
+  if (tab === "loop") requestAnimationFrame(ringLoop);
   document.querySelectorAll(".app-rail__item.tab").forEach((a) => {
     const on = a.dataset.tab === tab;
     a.classList.toggle("app-rail__item--on", on);
@@ -391,7 +561,7 @@ async function refreshLink() {
     box.innerHTML = linked.map(([name, p]) =>
       `<span><strong>${core.esc(name)}</strong> · ${core.esc(tr("linked to {site}", { site: (p.tenant && p.tenant.name) || p.site || tr("a site") }))}`
       + `${(p.spaces || []).length ? " · " + core.esc(tr("{n} group(s)", { n: p.spaces.length })) : ""}</span>`).join("")
-      + `<span class="note">${core.esc(tr("Sync, then choose the site as the twin's source on the Setup screen."))}</span>`;
+      + `<span class="note">${core.esc(tr("Sync, then choose the site as the twin's source on the Loop screen."))}</span>`;
   } else {
     box.hidden = true;
   }
@@ -474,13 +644,11 @@ function drawPopulation(t, p) {
 }
 /* ------------------------------------------------------- operator view -- */
 
-// Which screen a first look lands on: Setup until the twin runs, then Operator. A #screen in the address wins.
-function land(t) {
+// A first look lands on the loop, the home screen. A #screen in the address wins.
+function land() {
   if (S.landed) return;
   S.landed = true;
-  const asked = location.hash.slice(1);
-  if (TABS.includes(asked)) return;
-  showTab(t.running ? "operator" : "setup");
+  if (!TABS.includes(location.hash.slice(1))) showTab("loop");
 }
 
 // The keeper's notices, alerts first, and what they hold back.
@@ -811,7 +979,6 @@ refreshFilm();
 setInterval(refreshFilm, 2000);
 
 window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
-$("#btn-go-operator").addEventListener("click", () => { location.hash = "operator"; });
 $("#rail-toggle").addEventListener("click", () => railOpen($("#rail").classList.contains("app-rail--closed"), true));
 $("#rail-agent").addEventListener("click", () => core.connectDialog());
 $("#rail-about").addEventListener("click", () => core.aboutDialog());
@@ -833,4 +1000,5 @@ pollShell();
 setInterval(pollShell, 30000);
 
 refresh();
+refreshLoop();
 setInterval(refresh, 800);

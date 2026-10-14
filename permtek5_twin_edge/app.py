@@ -16,7 +16,9 @@ browser, engine and the simulation's gateway.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
+import random
 from pathlib import Path
 import sys
 import threading
@@ -39,6 +41,7 @@ from . import i18n
 from .i18n import _
 from . import instance
 from . import keeper
+from . import loop_view
 from . import scenarios
 from . import sim
 from .core import server
@@ -285,6 +288,24 @@ def _env_view(env):
     return {**env, "disturbances": [{**d, "title": _(d.get("title", ""))} for d in env.get("disturbances") or []]}
 
 
+_window_seen = {"n": 0}
+
+
+def _follow_window(bed, out) -> None:
+    """What a person did in Webots' robot window (ros2/.../robot_window.py) reached the twin already; this edge
+    keeps the same records it keeps for the page's buttons: dry bedding by hand goes into the feeding diary."""
+    acts = bed.get("acts") or []
+    if acts and acts[-1]["n"] < _window_seen["n"]:            # the simulation started again: its count too
+        _window_seen["n"] = 0
+    for a in acts:
+        if a["n"] <= _window_seen["n"]:
+            continue
+        _window_seen["n"] = a["n"]
+        e = a.get("event") or {}
+        if e.get("op") == "box" and e.get("do") == "bedding":
+            _note(out, {"t": _guide_seen["now"], "what": "bedding", "grams": float(e.get("grams", 500))})
+
+
 def _twin_state() -> dict:
     status = sim.status()
     cfg = engine.config()
@@ -299,6 +320,7 @@ def _twin_state() -> dict:
     if cfg and bed:
         _follow_weeds(cfg, bed, twin, kept)
         _follow_care(cfg, bed, twin, out, kept)
+        _follow_window(bed, out)
     recorded = []
     if cfg and src.get("graph") and twin.get("history"):
         # What the gantry sowed goes into the habitat it was prepared from; the next sync takes it to the cloud.
@@ -617,9 +639,9 @@ def twin_calm():
 
 @app.post("/api/twin/time")
 def twin_time():
-    """How many simulated minutes pass in a real second (1: a day in 24 minutes)."""
+    """How many simulated minutes pass in a real second (1: a day in 24 minutes; 0: paused)."""
     try:
-        return jsonify(sim.gateway("/event", {"op": "time", "factor": max(0.1, min(float(body().get("factor", 1)), 600.0))}))
+        return jsonify(sim.gateway("/event", {"op": "time", "factor": max(0.0, min(float(body().get("factor", 1)), 600.0))}))
     except (TypeError, ValueError):
         return jsonify({"errors": ["factor is a number"]}), 400
     except RuntimeError as exc:
@@ -653,6 +675,74 @@ def twin_estop():
         return jsonify({"errors": [_(str(exc))]}), 409
 
 
+# ------------------------------------------------------------------ loop ----
+#
+# The home screen: Prepare, then Run, Observe, Control and back to Run, with the
+# Chaos Monkey in the middle (loop_view.py). "Prepare and start" does the whole
+# start in its own thread (the job queue may be busy with a film for hours):
+# prepare the world, start the twin, wait until the gantry and its cameras are
+# there, then begin the scenario with its run profile and month.
+
+_go: dict = {"state": "idle", "phase": "", "error": None, "started": None}
+
+
+def _go_run(graph, gui: bool, scenario_id: str, month) -> None:
+    def phase(p):
+        _go.update(phase=p)
+    try:
+        if not sim.running():
+            phase("world")
+            ttl = store.ttl_of(graph) if graph else engine.habitat_ttl(None)
+            engine.prepare(ttl)
+            store.remember_source(engine.workspace(), graph)
+            phase("webots")
+            sim.start(engine.workspace(), gui=gui)
+        phase("gantry")
+        if not sim.wait_ready(180.0):
+            ready = loop_view.readiness(_twin_state(), sim.log_tail(40), time.time())
+            raise RuntimeError(ready.get("failed") or ready.get("slow") or _("the gantry did not connect"))
+        if scenario_id:
+            phase("scenario")
+            _scenario_begin(scenario_id, month)
+        _go.update(state="done", phase="ready")
+    except (RuntimeError, ValueError) as exc:
+        _go.update(state="failed", error=_(str(exc)))
+
+
+@app.post("/api/twin/go")
+def twin_go():
+    """Prepare and start: {"graph", "gui", "scenario", "month"}; follow it on /api/twin/loop."""
+    if _go["state"] == "running":
+        return jsonify({"errors": [_("the twin is already starting")]}), 409
+    data = body()
+    _go.update(state="running", phase="", error=None, started=time.time(),
+               scenario=str(data.get("scenario") or ""), month=data.get("month"))
+    threading.Thread(target=_go_run, args=(data.get("graph") or None, bool(data.get("gui")), str(data.get("scenario") or ""),
+                                           data.get("month")), name="go", daemon=True).start()
+    return jsonify(_go), 202
+
+
+@app.get("/api/twin/loop")
+def twin_loop():
+    t = _twin_state()
+    ready = loop_view.readiness(t, sim.log_tail(40), time.time())
+    view = _scenario_view()
+    return jsonify({**loop_view.loop(t, view, disturbances.CATALOGUE, ready), "ready": ready, "go": _go,
+                    "scenarios": view["scenarios"], "rendering": any(j["kind"] == "film" and j["state"] == "running" for j in edge_routes.JOBS.list()),
+                    "source": t.get("source"), "habitats": t.get("habitats"), "pool": disturbances.RANDOM_POOL})
+
+
+@app.post("/api/twin/chaos/now")
+def chaos_now():
+    """The Chaos Monkey throws one at random from its pool."""
+    key = random.choice(disturbances.RANDOM_POOL)
+    try:
+        _disturb(key)
+    except RuntimeError as exc:
+        return jsonify({"errors": [_(str(exc))]}), 409
+    return jsonify({"id": key, "title": _(disturbances.CATALOGUE[key]["title"])})
+
+
 # ------------------------------------------------------------- scenarios ----
 #
 # Guided walkthroughs (scenarios.py, scenarios/*.json). Starting one and doing
@@ -665,6 +755,7 @@ def _scenario_view() -> dict:
     twin = t.get("twin") or {}
     return {"running": bool(t["running"] and twin.get("gantry")),
             "scenarios": [{"id": k, "title": _(s["title"]), "about": _(s["about"]), "steps": len(s["steps"]),
+                           "seasons": bool((s.get("run") or {}).get("seasons")), "startMonth": (s.get("run") or {}).get("startMonth"),
                            "unavailable": _(scenarios.available(s, cfg) or "") or None} for k, s in scenarios.load_all().items()],
             "run": scenarios.state(twin, t["proposals"], t.get("notices") or [], t.get("keeper")),
             "score": _translated_score(scenarios.last_score())}
@@ -684,19 +775,43 @@ def scenario_start():
     if not sim.running():
         return jsonify({"errors": [_("start the simulation first")]}), 409
     try:
-        fresh = scenarios.start(str(body().get("id") or ""), engine.config()).get("fresh")
+        _scenario_begin(str(body().get("id") or ""), body().get("month"))
     except ValueError as exc:
         return jsonify({"errors": [_(str(exc))]}), 400
-    if fresh:                                     # a scenario about the worm box starts from a settled box and calm weather
+    return jsonify(_scenario_view())
+
+
+def _scenario_begin(scenario_id: str, month=None) -> dict:
+    """Start a scenario and set the twin up for it: a fresh box when it asks, and its run profile (clock, random
+    trouble, the seasons from a starting month). A guided scenario without one runs in the mild, seasonless weather
+    it was written for. Raises ValueError (no such scenario, or the bed cannot run it)."""
+    s = scenarios.start(scenario_id, engine.config())
+    run = s.get("run") or {}
+    if s.get("fresh") or run.get("fresh"):       # a scenario about the worm box starts from a settled box and calm weather
         for event in ({"op": "calm"}, {"op": "time", "factor": 1}, {"op": "box", "do": "reset"}):
             sim.gateway("/event", event)
         _feeder_memory.clear()
         _worm_memory.clear()
-        maintenance.begin(engine.workspace(), _care_guide)
         _diary.clear()
         _guide_seen.update(feedN=0, load=None, careN=0)
         _offline["until"] = 0.0
-    return jsonify(_scenario_view())
+    # the seasons: today's simulated day becomes the 1st of the month asked for; the care calendar keeps the same date
+    month = month or run.get("startMonth")
+    day = int((((sim.status().get("twin") or {}).get("bed") or {}).get("env") or {}).get("day") or 1)
+    if run.get("seasons") and month:
+        first = dt.date(dt.date.today().year, max(1, min(12, int(month))), 1)
+        start = first - dt.timedelta(days=day - 1)
+        sim.gateway("/event", {"op": "season", "start": start.isoformat()})
+        maintenance.begin(engine.workspace(), _care_guide, start)
+    else:
+        sim.gateway("/event", {"op": "season", "start": None})
+        if s.get("fresh") or run.get("fresh"):
+            maintenance.begin(engine.workspace(), _care_guide)
+    if "factor" in run:
+        sim.gateway("/event", {"op": "time", "factor": float(run["factor"])})
+    if "chaos" in run:
+        sim.gateway("/event", disturbances.chaos_event(float(run["chaos"])))
+    return s
 
 
 @app.post("/api/twin/scenario/do")

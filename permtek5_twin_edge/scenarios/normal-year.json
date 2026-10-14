@@ -1,0 +1,62 @@
+{
+  "title": "A normal year",
+  "about": "The guild through a year, from the month you choose: days and nights, warm and cold seasons, rain, the care calendar, and the robot's proposals for you to confirm. Nothing is thrown at it unless you let the Chaos Monkey loose.",
+  "needs": [
+    "wormBin",
+    "tank"
+  ],
+  "run": {
+    "fresh": true,
+    "seasons": true,
+    "startMonth": 4,
+    "factor": 30,
+    "chaos": 0
+  },
+  "steps": [
+    {
+      "title": "A day and a night",
+      "why": "The sun rises and sets with the season: long days in summer, long nights in winter. The air is warmest in the afternoon and coldest before dawn.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "days.run",
+          "is": ">=",
+          "value": 1,
+          "say": "simulated days: {v}"
+        }
+      ]
+    },
+    {
+      "title": "A week of care",
+      "why": "The robot proposes what is due: feeding the worms, watering, a look at the bed. You confirm, and you do your part: the hopper, the tank, the lid. The Control stage lists both.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "days.run",
+          "is": ">=",
+          "value": 7,
+          "say": "simulated days: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The seasons turn",
+      "why": "A month later the mean temperature and the rain have moved with the season. Care tied to months, such as wrapping the box before winter, comes due on its own.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "days.run",
+          "is": ">=",
+          "value": 30,
+          "say": "simulated days: {v}"
+        }
+      ]
+    }
+  ]
+}

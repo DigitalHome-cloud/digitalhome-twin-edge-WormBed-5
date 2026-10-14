@@ -425,3 +425,68 @@ button.op-tile:focus-visible { outline: 2px solid var(--app-accent); outline-off
 .app-rail { overflow-x: hidden; }
 .rail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--app-space-2); }
 .rail-actions .app-linkbutton { white-space: normal; text-align: center; }
+
+/* Loop: the home screen. Prepare on the left leads into the ring Run → Observe → Control → Run,
+   the Chaos Monkey in its middle (as the portal's loop). Below 75rem the cards stack. */
+.loop-head { margin-bottom: var(--app-space-4); }
+.loop { position: relative; display: grid; gap: var(--app-space-6) var(--app-space-6);
+  grid-template-columns: minmax(15rem, 1fr) minmax(6rem, 0.45fr) minmax(17rem, 1.1fr) minmax(15rem, 1fr);
+  grid-template-areas: "prep . run ." "prep . chaos obs" "prep . ctrl ."; align-items: center; margin-bottom: var(--app-space-6); }
+.loop__ring { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.loop__ellipse { fill: none; stroke: var(--app-border-strong); stroke-width: 1.5; stroke-dasharray: 2 9; stroke-linecap: round; }
+.loop__arrows, .loop__arrows path { fill: none; stroke: var(--app-accent); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
+.loop__lead { fill: none; stroke: var(--app-accent); stroke-width: 1.5; stroke-dasharray: 5 6; opacity: 0.7; }
+.loop-card { position: relative; z-index: 1; background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius);
+  padding: var(--app-space-4); min-width: 0; transition: box-shadow 0.3s, border-color 0.3s; }
+.loop-card--prepare { grid-area: prep; align-self: stretch; }
+.loop-card--run { grid-area: run; }
+.loop-card--observe { grid-area: obs; }
+.loop-card--control { grid-area: ctrl; }
+.loop-card--chaos { grid-area: chaos; border-style: dashed; text-align: center; }
+.loop-card--now { border-color: var(--app-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 30%, transparent), 0 8px 24px color-mix(in srgb, var(--app-accent) 18%, transparent); }
+.loop-card--chaos.loop-card--now { border-color: var(--app-warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-warning) 30%, transparent); }
+.loop-card__title { margin: 0 0 var(--app-space-2); font-size: 1.05rem; display: flex; align-items: center; gap: var(--app-space-2); }
+.loop-card--chaos .loop-card__title { justify-content: center; }
+.loop-card__n { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; font-size: 0.8rem;
+  background: var(--app-bg-sunken); border: 1px solid var(--app-border-strong); }
+.loop-card--now .loop-card__n { background: var(--app-accent); color: var(--app-text-inverse); border-color: var(--app-accent); }
+.loop-form { display: grid; gap: var(--app-space-2); margin: var(--app-space-2) 0; }
+.loop-form label { display: grid; gap: 2px; font-size: 0.85rem; color: var(--app-text-muted); }
+.loop-form .hero-check { display: flex; gap: var(--app-space-2); align-items: center; }
+.loop-form select { width: 100%; min-width: 0; }
+.loop-card--chaos .loop-form label { justify-items: center; }
+.loop-card--chaos .hero-controls { justify-content: center; }
+.loop-clock { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+.loop-sky { display: inline-block; width: 1.4rem; color: var(--app-warning); }
+.loop-sky--night { color: var(--app-accent); }
+.loop-list { list-style: none; padding: 0; margin: var(--app-space-2) 0; display: grid; gap: 6px; font-size: 0.9rem; }
+.loop-list li { overflow-wrap: anywhere; }
+.loop-list li.bad { color: var(--app-danger); }
+.loop-list li.ok::before { content: "✓ "; color: var(--app-success); }
+.loop-list button { margin-left: 6px; padding: 2px 10px; font-size: 0.8rem; }
+.loop-card--chaos .loop-list { text-align: left; }
+.loop-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: var(--app-space-3); }
+.loop-lanes h3 { margin: 0; font-size: 0.85rem; color: var(--app-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.loop-more { display: flex; gap: var(--app-space-3); margin: var(--app-space-2) 0 0; font-size: 0.85rem; }
+.loop-step__title { font-weight: 600; margin: var(--app-space-2) 0 0; font-size: 0.9rem; }
+.ready-steps { list-style: none; padding: 0; margin: var(--app-space-3) 0 0; display: grid; gap: 4px; font-size: 0.9rem; }
+.ready-steps li::before { content: "○"; display: inline-block; width: 1.3rem; color: var(--app-text-muted); }
+.ready-steps li.ready-step--done::before { content: "●"; color: var(--app-success); }
+.ready-steps li.ready-step--now::before { content: "◐"; color: var(--app-accent); animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ready-msg { margin: var(--app-space-2) 0; font-size: 0.9rem; }
+.ready-msg.bad { color: var(--app-danger); }
+.ready-log { font-family: var(--app-font-mono); font-size: 0.72rem; background: var(--app-bg-sunken); border-radius: var(--app-radius-sm);
+  padding: var(--app-space-2); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 9rem; overflow: auto; margin: 0 0 var(--app-space-2); }
+.loop-steps { margin-top: var(--app-space-3); font-size: 0.9rem; }
+.loop-steps summary { cursor: pointer; color: var(--app-text-muted); }
+.chip--ok { border-color: var(--app-success); color: var(--app-success); }
+.chip--watch { border-color: var(--app-warning); color: var(--app-warning); }
+@media (max-width: 75rem) {
+  .loop { grid-template-columns: minmax(0, 1fr); grid-template-areas: "prep" "run" "obs" "ctrl" "chaos"; }
+  .loop__ring { display: none; }
+  .loop-card--chaos { text-align: left; }
+  .loop-card--chaos .loop-card__title, .loop-card--chaos .hero-controls { justify-content: flex-start; }
+  .loop-card--chaos .loop-form label { justify-items: start; }
+}
+@media (prefers-reduced-motion: reduce) { .ready-steps li.ready-step--now::before { animation: none; } }

@@ -45,7 +45,7 @@ fail. Rain fills the tank up to its overflow. /bed/state carries "env",
 "tank", "wormBin" (sensor readings, and under "sim" what only a simulation
 can know) and "hopper"
 beside the cells. Further events: {"op": "disturb", "id", "effect", "minutes"},
-{"op": "calm"}, {"op": "time", "factor"}, {"op": "chaos", "rate", "pool"}.
+{"op": "calm"}, {"op": "time", "factor"} (0 pauses), {"op": "season", "start"}, {"op": "chaos", "rate", "pool"}.
 """
 import json
 import math
@@ -58,6 +58,7 @@ from geometry_msgs.msg import Point, PointStamped
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
+from . import robot_window
 from .environment import Environment
 from .spin import Drain
 from .water import WaterSystem
@@ -113,6 +114,9 @@ class GantryDriver:
             cam.enable(CAMERA_EVERY_MS)
             self.cams[name] = cam
         self.stopped = False
+        self.acts = []                   # what a person did in the robot window (robot_window.py), the latest last
+        self.act_n = 0
+        self.window_ms = 0
         self.cells = {f'{c["row"]}_{c["col"]}': {"status": c["status"], "crop": c["crop"], "moisture": MOISTURE_START}
                       for c in self.cfg["cells"]}
         self.rgb = {c["crop"]: c.get("rgb", [0.3, 0.6, 0.3]) for c in self.cfg["cells"]}
@@ -173,6 +177,41 @@ class GantryDriver:
                 if now[a] == now[a]:                      # not NaN (before the first step)
                     self.motors[a].setPosition(now[a])
 
+    # -- the robot window -------------------------------------------------------
+    # The person's acts at the bed, pressed in Webots' robot window (robot_window.py, robot_windows/wormbed5/),
+    # go the same way as the page's: an event. The window gets a short state back about once a second.
+
+    def robot_window(self):
+        try:
+            message = self.robot.wwiReceiveText()
+        except AttributeError:                            # a Webots without robot windows
+            return
+        while message:
+            act = robot_window.parse(message)
+            if act:
+                now = {"lidOpen": self.has_bin and self.box.lid_open, "insulated": self.has_bin and self.box.insulated,
+                       "tankCap": self.tank_cap, "stopped": self.stopped}
+                e = robot_window.event(act, now)
+                if e["op"] == "estop":
+                    self.on_estop(type("Msg", (), {"data": e["on"]})())
+                else:
+                    self.on_event(type("Msg", (), {"data": json.dumps(e)})())
+                self.act_n += 1
+                self.acts = (self.acts + [{"n": self.act_n, "act": act, "clock": self.env.clock(), "event": e}])[-10:]
+            message = self.robot.wwiReceiveText()
+        self.window_ms += self.ts
+        if self.window_ms >= 1000:
+            self.window_ms = 0
+            env = self.env
+            barrel = next((x for x in self.water.state()["stores"] if x["kind"] == "RainBarrel"), None)
+            self.robot.wwiSendText(json.dumps({
+                "clock": env.clock(), "date": env.date.isoformat() if env.date else None, "airC": round(env.air_c(), 1),
+                "night": not (env.daylight()[0] < env.hour < env.daylight()[1]),
+                "lidOpen": self.has_bin and self.box.lid_open, "insulated": self.has_bin and self.box.insulated,
+                "sumpL": round(self.box.sump_l, 1) if self.has_bin else None, "tankL": round(self.tank_l), "tankCap": round(self.tank_cap),
+                "barrelL": barrel and round(barrel.get("litres") or 0), "hopperG": round(self.hopper_g), "stopped": self.stopped,
+                "trouble": [a["title"] for a in env.active.values()], "acts": self.acts[-3:]}))
+
     # -- the bed ---------------------------------------------------------------
 
     def cell(self, row, col, crop=""):
@@ -205,8 +244,11 @@ class GantryDriver:
             if op == "calm":
                 self.env.calm(e.get("id"))
                 return
-            if op == "time":
-                self.env.factor = max(0.1, min(float(e.get("factor", 1)), 600.0))
+            if op == "time":                                  # 0 pauses the clock
+                self.env.factor = max(0.0, min(float(e.get("factor", 1)), 600.0))
+                return
+            if op == "season":                                # day 1's date, for the seasons; null: no seasons
+                self.env.set_start(e.get("start"))
                 return
             if op == "chaos":
                 self.env.chaos_rate = max(0.0, float(e.get("rate", 0)))
@@ -534,6 +576,7 @@ class GantryDriver:
     def step(self):
         self.drain()
         self.elapsed_ms += self.ts
+        self.robot_window()
         now = self.where()
         if now["x"] != now["x"]:
             return
@@ -600,7 +643,7 @@ class GantryDriver:
                     self.helper_day = env.day
                     self.daily_care()
             self.pub_bed.publish(String(data=json.dumps({
-                "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C,
+                "time": self.robot.getTime(), "stopped": self.stopped, "soilTempC": SOIL_TEMP_C, "acts": self.acts,
                 "env": env.snapshot(),
                 # what only a simulation knows: the robot finds weeds with its camera, it is not told
                 "sim": {"soilLife": round(self.soil_life.value, 2), "weeds": len(self.weeds), "weedsLarge": sum(1 for w in self.weeds.values() if w["mm"] >= STAMPABLE_BELOW_MM),

@@ -11,7 +11,7 @@ The English text is the key (permtek5_twin_edge/i18n.py). It is collected from:
   - Python: every _("...") call (ast, so texts split over lines are joined), and
     the tables whose texts are translated where they are served (keeper.TEXT,
     operator_view's GROUPS, RULES and SENSORS, disturbances.CATALOGUE, film's
-    SHOTS and QUALITY, scenarios.available's reasons)
+    SHOTS and QUALITY, scenarios.available's reasons, loop_view's CAUSES and WAITING)
   - the page: index.html's text and its title, aria-label, alt and placeholder
     attributes; app.js's tr("...") calls (every string inside the call) and its
     CARE_WHY table; and the words the robot uses for jobs and their states
@@ -55,7 +55,8 @@ def from_python():
                 words = [part.body, part.orelse] if isinstance(part, ast.IfExp) else [part]   # "open" if ... else "closed"
                 out |= {n.value for n in words if isinstance(n, ast.Constant) and isinstance(n.value, str)
                         and re.search(r"[a-z]{2}", n.value) and n.value not in ("kg", "mm/h", "m/s")}
-    from permtek5_twin_edge import disturbances, film, habitat, keeper, operator_view, scenarios
+    from permtek5_twin_edge import disturbances, film, habitat, keeper, loop_view, operator_view, scenarios
+    out |= {say for _needle, say in loop_view.CAUSES} | set(loop_view.WAITING.values())
     out.add(habitat.WATER_ASSUMED)                    # said in the Setup screen's "assumed" line, translated by the page
     out |= set(keeper.TEXT.values())
     out |= {t for _, t in operator_view.GROUPS} | set(operator_view.RULES.values())

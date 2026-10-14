@@ -25,11 +25,11 @@
     <div class="app-rail__section">
       <h2 class="app-rail__sectionlabel">Guild</h2>
       <ul class="app-rail__items">
-        <li><a class="app-rail__item tab" href="#setup" data-tab="setup"><svg {{ ico|safe }}><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg><span>Setup</span></a></li>
+        <li><a class="app-rail__item tab" href="#loop" data-tab="loop"><svg {{ ico|safe }}><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v4h-4"/><circle cx="12" cy="12" r="2"/></svg><span>Loop</span><span class="app-rail__dot" id="dot-loop" hidden></span></a></li>
         <li><a class="app-rail__item tab" href="#operator" data-tab="operator"><svg {{ ico|safe }}><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-5 3 3 5-6"/></svg><span>Operator</span><span class="app-rail__dot rail-dot--alarm" id="dot-operator" hidden></span></a></li>
         <li><a class="app-rail__item tab" href="#robot" data-tab="robot"><svg {{ ico|safe }}><path d="M3 20V5h18v15"/><path d="M12 5v5"/><circle cx="12" cy="12" r="2"/></svg><span>Robot</span><span class="app-rail__dot" id="dot-robot" hidden></span></a></li>
         <li><a class="app-rail__item tab" href="#care" data-tab="care"><svg {{ ico|safe }}><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 9h16M9 3v4M15 3v4"/><path d="m9 14 2 2 4-4"/></svg><span>Care</span><span class="app-rail__dot" id="dot-care" hidden></span></a></li>
-        <li><a class="app-rail__item tab" href="#sim" data-tab="sim"><svg {{ ico|safe }}><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/><path d="M12 9.5V12l1.8 1.2"/></svg><span>Simulation</span></a></li>
+        <li><a class="app-rail__item tab" href="#sim" data-tab="sim"><svg {{ ico|safe }}><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/><path d="M12 9.5V12l1.8 1.2"/></svg><span>Scenario and truth</span></a></li>
       </ul>
     </div>
 
@@ -87,48 +87,107 @@
 
     <main class="app-shell__main edge-main">
 
-      <!-- 1 · Setup: from the habitat to a running twin -->
-      <section id="tab-setup" class="tabpane view">
-        <div class="app-hero">
-          <div class="app-hero__copy">
-            <p class="app-hero__eyebrow" id="hero-eyebrow">wormbed5.edge</p>
-            <h1 class="app-hero__title edge-hero__title" id="twin-status">loading…</h1>
-            <ol class="steps">
-              <li class="step" id="step-source">
-                <span class="step__n">1</span>
-                <div class="step__body">
-                  <h3>Choose the habitat</h3>
-                  <p class="note">The guild's bed, worm box and tank come from this habitat's map.</p>
-                  <select id="sel-source" title="The habitat the world is made from"><option value="">CityDemo (invented)</option></select>
-                </div>
-              </li>
-              <li class="step" id="step-prepare">
-                <span class="step__n">2</span>
-                <div class="step__body">
-                  <h3>Prepare the world</h3>
-                  <p class="note">Writes the Webots world of the guild. Needed again only when the habitat changed.</p>
-                  <button id="btn-prepare" title="Write the Webots world for the habitat">Prepare world</button>
-                  <p id="twin-assumed" class="note" hidden></p>
-                </div>
-              </li>
-              <li class="step" id="step-start">
-                <span class="step__n">3</span>
-                <div class="step__body">
-                  <h3>Start the twin</h3>
-                  <p class="note">Webots and the gantry start over ROS 2; the robot then proposes jobs for you to confirm.</p>
-                  <div class="hero-controls">
-                    <label class="hero-check" title="Open the Webots 3D window too (otherwise it runs hidden and you watch through the cameras)">
-                      <input type="checkbox" id="chk-window"> Webots window</label>
-                    <button id="btn-start" class="primary">Start</button>
-                    <button id="btn-stop">Stop</button>
-                    <button class="primary" id="btn-go-operator" hidden>Go to the Operator screen →</button>
-                  </div>
-                </div>
-              </li>
-            </ol>
-            <ul id="twin-missing" class="missing" hidden></ul>
-          </div>
+      <!-- 1 · Loop: Prepare, then Run, Observe, Control and back to Run; the Chaos Monkey in the middle -->
+      <section id="tab-loop" class="tabpane view">
+        <div class="loop-head">
+          <p class="app-hero__eyebrow" id="hero-eyebrow">wormbed5.edge</p>
+          <h1 class="app-hero__title edge-hero__title" id="twin-status">loading…</h1>
         </div>
+        <div class="loop" id="loop">
+          <svg class="loop__ring" id="loop-ring" aria-hidden="true"></svg>
+
+          <section class="loop-card loop-card--prepare" id="stage-prepare" data-stage="prepare">
+            <h2 class="loop-card__title"><span class="loop-card__n">1</span> Prepare</h2>
+            <p class="note">Which habitat, which scenario, from which month. Then everything starts in one go.</p>
+            <div class="loop-form">
+              <label>Habitat <select id="sel-source" title="The habitat the world is made from"><option value="">CityDemo (invented)</option></select></label>
+              <label>Scenario <select id="sel-scenario" title="What the run is: a normal year, or a guided walk through one thing"></select></label>
+              <label id="lbl-month">Starting month <select id="sel-month" title="The generic year starts on the 1st of this month"></select></label>
+              <label class="hero-check" title="Open the Webots 3D window too (otherwise it runs hidden and you watch through the cameras)">
+                <input type="checkbox" id="chk-window"> Webots window</label>
+            </div>
+            <p class="note" id="scenario-about-pick"></p>
+            <div class="hero-controls">
+              <button id="btn-go" class="primary">Prepare and start</button>
+              <button id="btn-stop">Stop</button>
+            </div>
+            <ol class="ready-steps" id="ready-steps" aria-label="Starting"></ol>
+            <p class="ready-msg" id="ready-msg" hidden></p>
+            <pre class="ready-log" id="ready-log" hidden></pre>
+            <button id="btn-go-nowindow" hidden>Start without the window</button>
+            <p class="note" id="ready-rendering" hidden>A film is rendering: Webots may start slowly.</p>
+            <ul id="twin-missing" class="missing" hidden></ul>
+            <details class="loop-steps">
+              <summary>One step at a time</summary>
+              <div class="hero-controls">
+                <button id="btn-prepare" title="Write the Webots world for the habitat">Prepare world</button>
+                <button id="btn-start">Start</button>
+              </div>
+              <p id="twin-assumed" class="note" hidden></p>
+            </details>
+          </section>
+
+          <section class="loop-card loop-card--run" id="stage-run" data-stage="run">
+            <h2 class="loop-card__title"><span class="loop-card__n">2</span> Run</h2>
+            <p class="loop-clock"><span class="loop-sky" id="loop-sky" aria-hidden="true"></span> <span id="loop-clock">–</span></p>
+            <p class="note" id="loop-weather"></p>
+            <div class="loop-form">
+              <label>Clock <select id="loop-factor" title="How fast the simulated day runs">
+                <option value="0">paused</option>
+                <option value="1">1 min per second</option>
+                <option value="10">10 min per second</option>
+                <option value="30">30 min per second</option>
+                <option value="120">2 h per second</option>
+              </select></label>
+            </div>
+            <a class="loop-more" href="#sim">Scenario and truth →</a>
+          </section>
+
+          <section class="loop-card loop-card--observe" id="stage-observe" data-stage="observe">
+            <h2 class="loop-card__title"><span class="loop-card__n">3</span> Observe</h2>
+            <p class="loop-counts" id="loop-counts"></p>
+            <ul class="loop-list" id="loop-attention"></ul>
+            <ul class="loop-list" id="loop-webots" aria-label="Done in the Webots window"></ul>
+            <div id="loop-step" hidden>
+              <p class="loop-step__title" id="loop-step-title"></p>
+              <ul class="scenario-checks" id="loop-step-checks"></ul>
+              <button id="btn-loop-next" hidden>Next step</button>
+            </div>
+            <a class="loop-more" href="#operator">Operator →</a>
+          </section>
+
+          <section class="loop-card loop-card--control" id="stage-control" data-stage="control">
+            <h2 class="loop-card__title"><span class="loop-card__n">4</span> Control</h2>
+            <div class="loop-lanes">
+              <div>
+                <h3>Maintenance</h3>
+                <ul class="loop-list" id="loop-maintenance"></ul>
+              </div>
+              <div>
+                <h3>Human in the loop</h3>
+                <p class="loop-holds" id="loop-holds"></p>
+                <ul class="loop-list" id="loop-issues"></ul>
+                <ul class="loop-list" id="loop-proposals"></ul>
+              </div>
+            </div>
+            <p class="loop-more"><a href="#robot">Robot →</a> <a href="#care">Care →</a></p>
+          </section>
+
+          <section class="loop-card loop-card--chaos" id="stage-chaos" data-stage="chaos">
+            <h2 class="loop-card__title">Chaos Monkey</h2>
+            <p class="note">Trouble from outside: weather and broken parts. Each one owes a reaction.</p>
+            <div class="loop-form">
+              <label>At random <select id="loop-chaos" title="Disturbances thrown in at random, per simulated day">
+                <option value="0">off</option>
+                <option value="2">2 a day</option>
+                <option value="6">6 a day</option>
+              </select></label>
+            </div>
+            <div class="hero-controls"><button id="btn-chaos-now">Throw one now</button></div>
+            <ul class="loop-list" id="loop-chaos-active"></ul>
+          </section>
+        </div>
+
         <div class="app-panel">
           <h2 class="app-panel__title">The guild at a glance</h2>
           <dl class="app-stats" id="overview"></dl>

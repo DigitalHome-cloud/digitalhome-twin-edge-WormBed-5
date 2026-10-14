@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>wormbed5 · at the bed</title>
+  <link rel="stylesheet" href="wormbed5.css">
+</head>
+<body>
+  <header>
+    <strong>wormbed5<span class="accent">.edge</span></strong>
+    <span id="clock">…</span>
+  </header>
+  <p class="lead" data-t="lead">What you do at the bed. The robot's jobs stay on the edge's page, where you confirm them.</p>
+
+  <h2 data-t="box">At the worm box</h2>
+  <div class="grid">
+    <button data-act="lid"><span data-t="lid">Lid</span> <em id="s-lid"></em></button>
+    <button data-act="wrap"><span data-t="wrap">Wrapping</span> <em id="s-wrap"></em></button>
+    <button data-act="tap"><span data-t="tap">Open the sump's tap</span> <em id="s-sump"></em></button>
+    <button data-act="bedding" data-t="bedding">Dry bedding (500 g)</button>
+    <button data-act="moisten" data-t="moisten">Sprinkle water (0.5 l)</button>
+  </div>
+
+  <h2 data-t="bed">At the bed</h2>
+  <div class="grid">
+    <button data-act="hopper"><span data-t="hopper">Fill the hopper (1 kg)</span> <em id="s-hopper"></em></button>
+    <button data-act="tank"><span data-t="tank">Refill the tank</span> <em id="s-tank"></em></button>
+    <button data-act="barrel"><span data-t="barrel">Open the barrel's tap</span> <em id="s-barrel"></em></button>
+  </div>
+
+  <div class="grid"><button data-act="estop" id="estop" class="danger" data-t="estop">E-stop</button></div>
+
+  <p class="trouble" id="trouble" hidden></p>
+  <h2 data-t="done">Just done</h2>
+  <ul id="acts"><li class="muted" data-t="nothing">nothing yet</li></ul>
+  <p class="muted" id="link" data-t="link">Waiting for the simulation…</p>
+  <script src="wormbed5.js"></script>
+</body>
+</html>
