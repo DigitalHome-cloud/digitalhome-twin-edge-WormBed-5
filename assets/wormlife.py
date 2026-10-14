@@ -451,6 +451,9 @@ def _worm_mesh(length, thick):
     return bm
 
 
+MAX_TRAVEL_M = 0.12          # how far a worm crawls in one film, at most
+
+
 def add_worms(bed, n, frames, near=None, spread=0.08, seed=3, speed=0.01, young_share=0.3, sway=True):
     """`n` worms crawling over the bedding for `frames` frames (24 a second); some of them young.
 
@@ -465,7 +468,7 @@ def add_worms(bed, n, frames, near=None, spread=0.08, seed=3, speed=0.01, young_
         length = rng.uniform(0.025, 0.045) if is_young else rng.uniform(0.06, 0.095)
         thick = length * rng.uniform(0.045, 0.055)
         v = speed * rng.uniform(0.4, 1.3) * (0.7 if is_young else 1.0)
-        travel = v * seconds
+        travel = min(v * seconds, MAX_TRAVEL_M)                 # a long film: a worm still stays near where it was
         path_len = length + travel + 0.02
         # the path: a wandering line on the surface, from behind the tail to beyond where the head ends up
         x, y = bed.spot(near, spread) if near else bed.spot()
@@ -475,6 +478,9 @@ def add_worms(bed, n, frames, near=None, spread=0.08, seed=3, speed=0.01, young_
         bends, bend = rng.uniform(0.8, 2.0), rng.uniform(0.10, 0.22)          # gentle S-curves, as worms lie
         for s in range(steps + 1):
             heading += math.radians(rng.gauss(0, 3)) + bend * math.cos(2 * math.pi * bends * s / steps) * (2 * math.pi * bends / steps)
+            if min(x - bed.x0, bed.x1 - x, y - bed.y0, bed.y1 - y) < 0.025:      # near a wall: it turns back in
+                inward = math.atan2((bed.y0 + bed.y1) / 2 - y, (bed.x0 + bed.x1) / 2 - x)
+                heading += 0.35 * math.atan2(math.sin(inward - heading), math.cos(inward - heading))
             pts.append((x, y))
             x += math.cos(heading) * path_len / steps
             y += math.sin(heading) * path_len / steps

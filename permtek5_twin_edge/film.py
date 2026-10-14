@@ -13,11 +13,14 @@ pipe. Standard library only: this app never imports bpy.
     SHOTS     bed (the camera circles the bed), box (close up over the open
               worm box), flight (from the whole bed down into the box)
     QUALITY   draft, good, best: a bigger picture and more samples take longer
+    WHOLE     the shots one after another, cross-faded (stitch): made anew with
+              ffmpeg whenever a shot is rendered, so it needs no rendering
 """
 
 from __future__ import annotations
 
 import os
+import shutil
 import re
 import signal
 import subprocess
@@ -32,9 +35,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "assets" / "demo.py"
 PYTHON = ROOT / ".venv-bpy" / "bin" / "python"
 FRAME = re.compile(r"^frame (\d+)/(\d+)", re.M)
-MAX_FRAMES = 240
 SHOTS = {"bed": "The bed", "box": "The worm box, close up", "flight": "Into the worm box"}
-QUALITY = {"draft": "draft: about half an hour", "good": "good: an hour or two", "best": "best: several hours"}
+QUALITY = {"draft": "draft: under an hour a shot", "good": "good: one to three hours a shot", "best": "best: half a day a shot"}
+WHOLE = "film-whole.mp4"
+STORY = ("bed", "flight", "box")      # the whole film: the bed, the flight into the box, the worms
+FADE_S = 1.0
 NO_PROGRESS_S = 600          # one frame never takes this long: the renderer hangs
 
 
@@ -67,7 +72,39 @@ def status(out: Path) -> Dict[str, Any]:
         p = Path(out) / name
         return {"name": name, "modified": p.stat().st_mtime, "bytes": p.stat().st_size} if p.exists() else None
     shots = [{"id": k, "title": _(v), **{kind: info(name) for kind, name in files(k).items()}} for k, v in SHOTS.items()]
-    return {"missing": [_(m) for m in missing()], "shots": shots, "quality": {k: _(v) for k, v in QUALITY.items()}}
+    return {"missing": [_(m) for m in missing()], "shots": shots, "whole": info(WHOLE), "quality": {k: _(v) for k, v in QUALITY.items()}}
+
+
+def _seconds(ffprobe: str, path: Path) -> float:
+    run = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(path)],
+                         capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+    return float(run.stdout.strip())
+
+
+def stitch(out: Path) -> Optional[Path]:
+    """The whole film from the shots there are, in STORY order, each fading into the next. None when fewer than
+    two shots are rendered or there is no ffmpeg; the shots themselves are never touched."""
+    out = Path(out)
+    parts = [out / files(k)["film"] for k in STORY if (out / files(k)["film"]).exists()]
+    ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
+    if len(parts) < 2 or not ffmpeg or not ffprobe:
+        return None
+    lengths = [_seconds(ffprobe, p) for p in parts]
+    chain, last, at = [], "[0:v]", 0.0
+    for i in range(1, len(parts)):
+        at += lengths[i - 1] - FADE_S                  # where the next shot starts fading in
+        label = f"[v{i}]"
+        chain.append(f"{last}[{i}:v]xfade=transition=fade:duration={FADE_S}:offset={at:.3f}{label}")
+        last = label
+    tmp = out / (WHOLE + ".tmp.mp4")
+    cmd = [ffmpeg, "-y", "-loglevel", "error"]
+    for p in parts:
+        cmd += ["-i", str(p)]
+    cmd += ["-filter_complex", ";".join(chain), "-map", last, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+            "-movflags", "+faststart", str(tmp)]
+    subprocess.run(cmd, check=True, stdin=subprocess.DEVNULL, capture_output=True, timeout=1800)
+    tmp.replace(out / WHOLE)
+    return out / WHOLE
 
 
 def render(bed: Path, out: Path, shot: str, quality: str, progress: Callable[[str, float], None],
@@ -112,4 +149,9 @@ def render(bed: Path, out: Path, shot: str, quality: str, progress: Callable[[st
     if proc.returncode != 0:
         tail = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-4:]
         raise RuntimeError("the renderer failed: " + " | ".join(tail))
+    progress("the whole film", 1.0)
+    try:
+        stitch(out)
+    except (subprocess.SubprocessError, OSError, ValueError):
+        pass                                     # the shot is there; the whole film waits for the next one
     return {**status(out), "shot": shot, "quality": quality, "seconds": round(time.time() - started), "frames": seen}

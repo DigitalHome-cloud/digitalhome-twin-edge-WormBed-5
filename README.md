@@ -75,13 +75,14 @@ scripts/setup-bpy.sh                      # once: uv, Python 3.13, bpy (about 40
 ```
 
 The **Film** tab renders the prepared guild with Blender (`assets/demo.py`), in
-three shots: **the bed** (the camera circles it), **the worm box, close up**
-(red wigglers crawling over moist castings, newspaper, scraps and cocoons, with
-shallow focus) and **into the worm box** (a flight from the whole bed down into
-it). The box's insides are `assets/wormlife.py`: every shape and surface is
+three shots: **the bed** (20 s: the camera circles it), **the worm box, close up**
+(15 s: red wigglers crawling over moist castings, newspaper, scraps and cocoons, with
+shallow focus) and **into the worm box** (18 s: a flight from the whole bed down into
+it). Once two or more are rendered, `ffmpeg` cross-fades them into **the whole
+film** (`film-whole.mp4`), made anew whenever a shot is rendered. The box's insides are `assets/wormlife.py`: every shape and surface is
 made there, nothing is downloaded. It shows about as many worms as the
 simulation's box holds. Cycles on the CPU, so it takes a while: on a 4-core
-laptop a close-up runs about half an hour in draft and an hour or two in
+laptop a shot runs under an hour in draft and one to three hours in
 good quality; draft and good render every second frame and `ffmpeg` makes the
 ones between.
 

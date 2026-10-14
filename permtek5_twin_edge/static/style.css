@@ -414,6 +414,8 @@ button.op-tile:focus-visible { outline: 2px solid var(--app-accent); outline-off
 .film-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr)); gap: var(--app-space-4); margin-top: var(--app-space-4); }
 .film-card h3 { margin-top: 0; }
 .film-card .film { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--app-radius-sm); background: var(--app-bg-sunken); display: block; }
+.film-card--whole { grid-column: 1 / -1; }
+.film-card--whole .film { max-height: 70vh; object-fit: contain; background: #000; }
 .film--none { display: grid !important; place-items: center; color: var(--app-text-muted); font-size: 0.875rem; }
 /* the language switch: three, under the theme's two */
 #lang-seg { grid-template-columns: repeat(3, 1fr); margin-top: var(--app-space-2); }

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 import sys
 
 import pytest
@@ -40,7 +42,7 @@ def test_progress_follows_the_renderers_frames_and_the_result_names_the_files(tm
     seen = []
     out = film.render(bed, tmp_path, "box", "draft", lambda phase, done: seen.append((phase, done)), lambda: False,
                       cmd=[sys.executable, "-c", FAKE, str(tmp_path)])
-    assert seen[0] == ("the still", 0.0) and seen[-1] == ("frame 3 of 3", 1.0)
+    assert seen[0] == ("the still", 0.0) and seen[-2:] == [("frame 3 of 3", 1.0), ("the whole film", 1.0)]
     box = next(x for x in out["shots"] if x["id"] == "box")
     assert box["film"]["bytes"] == 1 and box["poster"] and out["frames"] == 3 and out["shot"] == "box"
 
@@ -61,3 +63,17 @@ def test_a_failing_renderer_reports_its_last_lines(tmp_path):
     with pytest.raises(RuntimeError, match="no such crop"):
         film.render(bed, tmp_path, "bed", "good", lambda *a: None, lambda: False,
                     cmd=[sys.executable, "-c", "import sys; print('no such crop'); sys.exit(3)"])
+
+
+@pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="needs ffmpeg")
+def test_the_whole_film_cross_fades_the_shots_there_are(tmp_path):
+    def clip(shot, seconds):
+        subprocess.run([shutil.which("ffmpeg"), "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc=size=160x90:rate=24:duration={seconds}",
+                        "-pix_fmt", "yuv420p", str(tmp_path / f"film-{shot}.mp4")], check=True)
+    clip("box", 3)
+    assert film.stitch(tmp_path) is None and not (tmp_path / film.WHOLE).exists(), "one shot: no whole film"
+    clip("bed", 4)
+    clip("flight", 2)
+    whole = film.stitch(tmp_path)
+    assert whole and film.status(tmp_path)["whole"]["name"] == film.WHOLE
+    assert abs(film._seconds(shutil.which("ffprobe"), whole) - (4 + 2 + 3 - 2 * film.FADE_S)) < 0.2

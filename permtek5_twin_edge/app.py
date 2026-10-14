@@ -761,7 +761,7 @@ def twin_cloud():
 #
 # Films of the prepared guild, made with Blender in its own environment
 # (film.py, assets/demo.py, assets/wormlife.py): the bed, the worm box close
-# up, and a flight into it. A background job with progress, one at a time.
+# up, a flight into it, and the three as one whole film. A background job with progress, one at a time.
 
 def _film_out():
     return engine.workspace() / "demo"
@@ -813,7 +813,7 @@ def film_start():
 
 @app.get("/api/twin/film/<name>")
 def film_file(name: str):
-    if name not in {f for shot in film.SHOTS for f in film.files(shot).values()}:
+    if name not in {f for shot in film.SHOTS for f in film.files(shot).values()} | {film.WHOLE}:
         abort(404)
     path = _film_out() / name
     if not path.exists():

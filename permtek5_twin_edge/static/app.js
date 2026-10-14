@@ -771,7 +771,7 @@ async function refreshFilm() {
   if (job) $("#film-progress").value = job.progress || 0;
   const last = f.job && !job ? f.job : null, shotOf = (j) => (j && j.spec && j.spec.shot) || "";
   const title = (id) => ((f.shots || []).find((x) => x.id === id) || {}).title || id;
-  const phase = (p) => String(p || "").replace(/^frame (\d+) of (\d+)$/, (_, i, n) => tr("frame {i} of {n}", { i, n })).replace(/^the still$/, tr("the still"));
+  const phase = (p) => String(p || "").replace(/^frame (\d+) of (\d+)$/, (_, i, n) => tr("frame {i} of {n}", { i, n })).replace(/^the still$/, tr("the still")).replace(/^the whole film$/, tr("the whole film"));
   $("#film-status").textContent = job ? tr("rendering “{title}” · {phase}", { title: title(shotOf(job)), phase: phase(job.phase) })
       + ((f.waiting || []).length ? " · " + tr("{n} more waiting", { n: f.waiting.length }) : "")
     : last && last.state === "failed" ? tr("the last film failed: {why}", { why: last.error })
@@ -779,10 +779,15 @@ async function refreshFilm() {
     : !f.prepared ? tr("prepare a world first") : "";
   // one card per shot: its film (or still), and a button; redrawn only when something changed
   const busy = f.missing.length > 0 || !f.prepared, waiting = f.waiting || [];
-  const want = JSON.stringify([busy, shotOf(job), waiting, (f.shots || []).map((x) => [x.id, x.film && x.film.modified, x.poster && x.poster.modified])]);
+  const want = JSON.stringify([busy, shotOf(job), waiting, f.whole && f.whole.modified, (f.shots || []).map((x) => [x.id, x.film && x.film.modified, x.poster && x.poster.modified])]);
   if (want === F.shown) return;
   F.shown = want;
-  $("#film-shots").innerHTML = (f.shots || []).map((x) => {
+  // the whole film: the shots one after another, made anew whenever one is rendered
+  const bed = (f.shots || []).find((x) => x.id === "bed") || {};
+  const whole = f.whole ? `<section class="app-panel film-card film-card--whole"><h3>${core.esc(tr("The whole film"))}</h3>
+      <video class="film" controls loop muted playsinline preload="metadata" ${bed.poster ? `poster="/api/twin/film/${bed.poster.name}?t=${bed.poster.modified}"` : ""} src="/api/twin/film/${f.whole.name}?t=${f.whole.modified}"></video>
+      <div class="hero-controls"><span class="note">${core.esc(tr("the shots one after another, made anew whenever one of them is rendered"))}</span></div></section>` : "";
+  $("#film-shots").innerHTML = whole + (f.shots || []).map((x) => {
     const when = x.film ? tr("rendered {when}", { when: new Date(x.film.modified * 1000).toLocaleString(I18N.lang) }) : tr(x.poster ? "only the still so far" : "not rendered yet");
     const media = x.film
       ? `<video class="film" controls loop muted playsinline preload="metadata" ${x.poster ? `poster="/api/twin/film/${x.poster.name}?t=${x.poster.modified}"` : ""} src="/api/twin/film/${x.film.name}?t=${x.film.modified}"></video>`

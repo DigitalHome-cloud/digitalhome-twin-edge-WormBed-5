@@ -16,14 +16,17 @@ last feeding's scraps, cocoons and crawling red wigglers (--worms of them).
 
 The shots:
 
-    bed     the camera circles the bed once while the gantry travels along it
-    box     close up over the open worm box: the worms at the food, shallow focus
-    flight  from the whole bed down into the open worm box
+    bed     the camera circles the bed once, rising and sinking, while the
+            gantry travels along it and back (20 s)
+    box     over the open worm box, closing in on the worms at the food, then
+            drifting along them; shallow focus (15 s)
+    flight  from the whole bed, along it, down into the open worm box, and a
+            while with the worms (18 s)
 
 Writes poster-<shot>.png (one still) and film-<shot>.mp4 (needs ffmpeg on the
 PATH, otherwise the frames stay in frames-<shot>/). Rendered with Cycles on the
 CPU: no graphics card is needed, and a film takes a long while: on a 4-core
-laptop about half an hour in draft, an hour or two in good quality. Draft and
+laptop under an hour in draft, one to three hours in good quality. Draft and
 good render every second frame and let ffmpeg make the ones between (the
 worms move slowly; it halves the time). It prints "frame i/N" so a caller can
 show progress.
@@ -45,7 +48,7 @@ import wormlife  # noqa: E402  the inside of the worm box
 
 FPS = 24
 SHOTS = ("bed", "box", "flight")
-FRAMES = {"bed": 120, "box": 120, "flight": 168}          # 5, 5 and 7 seconds
+FRAMES = {"bed": 480, "box": 360, "flight": 432}          # 20, 15 and 18 seconds
 # draft, good, best: size, samples, and every how many frames one is rendered (ffmpeg makes the ones between)
 QUALITY = {"draft": (640, 360, 8, 2), "good": (960, 540, 12, 2), "best": (1280, 720, 24, 1)}
 
@@ -287,36 +290,39 @@ def cameras(scene, shot, frames, L, W, soil_z, feed, rig):
         cam.data.dof.aperture_fstop = 11
         orbit = empty("orbit", target.location)
         cam.parent = orbit
-        cam.location = (0, -(L * 0.62 + 1.9), 1.35)
         for frame, angle in ((1, math.radians(-28)), (frames + 1, math.radians(-28) + 2 * math.pi)):
             orbit.rotation_euler = (0, 0, angle)
             orbit.keyframe_insert("rotation_euler", frame=frame)
         _linear(orbit)
+        # high at the start, low over the plants halfway round, up again: the bed from above and from its side
+        for frame, z, back in ((1, 1.6, 1.9), (frames // 2, 0.85, 1.5), (frames, 1.45, 1.9)):
+            cam.location = (0, -(L * 0.62 + back), z)
+            cam.keyframe_insert("location", frame=frame)
         _ease(rig)
         return
     # close over the box: a slow push towards the food, the camera low over the box's open side
     near = [((fx - 0.13, fy - 0.26, fz + 0.20), (fx, fy, fz)), ((fx - 0.07, fy - 0.15, fz + 0.12), (fx + 0.005, fy + 0.01, fz))]
-    if shot == "box":
-        cam.data.lens = 50
-        cam.data.dof.aperture_fstop = 4.0
-        keys = [(1,) + near[0], (frames,) + near[1]]
-    else:                                     # flight: from the whole bed, along it, over the box, down into it
-        cam.data.lens = 35
-        cam.data.dof.aperture_fstop = 8.0
-        third = max(2, frames // 3)
+    # and then along them: the camera drifts sideways over the worms at the food
+    drift = ((fx + 0.03, fy - 0.15, fz + 0.11), (fx + 0.04, fy + 0.02, fz))
+    at = lambda share: max(1, int(frames * share))
+    if shot == "box":                         # from over the box's rim, closing in, then along the worms
+        keys = [(1, (fx - 0.20, fy - 0.38, fz + 0.32), (fx, fy, fz)),
+                (at(0.45),) + near[0], (at(0.75),) + near[1], (frames,) + drift]
+        lenses = ((1, 40, 5.6), (at(0.45), 50, 4.0), (frames, 50, 4.0))
+    else:                                     # flight: from the whole bed, along it, over the box, down into it, a while there
         keys = [(1, (L * 0.15, -2.6, 1.9), (L / 2, W / 2, soil_z + 0.1)),
-                (third, (L * 0.55, -1.6, 1.35), (feed["x0"], W / 2, soil_z + 0.2)),
-                (2 * third, (fx - 0.45, fy - 0.45, fz + 0.62), (fx, fy, fz)),           # inside the rails, over the box
-                (frames, near[0][0], near[0][1])]
-    for frame, at, aim in keys:
-        cam.location, target.location = at, aim
+                (at(0.25), (L * 0.55, -1.6, 1.35), (feed["x0"], W / 2, soil_z + 0.2)),
+                (at(0.45), (fx - 0.45, fy - 0.45, fz + 0.62), (fx, fy, fz)),           # inside the rails, over the box
+                (at(0.65),) + near[0], (at(0.85),) + near[1], (frames,) + drift]
+        lenses = ((1, 35, 8.0), (at(0.45), 40, 5.6), (at(0.65), 50, 4.0), (frames, 50, 4.0))
+    for frame, where, aim in keys:
+        cam.location, target.location = where, aim
         cam.keyframe_insert("location", frame=frame)
         target.keyframe_insert("location", frame=frame)
-    if shot == "flight":                      # the lens narrows as it comes close
-        for frame, lens, stop in ((1, 35, 8.0), (2 * max(2, frames // 3), 40, 5.6), (frames, 50, 4.0)):
-            cam.data.lens, cam.data.dof.aperture_fstop = lens, stop
-            cam.data.keyframe_insert("lens", frame=frame)
-            cam.data.dof.keyframe_insert("aperture_fstop", frame=frame)
+    for frame, lens, stop in lenses:          # the lens narrows as it comes close
+        cam.data.lens, cam.data.dof.aperture_fstop = lens, stop
+        cam.data.keyframe_insert("lens", frame=frame)
+        cam.data.dof.keyframe_insert("aperture_fstop", frame=frame)
 
 
 def _linear(obj):
@@ -383,7 +389,7 @@ def main():
     ap.add_argument("--bed", default="mydocs/twin/bed.json")
     ap.add_argument("--out", default="mydocs/twin/demo")
     ap.add_argument("--shot", choices=SHOTS, default="bed")
-    ap.add_argument("--frames", type=int, default=None, help="default: 120 (bed, box) or 168 (flight)")
+    ap.add_argument("--frames", type=int, default=None, help="default: 480 (bed), 360 (box) or 432 (flight)")
     ap.add_argument("--quality", choices=tuple(QUALITY), default="good")
     ap.add_argument("--worms", type=int, default=None, help="worms to show (default: from --adults, else 40)")
     ap.add_argument("--adults", type=int, default=None, help="the simulated adult worms, to pick how many show")
