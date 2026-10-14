@@ -20,6 +20,9 @@
 #     cells are stored; the crop's spacing gives how many cells it covers.
 #   - a GARDEN PLANT: a plant kept for years at one spot, e.g. a fruit tree.
 #     Positions are in metres inside its zone, never geographic.
+#   - a guild's WATER (v0.2, docs/adr/0025): rain catchments, water stores (a
+#     rain barrel, the bed's tank pipes, the worm box's sump, a garden tank)
+#     and the valves between them. Worm liquid and clean water are kept apart.
 #
 # The things are the habitat's own (id space of the app); crops are linked
 # from the shared library by IRI. Namespace provisional, as the other modules.
@@ -29,7 +32,7 @@
     a owl:Ontology ;
     rdfs:label "perma-core: habitat"@en , "perma-core: Lebensraum"@de , "perma-core : habitat"@fr ;
     dcterms:description "Zones, growing beds with their cells, and long-lived plants of one habitat."@en ;
-    owl:versionInfo "0.1.0" .
+    owl:versionInfo "0.2.0" .
 
 # ------------------------------------------------------------ classes
 
@@ -96,9 +99,9 @@ perma:wormsMayLeave a owl:DatatypeProperty ;
     rdfs:comment "True: the worm box has exits into the bed's soil, a refuge when the box turns too hot, cold or sour. False: a closed box, with cleaner measurements and no refuge."@en .
 
 perma:inGuild a owl:ObjectProperty ;
-    rdfs:domain perma:GrowingBed ; rdfs:range perma:Guild ;
+    rdfs:range perma:Guild ;
     rdfs:label "in guild"@en , "in der Gilde"@de , "dans la guilde"@fr ;
-    rdfs:comment "The guild a bed belongs to. A bed without one is a plain bed, worked by hand."@en .
+    rdfs:comment "The guild a bed or a water part belongs to. A bed without one is a plain bed, worked by hand. A water part may stand in another area than its guild (a garden tank), so its own perma:inZone says where."@en .
 
 # ------------------------------------------------------------ beds and cells
 
@@ -202,3 +205,72 @@ perma:yM a owl:DatatypeProperty ;
     rdfs:domain perma:GardenPlant ; rdfs:range xsd:decimal ;
     rdfs:label "y (m)"@en , "y (m)"@de , "y (m)"@fr ;
     rdfs:comment "Metres from the zone's top edge, on the zone's own sketch."@en .
+
+# ------------------------------------------------------------ water (v0.2, docs/adr/0025)
+#
+#   roof catchment ─gutter→ rain barrel ─tap→ tank pipes (the bed)
+#   worm box sump ─valve→ tank pipes
+#   worm box sump ─valve→ garden tank          the surplus, for the trees
+#
+# A store HOLDS clean water, worm liquid or both. Worm liquid never flows into
+# a store kept for clean water (a barrel that feeds the gantry's nozzle): the
+# shapes refuse it. That is roofbed-system.md's "never on leaves" as data.
+
+perma:RainCatchment a owl:Class ;
+    rdfs:label "Rain catchment"@en , "Regenfläche"@de , "Surface de captage"@fr ;
+    rdfs:comment "A surface whose rain is collected, e.g. a stretch of roof with its gutter."@en .
+
+perma:WaterStore a owl:Class ;
+    rdfs:label "Water store"@en , "Wasserspeicher"@de , "Réserve d'eau"@fr ;
+    rdfs:comment "Something that holds water or worm liquid: a rain barrel, a bed's tank pipes, a worm box's sump, a garden tank. Its kind is a concept from perma:WaterStoreKinds."@en .
+
+perma:Valve a owl:Class ;
+    rdfs:label "Valve"@en , "Ventil"@de , "Vanne"@fr ;
+    rdfs:comment "A tap between two parts: water or liquid flows from one to the other while it is open. A person opens a manual tap; an edge valve opens when the edge does it, after a person confirmed."@en .
+
+perma:catchmentM2 a owl:DatatypeProperty ;
+    rdfs:domain perma:RainCatchment ; rdfs:range xsd:decimal ;
+    rdfs:label "catchment (m²)"@en , "Auffangfläche (m²)"@de , "surface de captage (m²)"@fr ;
+    rdfs:comment "Area that sends its rain to the store, seen from above."@en .
+
+perma:runoffShare a owl:DatatypeProperty ;
+    rdfs:domain perma:RainCatchment ; rdfs:range xsd:decimal ;
+    rdfs:label "runoff share"@en , "Abflussanteil"@de , "coefficient de ruissellement"@fr ;
+    rdfs:comment "The share of the rain that reaches the store, 0..1: about 0.8 for a hard roof, 0.5 for a gravel roof, 0.3 for a green roof."@en .
+
+perma:drainsTo a owl:ObjectProperty ;
+    rdfs:domain perma:RainCatchment ; rdfs:range perma:WaterStore ;
+    rdfs:label "drains to"@en , "leitet in"@de , "s'écoule vers"@fr ;
+    rdfs:comment "The store its gutter fills, without a valve."@en .
+
+perma:storeKind a owl:ObjectProperty ;
+    rdfs:domain perma:WaterStore ; rdfs:range skos:Concept ;
+    rdfs:label "kind of store"@en , "Art des Speichers"@de , "type de réserve"@fr ;
+    rdfs:comment "One concept from perma:WaterStoreKinds."@en .
+
+perma:capacityL a owl:DatatypeProperty ;
+    rdfs:domain perma:WaterStore ; rdfs:range xsd:decimal ;
+    rdfs:label "capacity (l)"@en , "Fassungsvermögen (l)"@de , "capacité (l)"@fr .
+
+perma:holds a owl:ObjectProperty ;
+    rdfs:domain perma:WaterStore ; rdfs:range skos:Concept ;
+    rdfs:label "holds"@en , "enthält"@de , "contient"@fr ;
+    rdfs:comment "What may be in it: concepts from perma:WaterKinds. A store with only perma:CleanWater never takes worm liquid."@en .
+
+perma:overflowTo a owl:ObjectProperty ;
+    rdfs:domain perma:WaterStore ; rdfs:range perma:WaterStore ;
+    rdfs:label "overflows to"@en , "läuft über in"@de , "déborde vers"@fr ;
+    rdfs:comment "Where it goes when full. None: the roof drain or the ground."@en .
+
+perma:flowFrom a owl:ObjectProperty ;
+    rdfs:domain perma:Valve ; rdfs:range perma:WaterStore ;
+    rdfs:label "from"@en , "von"@de , "de"@fr .
+
+perma:flowTo a owl:ObjectProperty ;
+    rdfs:domain perma:Valve ; rdfs:range perma:WaterStore ;
+    rdfs:label "to"@en , "nach"@de , "vers"@fr .
+
+perma:valveKind a owl:ObjectProperty ;
+    rdfs:domain perma:Valve ; rdfs:range skos:Concept ;
+    rdfs:label "kind of valve"@en , "Art des Ventils"@de , "type de vanne"@fr ;
+    rdfs:comment "One concept from perma:ValveKinds: a manual tap or an edge valve."@en .

@@ -28,7 +28,7 @@ def judged(b):
 def test_a_calm_day_is_all_ok_and_shows_only_readings():
     t = judged(bed())
     assert {x["state"] for x in t.values()} == {"ok"}
-    assert [g for g, _ in ov.GROUPS] == ["bed", "box", "feeding", "weather"]
+    assert [g for g, _ in ov.GROUPS] == ["bed", "box", "water", "feeding", "weather"]
     assert t["soilDriest"]["value"] == 38 and t["soilWettest"]["value"] == 45, "only cells that are sown or growing count"
     assert "worms" not in str(t) and "soilLife" not in str(t), "no simulation truth on the operator screen"
     assert ov.summary(list(t.values()))["alarm"] == 0
@@ -74,3 +74,17 @@ def test_every_tile_says_what_stands_behind_it():
         info = ov.sensor(key)
         assert info and all(info.get(k) is not None for k in ("sensor", "where", "method", "every", "limits", "twin")), key
     assert str(keeper.FROST_BOX_ON) .split(".")[0] in " ".join(ov.sensor("tempC")["limits"]), "the limits come from the keeper"
+
+
+def test_the_water_shows_as_tiles_and_a_full_barrel_or_a_low_tank_with_rain_in_it_is_watch():
+    b = bed()
+    b["water"] = {"stores": [{"id": "b", "kind": "RainBarrel", "capacity": 200.0, "litres": 200.0, "wormL": 0.0, "overflowing": True},
+                             {"id": "g", "kind": "GardenTank", "capacity": 300.0, "litres": 60.0, "wormL": 15.0},
+                             {"id": "p", "kind": "TankPipes", "capacity": 202.0}],
+                  "valves": [{"id": "v", "name": "Barrel tap", "kind": "ManualTap", "from": "b", "to": "p", "open": False}]}
+    b["tank"]["litres"] = 40.0
+    t = judged(b)
+    assert t["barrel"]["state"] == "watch" and t["barrel"]["rule"] in ("barrel-full", "barrel-refill")
+    assert t["gardenTank"]["value"] == 60 and "25 %" in t["gardenTank"]["unit"], "a quarter of it is worm liquid"
+    assert t["valve-0"]["value"] == "closed" and t["valve-0"]["label"] == "Barrel tap"
+    assert ov.sensor("valve-0")["sensor"] == "Valve"

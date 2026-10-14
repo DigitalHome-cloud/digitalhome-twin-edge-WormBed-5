@@ -67,3 +67,41 @@ perma:RobotModels a skos:ConceptScheme ;
 perma:Gantry5Gen1 a skos:Concept ; skos:inScheme perma:RobotModels ; skos:topConceptOf perma:RobotModels ;
     skos:prefLabel "Gantry5-gen1"@en , "Gantry5-gen1"@de , "Gantry5-gen1"@fr ;
     skos:definition "Gantry5, first generation: three axes over a bed, with a seeder, a watering nozzle, a soil probe, a camera and a scoop for the worm box (docs/specs/roofbed-robot.md)."@en .
+
+# ------------------------------------------------------------ water (v0.2, docs/adr/0025)
+
+perma:WaterStoreKinds a skos:ConceptScheme ;
+    skos:prefLabel "Water stores"@en , "Wasserspeicher"@de , "Réserves d'eau"@fr ;
+    skos:hasTopConcept perma:RainBarrel , perma:TankPipes , perma:WormBoxSump , perma:GardenTank .
+perma:RainBarrel a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
+    skos:prefLabel "Rain barrel"@en , "Regentonne"@de , "Récupérateur d'eau de pluie"@fr ;
+    skos:definition "Collects rain from a catchment; a tap at its foot lets it on."@en .
+perma:TankPipes a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
+    skos:prefLabel "Tank pipes"@en , "Tankrohre"@de , "Tuyaux-réservoir"@fr ;
+    skos:definition "The drain pipes under a wicking bed's substrate: the soil draws their water up from below."@en .
+perma:WormBoxSump a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
+    skos:prefLabel "Worm box sump"@en , "Sumpf der Wurmkiste"@de , "Puisard du bac à vers"@fr ;
+    skos:definition "The worm box's lower bin: it catches the liquid that drips from the worms' bin."@en .
+perma:GardenTank a skos:Concept ; skos:inScheme perma:WaterStoreKinds ; skos:topConceptOf perma:WaterStoreKinds ;
+    skos:prefLabel "Garden tank"@en , "Gartentank"@de , "Cuve de jardin"@fr ;
+    skos:definition "A tank elsewhere on the site, e.g. in the garden by the fruit trees: it takes what the guild's own bed does not need."@en .
+
+perma:WaterKinds a skos:ConceptScheme ;
+    skos:prefLabel "Kinds of water"@en , "Wasserarten"@de , "Types d'eau"@fr ;
+    skos:hasTopConcept perma:CleanWater , perma:WormLiquid .
+perma:CleanWater a skos:Concept ; skos:inScheme perma:WaterKinds ; skos:topConceptOf perma:WaterKinds ;
+    skos:prefLabel "Clean water"@en , "Sauberes Wasser"@de , "Eau propre"@fr ;
+    skos:definition "Rain or tap water: it may go on leaves and seeds."@en .
+perma:WormLiquid a skos:Concept ; skos:inScheme perma:WaterKinds ; skos:topConceptOf perma:WaterKinds ;
+    skos:prefLabel "Worm liquid"@en , "Wurmflüssigkeit"@de , "Liquide du lombricomposteur"@fr ;
+    skos:definition "Drainage from fresh worm compost: rich, but never on leaves of anything eaten raw. Given below the surface only."@en .
+
+perma:ValveKinds a skos:ConceptScheme ;
+    skos:prefLabel "Valves"@en , "Ventile"@de , "Vannes"@fr ;
+    skos:hasTopConcept perma:ManualTap , perma:EdgeValve .
+perma:ManualTap a skos:Concept ; skos:inScheme perma:ValveKinds ; skos:topConceptOf perma:ValveKinds ;
+    skos:prefLabel "Manual tap"@en , "Handhahn"@de , "Robinet manuel"@fr ;
+    skos:definition "A person opens and closes it; the edge proposes when."@en .
+perma:EdgeValve a skos:Concept ; skos:inScheme perma:ValveKinds ; skos:topConceptOf perma:ValveKinds ;
+    skos:prefLabel "Edge valve"@en , "Edge-Ventil"@de , "Vanne pilotée"@fr ;
+    skos:definition "A motor or solenoid valve the guild's edge opens, after a person confirmed the proposal."@en .

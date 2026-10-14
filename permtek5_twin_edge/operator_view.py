@@ -26,13 +26,14 @@ from . import keeper
 from .engine import DRY_BELOW_PCT
 from .i18n import _
 
-GROUPS = [("bed", "Bed"), ("box", "Worm box"), ("feeding", "Feeding"), ("weather", "Weather")]
+GROUPS = [("bed", "Bed"), ("box", "Worm box"), ("water", "Water"), ("feeding", "Feeding"), ("weather", "Weather")]
 # a keeper's rule as a tile names it, in a few words
 RULES = {"sensor": "no trustworthy reading", "frost": "frost", "heat": "heat", "storm": "storm", "overflow": "overflow",
          "tank-low": "tank low", "tank-empty": "tank empty", "tank-falling": "tank falling", "overfed": "overfed",
          "airless": "airless", "sump-full": "sump full", "sour": "sour", "box-wet": "box wet", "box-dry": "box dry",
          "lid": "lid open", "hopper-jam": "hopper jammed", "box-full": "box full", "guide-load": "refused load",
-         "guide-browns": "bedding due"}
+         "guide-browns": "bedding due", "barrel-full": "barrel overflows", "barrel-refill": "tank low: open the tap",
+         "garden-full": "garden tank full"}
 
 # how close to a keeper's threshold counts as "watch" (rules of thumb)
 NEAR_C = 2.0          # °C, air and box
@@ -171,6 +172,23 @@ SENSORS: Dict[str, Dict[str, Any]] = {
                "every": "every few seconds, gusts kept",
                "limits": [f"at or over {K.STORM_ON:.0f} m/s: storm, the gantry is locked out until under {K.STORM_OFF:.0f} m/s (alarm)"],
                "twin": "the simulated weather, with storms when you throw them in"},
+    "barrel": {"sensor": "Rain barrel level", "where": "in the barrel, from its lid",
+               "method": "An ultrasonic distance sensor looks down at the water: the distance to the surface gives the height, the barrel's shape the litres. "
+                         "A float switch near the top says when it overflows.",
+               "every": "every few minutes",
+               "limits": [f"full and overflowing: rain is lost (note)",
+                          f"the tank pipes under {K.BARREL_REFILL_BELOW * 100:.0f} % and the barrel holding {K.BARREL_REFILL_FROM_L:.0f} l or more: open its tap (note)"],
+               "twin": "the simulated rain on the roof beside the bed (its m² times the runoff share) less what its tap let on"},
+    "gardenTank": {"sensor": "Garden tank level", "where": "in the tank by the trees",
+                   "method": "A level probe (a pressure sensor at the bottom); what came from the sump is counted from the valve's opening times.",
+                   "every": "every few minutes",
+                   "limits": [f"at {K.GARDEN_FULL_ON * 100:.0f} %: full, use it on the trees (note); clear again under {K.GARDEN_FULL_OFF * 100:.0f} %"],
+                   "twin": "the simulated litres the sump's valve sent, with the share that is worm liquid"},
+    "valve": {"sensor": "Valve", "where": "on the pipe between two stores",
+              "method": "An edge valve is a motor ball valve with end switches that say open or closed; a manual tap has no sensor, you say it with the button.",
+              "every": "at once, when it changes",
+              "limits": ["worm liquid never flows into a store kept for clean water (the ontology's shapes refuse it)"],
+              "twin": "opened by a confirmed job or your button; it lets 5 l a minute through and closes itself when its source is empty or its target full"},
     "rainMmH": {"sensor": "Rain", "where": "on the frame (or the local weather service until one is fitted)",
                 "method": "A tipping-bucket rain gauge: each tip of its little seesaw is 0.2 mm of rain.",
                 "every": "each tip; shown per hour", "limits": ["20 mm/h or more on a full tank: check the overflow (note)"],
@@ -181,7 +199,7 @@ SENSORS: Dict[str, Dict[str, Any]] = {
 def sensor(key: str) -> Optional[Dict[str, Any]]:
     """What stands behind a tile: {"sensor", "where", "method", "every", "limits", "twin"}, or None. In the
     current language: the limits are written out with the keeper's numbers, and the English text is the key."""
-    info = SENSORS.get(key)
+    info = SENSORS.get("valve" if key.startswith("valve-") else key)
     if info and "same" in info:
         info = SENSORS[info["same"]]
     if not info:
@@ -235,6 +253,20 @@ def tiles(bed: Optional[Dict[str, Any]], active: Optional[List[str]] = None) -> 
         out.append(_tile("box", "lid", "lid", "open" if box.get("lidOpen") else "closed", "", ["lid"], act))
         out.append(_tile("box", "insulated", "wrapping", "wrapped" if box.get("insulated") else "bare", "",
                          [], act, near="frost" in act and not box.get("insulated"), hint="frost: wrap the box"))
+
+    # the guild's water beyond the tank pipes: the rain barrel, the garden tank, and the valves between them
+    water = bed.get("water") or {}
+    for st in water.get("stores") or []:
+        if st["kind"] == "RainBarrel" and "litres" in st:
+            out.append(_tile("water", "barrel", "rain barrel", st["litres"], _("of {n} l", n=f"{st['capacity']:.0f}"),
+                             ["barrel-full", "barrel-refill"], act, digits=0))
+        elif st["kind"] == "GardenTank" and "litres" in st:
+            worm = round(100 * st.get("wormL", 0.0) / st["litres"]) if st["litres"] > 0 else 0
+            out.append(_tile("water", "gardenTank", "garden tank", st["litres"], _("of {n} l, {w} % worm liquid", n=f"{st['capacity']:.0f}", w=worm),
+                             ["garden-full"], act, digits=0))
+    for i, v in enumerate(water.get("valves") or []):
+        out.append(_tile("water", f"valve-{i}", v.get("name") or "valve", "open" if v.get("open") else "closed",
+                         "manual tap" if v.get("kind") == "ManualTap" else "edge valve", [], act))
 
     # feeding: the hopper a person fills
     if hopper:

@@ -166,6 +166,9 @@ def sort_weeds(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]], found: 
 
 
 REST_FROM_KG = 6.0          # a box this heavy has castings worth harvesting
+LIQUID_TO_BED_SHARE = 1 / 3  # of the worm liquid, what goes to the bed's own tank; the rest to the garden (PermTek-5 wormbed5-sizing, H5)
+REFILL_BELOW_SHARE = 0.4     # the tank pipes this empty and the barrel holding water: refill from the barrel
+REFILL_FROM_L = 20.0         # what the barrel must hold for a refill to be worth it
 TOPDRESS_CELLS, TOPDRESS_G = 6, 50
 
 
@@ -197,9 +200,36 @@ def _box_care(cfg: Dict[str, Any], state: Dict[str, Any], guide: Dict[str, Any],
                     "spec": {"kind": "care", "what": "moisten", "ml": 500}})
     sump, cap = box.get("sumpL"), box.get("sumpCapacity")
     room = float(tank.get("capacity") or 0) - float(tank.get("litres") or 0)
-    if sump is not None and cap and sump >= 0.5 * cap and room >= 1.0:
-        out.append({"id": "tap", "kind": "tap", "title": _("Open the tap: let the sump's {l} l into the tank", l=f"{sump:.0f}"),
-                    "detail": _("the sump is over half full; the tank has room for {l} l", l=f"{room:.0f}"), "spec": {"kind": "tap"}})
+    water = state.get("water") or {}
+    kinds = {s["kind"]: s for s in water.get("stores") or []}
+    joins = {(kinds_of(water, v["from"]), kinds_of(water, v["to"])): v for v in water.get("valves") or []}
+    if sump is not None and cap and sump >= 0.5 * cap:
+        garden = kinds.get("GardenTank")
+        garden_room = (garden["capacity"] - garden.get("litres", 0.0)) if garden else 0.0
+        to_bed, to_garden = float(water.get("wormToBedL") or 0), float(water.get("wormToGardenL") or 0)
+        bed_had_its_share = to_bed > LIQUID_TO_BED_SHARE * (to_bed + to_garden + sump)
+        if ("WormBoxSump", "GardenTank") in joins and garden_room >= 1.0 and (bed_had_its_share or room < 1.0):
+            out.append({"id": "valve-garden", "kind": "valve",
+                        "title": _("Open the sump's valve to the garden tank: {l} l of worm liquid", l=f"{sump:.0f}"),
+                        "detail": _("the bed has had its share of the liquid (a third, by the sizing hypothesis); the garden tank has room for {l} l",
+                                    l=f"{garden_room:.0f}"),
+                        "spec": {"kind": "valve", "from": "WormBoxSump", "to": "GardenTank"}})
+        elif room >= 1.0:
+            if ("WormBoxSump", "TankPipes") in joins:
+                out.append({"id": "valve-bed", "kind": "valve", "title": _("Open the sump's valve to the bed's tank: {l} l", l=f"{sump:.0f}"),
+                            "detail": _("the sump is over half full; the tank has room for {l} l", l=f"{room:.0f}"),
+                            "spec": {"kind": "valve", "from": "WormBoxSump", "to": "TankPipes"}})
+            else:
+                out.append({"id": "tap", "kind": "tap", "title": _("Open the tap: let the sump's {l} l into the tank", l=f"{sump:.0f}"),
+                            "detail": _("the sump is over half full; the tank has room for {l} l", l=f"{room:.0f}"), "spec": {"kind": "tap"}})
+    barrel = kinds.get("RainBarrel")
+    refill = joins.get(("RainBarrel", "TankPipes"))
+    if (barrel and refill and refill["kind"] == "EdgeValve" and not refill.get("open") and tank.get("capacity")
+            and tank.get("litres", 0) < REFILL_BELOW_SHARE * tank["capacity"] and barrel.get("litres", 0) >= REFILL_FROM_L):
+        out.append({"id": "valve-barrel", "kind": "valve",
+                    "title": _("Refill the tank pipes from the rain barrel: up to {l} l", l=f"{min(barrel['litres'], room):.0f}"),
+                    "detail": _("the tank is low and the barrel holds {l} l of rain", l=f"{barrel['litres']:.0f}"),
+                    "spec": {"kind": "valve", "from": "RainBarrel", "to": "TankPipes"}})
     harvest = box.get("harvest") or {}
     if harvest.get("side") is None and (box.get("weightKg") or 0) >= REST_FROM_KG and "box-full" not in active:
         side = int(harvest.get("nextSide", 1))
@@ -217,6 +247,11 @@ def _box_care(cfg: Dict[str, Any], state: Dict[str, Any], guide: Dict[str, Any],
                         "detail": _("from the rested half of the worm box, to the cells that have had least"),
                         "spec": {"kind": "topdress", "cells": cells, "grams": TOPDRESS_G}})
     return out
+
+
+def kinds_of(water: Dict[str, Any], store_id: str) -> Optional[str]:
+    """The kind of one of the guild's water stores (water.py's state), by its id."""
+    return next((s["kind"] for s in water.get("stores") or [] if s["id"] == store_id), None)
 
 
 def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],

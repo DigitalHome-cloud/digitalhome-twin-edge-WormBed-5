@@ -18,6 +18,9 @@ permash:InCellStatuses a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh
 permash:InGuildTypes a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:GuildTypes ] .
 permash:InRobotModels a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:RobotModels ] .
 permash:InSubstrateKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:SubstrateKinds ] .
+permash:InWaterStoreKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:WaterStoreKinds ] .
+permash:InWaterKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:WaterKinds ] .
+permash:InValveKinds a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:ValveKinds ] .
 
 permash:LibraryCrop a sh:PropertyShape ;
     sh:path perma:grows ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
@@ -105,3 +108,54 @@ permash:GardenPlantShape a sh:NodeShape ;
                   sh:message "x is metres from the area's edge, at least 0."@en ] ;
     sh:property [ sh:path perma:yM ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ;
                   sh:message "y is metres from the area's edge, at least 0."@en ] .
+
+# ------------------------------------------------------------ water (v0.2, docs/adr/0025)
+
+permash:RainCatchmentShape a sh:NodeShape ;
+    sh:targetClass perma:RainCatchment ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A rain catchment needs a name."@en ] ;
+    sh:property [ sh:path perma:inGuild ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:Guild ;
+                  sh:message "A rain catchment belongs to one Perma5Guild."@en ] ;
+    sh:property [ sh:path perma:inZone ; sh:maxCount 1 ; sh:class perma:GardenZone ] ;
+    sh:property [ sh:path perma:catchmentM2 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ;
+                  sh:minExclusive 0 ; sh:maxInclusive 1000 ; sh:message "A catchment is over 0 and up to 1000 m²."@en ] ;
+    sh:property [ sh:path perma:runoffShare ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 1 ;
+                  sh:message "The runoff share is 0..1."@en ] ;
+    sh:property [ sh:path perma:drainsTo ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:WaterStore ;
+                  sh:message "A rain catchment fills one water store."@en ] .
+
+permash:WaterStoreShape a sh:NodeShape ;
+    sh:targetClass perma:WaterStore ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A water store needs a name."@en ] ;
+    sh:property [ sh:path perma:inGuild ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:Guild ;
+                  sh:message "A water store belongs to one Perma5Guild."@en ] ;
+    sh:property [ sh:path perma:inZone ; sh:maxCount 1 ; sh:class perma:GardenZone ;
+                  sh:message "A water store stands in at most one area (its guild's when none is said)."@en ] ;
+    sh:property [ sh:path perma:storeKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InWaterStoreKinds ;
+                  sh:message "A water store is of one kind from perma:WaterStoreKinds."@en ] ;
+    sh:property [ sh:path perma:capacityL ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 100000 ;
+                  sh:message "A store holds 0..100000 l."@en ] ;
+    sh:property [ sh:path perma:holds ; sh:minCount 1 ; sh:node permash:InWaterKinds ;
+                  sh:message "A water store says what it holds: concepts from perma:WaterKinds."@en ] ;
+    sh:property [ sh:path perma:overflowTo ; sh:maxCount 1 ; sh:class perma:WaterStore ] .
+
+# Worm liquid never into a store kept for clean water: either the valve's source holds no worm liquid, or
+# its target may hold it. (SHACL Core, so the cloud's validator and an edge's check the same.)
+permash:WormLiquidKeepsOut a sh:NodeShape ;
+    sh:not [ sh:property [ sh:path ( perma:flowFrom perma:holds ) ; sh:hasValue perma:WormLiquid ] ] .
+permash:TakesWormLiquid a sh:NodeShape ;
+    sh:property [ sh:path ( perma:flowTo perma:holds ) ; sh:hasValue perma:WormLiquid ] .
+
+permash:ValveShape a sh:NodeShape ;
+    sh:targetClass perma:Valve ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:message "A valve needs a name."@en ] ;
+    sh:property [ sh:path perma:inGuild ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:Guild ;
+                  sh:message "A valve belongs to one Perma5Guild."@en ] ;
+    sh:property [ sh:path perma:flowFrom ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:WaterStore ;
+                  sh:message "A valve takes from one water store."@en ] ;
+    sh:property [ sh:path perma:flowTo ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:WaterStore ;
+                  sh:message "A valve gives to one water store."@en ] ;
+    sh:property [ sh:path perma:valveKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InValveKinds ;
+                  sh:message "A valve is a manual tap or an edge valve (perma:ValveKinds)."@en ] ;
+    sh:or ( permash:WormLiquidKeepsOut permash:TakesWormLiquid ) ;
+    sh:message "Worm liquid never flows into a store kept for clean water."@en .

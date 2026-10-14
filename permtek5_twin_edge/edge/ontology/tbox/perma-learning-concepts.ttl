@@ -1,0 +1,35 @@
+@prefix perma: <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+
+# ============================================================
+# perma-core, learning concept schemes, v0.1 (docs/adr/0026).
+# ============================================================
+
+perma:CyclePhases a skos:ConceptScheme ;
+    skos:prefLabel "Phases of a learning cycle"@en , "Phasen eines Lernzyklus"@de , "Phases d'un cycle d'apprentissage"@fr ;
+    skos:hasTopConcept perma:PlanPhase , perma:DoPhase , perma:CheckPhase , perma:ActPhase .
+perma:PlanPhase a skos:Concept ; skos:inScheme perma:CyclePhases ; skos:topConceptOf perma:CyclePhases ;
+    skos:prefLabel "Plan"@en , "Planen"@de , "Planifier"@fr ;
+    skos:definition "Say what is expected, how sure, and how it will be measured."@en .
+perma:DoPhase a skos:Concept ; skos:inScheme perma:CyclePhases ; skos:topConceptOf perma:CyclePhases ;
+    skos:prefLabel "Do"@en , "Umsetzen"@de , "Faire"@fr ;
+    skos:definition "Run the guild and measure, as planned."@en .
+perma:CheckPhase a skos:Concept ; skos:inScheme perma:CyclePhases ; skos:topConceptOf perma:CyclePhases ;
+    skos:prefLabel "Check"@en , "Prüfen"@de , "Vérifier"@fr ;
+    skos:definition "Set the measurements beside the hypotheses: which hold, which fail."@en .
+perma:ActPhase a skos:Concept ; skos:inScheme perma:CyclePhases ; skos:topConceptOf perma:CyclePhases ;
+    skos:prefLabel "Act"@en , "Handeln"@de , "Agir"@fr ;
+    skos:definition "Change what the checks call for, and start the next cycle with the new numbers."@en .
+
+perma:Verdicts a skos:ConceptScheme ;
+    skos:prefLabel "Verdicts"@en , "Urteile"@de , "Verdicts"@fr ;
+    skos:hasTopConcept perma:VerdictOpen , perma:VerdictHolds , perma:VerdictFails .
+perma:VerdictOpen a skos:Concept ; skos:inScheme perma:Verdicts ; skos:topConceptOf perma:Verdicts ;
+    skos:prefLabel "Open"@en , "Offen"@de , "Ouverte"@fr ;
+    skos:definition "Not enough checks yet."@en .
+perma:VerdictHolds a skos:Concept ; skos:inScheme perma:Verdicts ; skos:topConceptOf perma:Verdicts ;
+    skos:prefLabel "Holds"@en , "Bestätigt"@de , "Confirmée"@fr ;
+    skos:definition "The measurements lie within the range."@en .
+perma:VerdictFails a skos:Concept ; skos:inScheme perma:Verdicts ; skos:topConceptOf perma:Verdicts ;
+    skos:prefLabel "Fails"@en , "Widerlegt"@de , "Réfutée"@fr ;
+    skos:definition "Outside the range for two checks running, or at the season's end."@en .

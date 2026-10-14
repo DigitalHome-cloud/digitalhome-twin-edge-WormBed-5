@@ -138,12 +138,51 @@ class GardenPlant:
 
 
 @dataclass
+class RainCatchment:
+    """A roof whose rain its gutter sends to a store (PermTek-5 ADR 0025)."""
+    id: str
+    name: str
+    guild_id: str
+    m2: float
+    store_id: str
+    runoff: float = 0.8
+
+
+@dataclass
+class WaterStore:
+    """A rain barrel, the bed's tank pipes, the worm box's sump, a garden tank; what it may hold."""
+    id: str
+    name: str
+    guild_id: str
+    kind: str                         # RainBarrel | TankPipes | WormBoxSump | GardenTank
+    capacity_l: Optional[float] = None
+    holds: List[str] = field(default_factory=list)
+    zone_id: Optional[str] = None
+
+
+@dataclass
+class Valve:
+    """A tap from one store to another: ManualTap (a person) or EdgeValve (the edge, after a person confirmed)."""
+    id: str
+    name: str
+    guild_id: str
+    from_id: str
+    to_id: str
+    kind: str = "ManualTap"
+
+
+@dataclass
 class Habitat:
     zones: List[Zone] = field(default_factory=list)
     guilds: List[Guild] = field(default_factory=list)
     beds: List[Bed] = field(default_factory=list)
     cells: List[Cell] = field(default_factory=list)
     plants: List[GardenPlant] = field(default_factory=list)
+    catchments: List[RainCatchment] = field(default_factory=list)
+    stores: List[WaterStore] = field(default_factory=list)
+    valves: List[Valve] = field(default_factory=list)
+    #: what the habitat is learning (PermTek-5 ADR 0026), per guild: its cycles with their measures, as plain data
+    learning: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
 
 
 def _num(g: Graph, s: URIRef, p: str, cast=float):
@@ -204,6 +243,36 @@ def load(ttl: str) -> Habitat:
     for s in sorted(g.subjects(RDF.type, PERMA.GardenPlant)):
         h.plants.append(GardenPlant(str(s), label(s), str(g.value(s, PERMA.inZone) or ""), crop(s),
                                     _num(g, s, "xM"), _num(g, s, "yM")))
+    # the guilds' water (PermTek-5 ADR 0025)
+    for s in sorted(g.subjects(RDF.type, PERMA.RainCatchment)):
+        runoff = _num(g, s, "runoffShare")
+        h.catchments.append(RainCatchment(str(s), label(s), str(g.value(s, PERMA.inGuild) or ""), _num(g, s, "catchmentM2") or 0.0,
+                                          str(g.value(s, PERMA.drainsTo) or ""), 0.8 if runoff is None else runoff))
+    for s in sorted(g.subjects(RDF.type, PERMA.WaterStore)):
+        h.stores.append(WaterStore(str(s), label(s), str(g.value(s, PERMA.inGuild) or ""), _local(g.value(s, PERMA.storeKind)) or "RainBarrel",
+                                   _num(g, s, "capacityL"), sorted(_local(o) for o in g.objects(s, PERMA.holds)),
+                                   str(g.value(s, PERMA.inZone)) if g.value(s, PERMA.inZone) is not None else None))
+    # learning cycles: only what this edge shows (the measures and when each was last checked); the cloud edits them
+    SOSA_TIME = URIRef("http://www.w3.org/ns/sosa/resultTime")
+    texts = lambda s, p: {o.language or "en": str(o) for o in g.objects(s, p)}           # noqa: E731
+    for c in sorted(g.subjects(RDF.type, PERMA.LearningCycle)):
+        hyps = list(g.objects(c, PERMA.hasHypothesis))
+        measures = {}
+        for hyp in hyps:
+            m = g.value(hyp, PERMA.measuredBy)
+            if m is None:
+                continue
+            checks = [str(g.value(k, SOSA_TIME)) for k in g.subjects(PERMA.ofHypothesis, hyp) if g.value(k, SOSA_TIME) is not None]
+            row = measures.setdefault(str(m), {"id": str(m), "code": str(g.value(m, PERMA.code) or ""), "label": texts(m, RDFS.label),
+                                               "everyDays": _num(g, m, "everyDays", int) or 30, "reading": str(g.value(m, PERMA.reading) or ""),
+                                               "lastOn": None})
+            row["lastOn"] = max([x for x in [row["lastOn"], *checks] if x], default=None)
+        h.learning.setdefault(str(g.value(c, PERMA.about) or ""), []).append({
+            "id": str(c), "name": texts(c, RDFS.label), "phase": _local(g.value(c, PERMA.cyclePhase)) or "PlanPhase",
+            "startedOn": str(g.value(c, PERMA.startedOn) or ""), "measures": sorted(measures.values(), key=lambda r: r["code"])})
+    for s in sorted(g.subjects(RDF.type, PERMA.Valve)):
+        h.valves.append(Valve(str(s), label(s), str(g.value(s, PERMA.inGuild) or ""), str(g.value(s, PERMA.flowFrom) or ""),
+                              str(g.value(s, PERMA.flowTo) or ""), _local(g.value(s, PERMA.valveKind)) or "ManualTap"))
     return h
 
 
@@ -294,6 +363,48 @@ def pick_guild(h: Habitat, wanted: Optional[str] = None) -> Tuple[Optional[Guild
 
 #: What a WormBed5 guild has when the map does not say (PermTek-5 docs/specs/roofbed-system.md, the reference bed)
 WORMBED5 = {"worm_bin_cm": 40, "tank_pipes": 8, "tank_pipe_mm": 110}
+#: And its water (PermTek-5 packages/core/src/water.ts, WORMBED5_WATER): the same numbers
+WORMBED5_WATER = {"catchment_m2": 8.0, "runoff": 0.8, "barrel_l": 200.0, "garden_tank_l": 300.0}
+SUMP_DEPTH_M = 0.03                  # the sump's depth: PermTek-5's sumpLitres() rule
+#: Said when a guild's water is assumed, so the page can translate it (it has no numbers that change)
+WATER_ASSUMED = "rain from 8 m² of roof into a 200 l barrel whose tap refills the tank pipes, and a 300 l garden tank the sump can drain to"
+
+
+def water_for(h: Habitat, bed: Bed) -> Tuple[Dict[str, Any], Optional[str]]:
+    """The water of the bed's guild as plain data for bed.json: its catchments, stores and valves. A guild without any
+    gets the WormBed5's (and the second value says so). The tank pipes and the sump get their litres from the bed."""
+    gid = bed.guild_id or ""
+    zone_name = {z.id: z.name for z in h.zones}
+    stores = [s for s in h.stores if s.guild_id == gid]
+    assumed = None
+    if not stores:
+        assumed = WATER_ASSUMED
+        base = (gid or bed.id) + "/water-"
+        stores = [WaterStore(base + "barrel", "Rain barrel", gid, "RainBarrel", WORMBED5_WATER["barrel_l"], ["CleanWater"]),
+                  WaterStore(base + "pipes", "Tank pipes", gid, "TankPipes", None, ["CleanWater", "WormLiquid"]),
+                  WaterStore(base + "sump", "Worm box sump", gid, "WormBoxSump", None, ["WormLiquid"]),
+                  WaterStore(base + "garden", "Garden tank", gid, "GardenTank", WORMBED5_WATER["garden_tank_l"], ["CleanWater", "WormLiquid"])]
+        catchments = [RainCatchment(base + "roof", "Roof beside the bed", gid, WORMBED5_WATER["catchment_m2"], base + "barrel", WORMBED5_WATER["runoff"])]
+        valves = [Valve(base + "barrel-tap", "Barrel tap", gid, base + "barrel", base + "pipes", "ManualTap"),
+                  Valve(base + "sump-bed", "Sump to the bed", gid, base + "sump", base + "pipes", "EdgeValve"),
+                  Valve(base + "sump-garden", "Sump to the garden", gid, base + "sump", base + "garden", "EdgeValve")]
+    else:
+        catchments = [c for c in h.catchments if c.guild_id == gid]
+        valves = [v for v in h.valves if v.guild_id == gid]
+    guild_zone = next((g.zone_id for g in h.guilds if g.id == gid), bed.zone_id)
+    sump_l = round(bed.worm_bin_cm / 100.0 * bed.width_cm / 100.0 * SUMP_DEPTH_M * 1000, 1)
+
+    def capacity(s: WaterStore) -> float:
+        if s.kind == "TankPipes":
+            return float(bed.tank_litres)                 # the bed's own pipes: what the driver's tank holds
+        if s.kind == "WormBoxSump":
+            return sump_l
+        return float(s.capacity_l or 0.0)
+    return ({"catchments": [{"id": c.id, "name": c.name, "m2": c.m2, "runoff": c.runoff, "storeId": c.store_id} for c in catchments],
+             "stores": [{"id": s.id, "name": s.name, "kind": s.kind, "capacityL": capacity(s), "holds": s.holds,
+                         "area": zone_name.get(s.zone_id or guild_zone, "")} for s in stores],
+             "valves": [{"id": v.id, "name": v.name, "kind": v.kind, "from": v.from_id, "to": v.to_id} for v in valves]},
+            assumed)
 
 
 def as_wormbed5(h: Habitat, bed: Bed) -> List[str]:
@@ -312,6 +423,9 @@ def as_wormbed5(h: Habitat, bed: Bed) -> List[str]:
     if not bed.tank_pipes:
         bed.tank_pipes, bed.tank_pipe_mm = WORMBED5["tank_pipes"], WORMBED5["tank_pipe_mm"]
         assumed.append(f"{bed.tank_pipes} tank pipes of {bed.tank_pipe_mm} mm under the bed ({bed.tank_litres} l)")
+    water_said = water_for(h, bed)[1]
+    if water_said:
+        assumed.append(water_said)
     return assumed
 
 
@@ -334,4 +448,6 @@ def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]
             "guild": ({"id": guild.id, "name": guild.name, "type": guild.type, "robot": guild.robot,
                        "robotName": guild.robot_name, "wormsMayLeave": guild.worms_may_leave} if guild else None),
             "tank": {"pipes": bed.tank_pipes, "pipeMm": bed.tank_pipe_mm, "litres": bed.tank_litres},
-            "wormBin": {"cm": bed.worm_bin_cm, "cols": bed.worm_bin_cols, "fromCol": bed.cols - bed.worm_bin_cols}}
+            "wormBin": {"cm": bed.worm_bin_cm, "cols": bed.worm_bin_cols, "fromCol": bed.cols - bed.worm_bin_cols},
+            "water": water_for(h, bed)[0],
+            "learning": h.learning.get(guild.id, []) if guild else []}

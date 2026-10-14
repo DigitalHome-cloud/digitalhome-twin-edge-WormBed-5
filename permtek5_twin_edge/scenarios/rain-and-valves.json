@@ -1,0 +1,215 @@
+{
+  "title": "Rain, the barrel and the valves",
+  "about": "The guild's water beyond its bed: rain from the roof beside it fills a barrel, whose tap refills the tank pipes in a dry week, and the worm box's sump drains by valves to the bed's tank or to a tank in the garden. The bed gets about a third of the worm liquid (the sizing hypothesis: the box makes more than the bed needs); the rest goes to the trees.",
+  "fresh": true,
+  "needs": [
+    "wormBin",
+    "tank"
+  ],
+  "steps": [
+    {
+      "title": "A start where every litre can be followed",
+      "why": "Rain and taps take hours, so 30 simulated minutes pass every second. The barrel and the garden tank are empty, and the worms' liquid has filled the sump to 12 litres.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "time",
+            "factor": 30
+          },
+          {
+            "op": "store",
+            "kind": "RainBarrel",
+            "litres": 0
+          },
+          {
+            "op": "store",
+            "kind": "GardenTank",
+            "litres": 0
+          },
+          {
+            "op": "store",
+            "kind": "WormBoxSump",
+            "litres": 12
+          }
+        ],
+        "label": "Speed up; empty the barrel and the garden tank"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": ">=",
+          "value": 30,
+          "say": "simulated minutes per second: {v}"
+        },
+        {
+          "read": "water.RainBarrel",
+          "is": "<=",
+          "value": 1,
+          "say": "barrel: {v} l"
+        },
+        {
+          "read": "bed.wormBin.sumpL",
+          "is": ">=",
+          "value": 11,
+          "say": "sump: {v} l"
+        }
+      ]
+    },
+    {
+      "title": "A wet hour",
+      "why": "60 mm of rain in an hour on 8 m² of roof at a runoff of 0.8 is about 380 litres: the 200 l barrel is full within half an hour and overflows. The keeper says rain is being lost.",
+      "do": {
+        "type": "disturb",
+        "id": "cloudburst",
+        "calmFirst": true,
+        "label": "Send a cloudburst"
+      },
+      "expect": [
+        {
+          "read": "water.RainBarrel",
+          "is": ">=",
+          "value": 190,
+          "say": "barrel: {v} l"
+        },
+        {
+          "read": "keeper.barrel-full",
+          "is": "==",
+          "value": true,
+          "say": "the keeper says so: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Then a dry week",
+      "why": "The rain stops, the sun comes out, and the bed draws the tank pipes down. Now the barrel's rain is worth having: the keeper asks you to open its tap.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "calm"
+          },
+          {
+            "op": "tank",
+            "litres": 50
+          }
+        ],
+        "label": "A dry week: the tank is low"
+      },
+      "expect": [
+        {
+          "read": "keeper.barrel-refill",
+          "is": "==",
+          "value": true,
+          "say": "the keeper asks for the barrel's tap: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: the sump's valve to the bed",
+      "why": "The sump is over half full and nothing has gone to the bed yet, so the edge proposes the valve to the bed's own tank. An edge valve: you confirm, the edge opens it, it closes itself when the sump is empty.",
+      "do": {
+        "type": "proposal",
+        "id": "valve-bed",
+        "label": "Confirm: the sump to the bed"
+      },
+      "expect": [
+        {
+          "read": "bed.water.wormToBedL",
+          "is": ">=",
+          "value": 10,
+          "say": "worm liquid to the bed so far: {v} l"
+        }
+      ]
+    },
+    {
+      "title": "You: open the barrel's tap",
+      "why": "A manual tap is a person's job. The rain runs into the tank pipes at about 5 litres a minute until the barrel is empty or the tank full, and the tap is closed again.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "valve",
+          "from": "RainBarrel",
+          "to": "TankPipes",
+          "open": true
+        },
+        "label": "Open the barrel's tap"
+      },
+      "expect": [
+        {
+          "read": "bed.tank.litres",
+          "is": ">=",
+          "value": 180,
+          "say": "tank pipes: {v} l"
+        },
+        {
+          "read": "water.RainBarrel",
+          "is": "<=",
+          "value": 80,
+          "say": "barrel: {v} l"
+        }
+      ]
+    },
+    {
+      "title": "The sump fills again",
+      "why": "The tank pipes are full again from the barrel, and the bed has had more than its third of the liquid: the edge proposes the valve to the garden tank, for the trees.",
+      "do": {
+        "type": "event",
+        "event": {
+          "op": "store",
+          "kind": "WormBoxSump",
+          "litres": 12
+        },
+        "label": "Let the sump fill again"
+      },
+      "expect": [
+        {
+          "read": "proposals.valve-garden",
+          "is": ">=",
+          "value": 1,
+          "say": "the valve to the garden is proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: the sump's valve to the garden",
+      "why": "The liquid goes to the tank by the trees. The garden tank counts it as worm liquid: it is for roots, never for leaves.",
+      "do": {
+        "type": "proposal",
+        "id": "valve-garden",
+        "label": "Confirm: the sump to the garden"
+      },
+      "expect": [
+        {
+          "read": "bed.water.wormToGardenL",
+          "is": ">=",
+          "value": 10,
+          "say": "worm liquid to the garden so far: {v} l"
+        },
+        {
+          "read": "water.GardenTank",
+          "is": ">=",
+          "value": 10,
+          "say": "garden tank: {v} l"
+        }
+      ]
+    },
+    {
+      "title": "Back to normal",
+      "why": "The clock runs at its usual pace again.",
+      "do": {
+        "type": "time",
+        "factor": 1,
+        "label": "Clock back to normal"
+      },
+      "expect": [
+        {
+          "read": "bed.env.factor",
+          "is": "<=",
+          "value": 1,
+          "say": "simulated minutes per second: {v}"
+        }
+      ]
+    }
+  ]
+}

@@ -227,6 +227,7 @@ function draw(t) {
   drawEnv(t);
   drawBox(t, ready);
   drawCare(t);
+  drawLearning(t);
   drawOperator(t);
   drawTruth(t);
   drawStrip(t, ready);
@@ -238,6 +239,9 @@ function draw(t) {
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
   $("#btn-hopper-empty").disabled = $("#btn-hopper-mix").disabled = $("#btn-browns").disabled = $("#btn-hopper").disabled;
   $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
+  const barrel = ((t.twin && t.twin.bed && t.twin.bed.water && t.twin.bed.water.stores) || []).find((x) => x.kind === "RainBarrel");
+  $("#btn-barrel").hidden = !barrel;
+  $("#btn-barrel").disabled = !ready || !barrel || (barrel.litres || 0) < 1;
   $("#btn-start").disabled = t.running || !t.prepared || t.missing.length > 0;
   $("#btn-stop").disabled = !t.running;
   $("#chk-window").disabled = t.running;
@@ -304,6 +308,10 @@ $("#btn-hopper-mix").addEventListener("click", () => {
   $("#guide-rules").innerHTML = [...g.rules, ...g.preparation].map((r) => `<li>${core.esc(r)}</li>`).join("");
 })();
 $("#btn-tank").addEventListener("click", async () => { if (await post("/api/twin/tank", {})) core.toast(tr("Tank refilled")); refresh(); });
+$("#btn-barrel").addEventListener("click", async () => {
+  if (await post("/api/twin/valve", { from: "RainBarrel", to: "TankPipes", open: true })) core.toast(tr("The barrel's tap is open"));
+  refresh();
+});
 $("#btn-estop").addEventListener("click", async () => {
   await post("/api/twin/estop", { on: !!$("#btn-estop").dataset.on });
   refresh();
@@ -582,6 +590,16 @@ function drawCare(t) {
   $("#care-next").innerHTML = next.slice(0, 12).map((x) => `<li class="care-${x.who}"><span class="care-who">${core.esc(tr(x.who === "robot" ? "robot" : "you"))}</span>
       ${core.esc(x.label)} <span class="note">· ${x.nextOn}</span></li>`).join("");
 }
+// What the guild is learning (PermTek-5's Learn view): the measures due, with this edge's reading for each where it has one.
+function drawLearning(t) {
+  const cycles = (t.learning || []).filter((c) => c.due.length);
+  $("#learning-panel").hidden = !(t.learning || []).length;
+  $("#learning-due").innerHTML = !cycles.length ? `<li class="note">${core.esc(tr("No measure is due."))}</li>`
+    : cycles.map((c) => c.due.map((d) => `<li><span class="care-who">${core.esc(d.code || "")}</span> <strong>${core.esc(d.label)}</strong>
+      <span class="note">· ${core.esc(c.name)} · ${core.esc(tr("due since {date}", { date: d.dueOn }))}${d.lastOn ? " · " + core.esc(tr("last {date}", { date: d.lastOn })) : ""}</span>
+      ${d.now !== null && d.now !== undefined ? `<div class="note">${core.esc(tr("this edge reads {value} now ({key})", { value: d.now, key: d.reading }))}</div>` : ""}</li>`).join("")).join("");
+}
+
 // The year: the seasonal tasks month by month, from the care guide the edge holds. Once; an older server hides it.
 (async function loadCareYear() {
   let g;

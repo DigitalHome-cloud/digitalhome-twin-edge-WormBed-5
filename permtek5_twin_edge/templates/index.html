@@ -205,6 +205,7 @@
                 <button id="btn-browns" title="You filled the hopper's second compartment with 1 kg of torn cardboard or dry leaves: the robot adds it when the feeding guide asks">Bedding compartment filled (1 kg)</button>
                 <button id="btn-hopper-empty" class="ghost" title="You emptied the hopper, for instance after the feeding guide refused what was in it">Hopper emptied</button>
                 <button id="btn-tank" title="You refilled the tank pipes to the brim">Tank refilled</button>
+                <button id="btn-barrel" title="You opened the rain barrel's tap: it refills the tank pipes until the barrel is empty or the tank full">Barrel tap opened</button>
               </div>
               <details id="hopper-form" hidden>
                 <summary>Say exactly what went into the hopper</summary>
@@ -241,6 +242,11 @@
         <div class="app-panel">
           <h2 class="app-panel__title">Coming up</h2>
           <ul class="care-list" id="care-next"></ul>
+        </div>
+        <div class="app-panel" id="learning-panel" hidden>
+          <h2 class="app-panel__title">What the guild is learning</h2>
+          <p class="note">The guild's learning cycles from PermTek-5 (the Learn view there): the measures due now, and what this edge reads for them. Enter the values in PermTek-5.</p>
+          <ul class="care-list" id="learning-due"></ul>
         </div>
         <div class="app-panel">
           <h2 class="app-panel__title">The year</h2>

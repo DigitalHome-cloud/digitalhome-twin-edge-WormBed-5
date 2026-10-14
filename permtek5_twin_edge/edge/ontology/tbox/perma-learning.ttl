@@ -1,0 +1,149 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix sosa:    <http://www.w3.org/ns/sosa/> .
+
+# ============================================================
+# perma-core, learning module, v0.1: the habitat's second brain
+# (docs/adr/0026). What its owners expect, how they measure it, what the
+# measurements said, and what they changed: plan, do, check, act.
+#
+#   - a LEARNING CYCLE is one turn of plan-do-check-act about a guild or one
+#     of its parts, e.g. "WormBed5 sizing, first season".
+#   - a HYPOTHESIS is a number expected, with the range inside which it
+#     holds, its unit and where it comes from: "the worms turn over 90 kg of
+#     scraps a year (60-130)".
+#   - a MEASURE says how it is measured and how often, and which reading of
+#     an edge fills it (perma:reading), when one can.
+#   - a CHECK is one measured value of a hypothesis on a day: an observation
+#     (sosa:Observation) by a person or an edge.
+#
+# A starter set (guides/wormbed5-sizing.json) is adopted into a guild as a
+# cycle in its Plan phase; the app and the edges then add checks. The graph
+# is the habitat's own (ADR-0007), so the guild's edge sees it too.
+# ============================================================
+
+<https://permaculture.digitalhome.cloud/ontology/learning>
+    a owl:Ontology ;
+    rdfs:label "perma-core: learning"@en , "perma-core: Lernen"@de , "perma-core : apprentissage"@fr ;
+    dcterms:description "Learning cycles (plan-do-check-act) with hypotheses, measures and checks about a habitat's guilds."@en ;
+    owl:versionInfo "0.1.0" .
+
+# ------------------------------------------------------------ classes
+
+perma:LearningCycle a owl:Class ;
+    rdfs:label "Learning cycle"@en , "Lernzyklus"@de , "Cycle d'apprentissage"@fr ;
+    rdfs:comment "One turn of plan, do, check and act about a guild or one of its parts."@en .
+
+perma:Hypothesis a owl:Class ;
+    rdfs:label "Hypothesis"@en , "Hypothese"@de , "Hypothèse"@fr ;
+    rdfs:comment "A number expected, with the range inside which it holds: a baseline to be proved wrong."@en .
+
+perma:Measure a owl:Class ;
+    rdfs:label "Measure"@en , "Messung"@de , "Mesure"@fr ;
+    rdfs:comment "How a hypothesis is measured, and how often."@en .
+
+perma:Check a owl:Class ;
+    rdfs:subClassOf sosa:Observation ;
+    rdfs:label "Check"@en , "Prüfung"@de , "Vérification"@fr ;
+    rdfs:comment "One measured value of a hypothesis on a day, by a person or an edge (sosa:hasSimpleResult, sosa:resultTime)."@en .
+
+# ------------------------------------------------------------ the cycle
+
+perma:about a owl:ObjectProperty ;
+    rdfs:domain perma:LearningCycle ;
+    rdfs:label "about"@en , "über"@de , "à propos de"@fr ;
+    rdfs:comment "The guild, or a part of it, the cycle learns about."@en .
+
+perma:cyclePhase a owl:ObjectProperty ;
+    rdfs:domain perma:LearningCycle ; rdfs:range skos:Concept ;
+    rdfs:label "phase"@en , "Phase"@de , "phase"@fr ;
+    rdfs:comment "Where the cycle stands: one concept from perma:CyclePhases."@en .
+
+perma:startedOn a owl:DatatypeProperty ;
+    rdfs:domain perma:LearningCycle ; rdfs:range xsd:date ;
+    rdfs:label "started on"@en , "begonnen am"@de , "commencé le"@fr .
+
+perma:endsOn a owl:DatatypeProperty ;
+    rdfs:domain perma:LearningCycle ; rdfs:range xsd:date ;
+    rdfs:label "ends on"@en , "endet am"@de , "se termine le"@fr ;
+    rdfs:comment "When the season of measuring is over and the cycle is checked as a whole."@en .
+
+perma:fromStarter a owl:DatatypeProperty ;
+    rdfs:domain perma:LearningCycle ; rdfs:range xsd:string ;
+    rdfs:label "starter set"@en , "Startsatz"@de , "jeu de départ"@fr ;
+    rdfs:comment "The starter set it was adopted from, e.g. wormbed5-sizing."@en .
+
+perma:hasHypothesis a owl:ObjectProperty ;
+    rdfs:domain perma:LearningCycle ; rdfs:range perma:Hypothesis ;
+    rdfs:label "hypothesis"@en , "Hypothese"@de , "hypothèse"@fr .
+
+# ------------------------------------------------------------ hypotheses and measures
+
+perma:code a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "code"@en , "Kürzel"@de , "code"@fr ;
+    rdfs:comment "A short name inside its cycle: H1, M3."@en .
+
+perma:expected a owl:DatatypeProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range xsd:decimal ;
+    rdfs:label "expected"@en , "erwartet"@de , "attendu"@fr .
+
+perma:low a owl:DatatypeProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range xsd:decimal ;
+    rdfs:label "lowest that holds"@en , "kleinster passender Wert"@de , "plus bas admis"@fr .
+
+perma:high a owl:DatatypeProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range xsd:decimal ;
+    rdfs:label "highest that holds"@en , "größter passender Wert"@de , "plus haut admis"@fr .
+
+perma:unit a owl:DatatypeProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range xsd:string ;
+    rdfs:label "unit"@en , "Einheit"@de , "unité"@fr ;
+    rdfs:comment "As people write it: kg/yr, l/kg, g N/yr."@en .
+
+perma:source a owl:DatatypeProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range xsd:string ;
+    rdfs:label "source"@en , "Quelle"@de , "source"@fr ;
+    rdfs:comment "Where the number comes from: a model run, a study (a URL), practice."@en .
+
+perma:measuredBy a owl:ObjectProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range perma:Measure ;
+    rdfs:label "measured by"@en , "gemessen durch"@de , "mesurée par"@fr .
+
+perma:verdict a owl:ObjectProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range skos:Concept ;
+    rdfs:label "verdict"@en , "Urteil"@de , "verdict"@fr ;
+    rdfs:comment "One concept from perma:Verdicts: open, holds, fails."@en .
+
+perma:actTaken a owl:DatatypeProperty ;
+    rdfs:domain perma:Hypothesis ; rdfs:range xsd:string ;
+    rdfs:label "what we changed"@en , "was wir geändert haben"@de , "ce que nous avons changé"@fr ;
+    rdfs:comment "The act after the check: a new number, a change to the guild, to a guide, to the twin's model."@en .
+
+perma:method a owl:DatatypeProperty ;
+    rdfs:domain perma:Measure ; rdfs:range rdfs:Literal ;
+    rdfs:label "how"@en , "wie"@de , "comment"@fr .
+
+perma:everyDays a owl:DatatypeProperty ;
+    rdfs:domain perma:Measure ; rdfs:range xsd:integer ;
+    rdfs:label "every (days)"@en , "alle (Tage)"@de , "tous les (jours)"@fr .
+
+perma:reading a owl:DatatypeProperty ;
+    rdfs:domain perma:Measure ; rdfs:range xsd:string ;
+    rdfs:label "edge reading"@en , "Messwert der Edge"@de , "mesure de l'edge"@fr ;
+    rdfs:comment "The key of an edge's reading that fills it, e.g. wormBin.sumpL; none when a person measures."@en .
+
+# ------------------------------------------------------------ checks
+
+perma:ofHypothesis a owl:ObjectProperty ;
+    rdfs:domain perma:Check ; rdfs:range perma:Hypothesis ;
+    rdfs:label "of hypothesis"@en , "zur Hypothese"@de , "de l'hypothèse"@fr .
+
+perma:checkedBy a owl:DatatypeProperty ;
+    rdfs:domain perma:Check ; rdfs:range xsd:string ;
+    rdfs:label "checked by"@en , "geprüft von"@de , "vérifié par"@fr ;
+    rdfs:comment "person or edge."@en .

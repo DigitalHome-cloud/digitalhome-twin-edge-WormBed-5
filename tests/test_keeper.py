@@ -159,3 +159,26 @@ def test_the_worms_rules_go_by_the_feeders_estimate_crowded_and_dying_back():
     keeper.population(result, kmem, est)
     assert "dying-back" in result["active"] and "crowded" not in result["active"]
     assert feeder.worms({}, {**advice, "uneatenG": 0}, 0.0, 0.48) is None, "an empty box says nothing about the worms"
+
+
+def water(barrel_l=150.0, overflowing=False, garden_l=50.0, tap="ManualTap"):
+    return {"stores": [{"id": "b", "kind": "RainBarrel", "capacity": 200.0, "litres": barrel_l, "overflowing": overflowing},
+                       {"id": "g", "kind": "GardenTank", "capacity": 300.0, "litres": garden_l},
+                       {"id": "p", "kind": "TankPipes", "capacity": 202.0}],
+            "valves": [{"id": "v", "kind": tap, "from": "b", "to": "p", "open": False}]}
+
+
+def test_a_low_tank_with_rain_in_the_barrel_asks_for_the_tap_and_a_full_barrel_or_garden_tank_says_so():
+    b = bed(tank=50.0)
+    b["water"] = water()
+    assert "barrel-refill" in ids(b)
+    b["water"] = water(tap="EdgeValve")
+    assert "barrel-refill" not in ids(b), "an edge valve is proposed as a job instead"
+    b = bed()
+    b["water"] = water(barrel_l=200.0, overflowing=True, garden_l=290.0)
+    assert {"barrel-full", "garden-full"} <= set(ids(b))
+    m = {}
+    b["water"] = water(garden_l=290.0)
+    assert "garden-full" in ids(b, m)
+    b["water"] = water(garden_l=270.0)
+    assert "garden-full" in ids(b, m), "it lets go only clearly below full"

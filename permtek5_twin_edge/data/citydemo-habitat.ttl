@@ -3,12 +3,15 @@
 @prefix id:    <https://permtek-5.digitalhome.cloud/id/> .
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix sosa:  <http://www.w3.org/ns/sosa/> .
 
 # CityDemo: an INVENTED city habitat, like everything in this public repository.
 # A small flat roof with one Perma5Guild of type WormBed5: a wicking bed (3 m x 1.2 m, 10 cm cells: 12 rows, 30 columns; eight tank
 # pipes under 15 cm of lightweight substrate; a worm box on its last 40 cm)
 # and a small back garden with three fruit trees. Positions are metres inside
-# each zone, never geographic.
+# each zone, never geographic. The guild's water: rain from 8 m² of roof into a
+# barrel that refills the tank pipes, and the worm box's sump with a valve to
+# the tank pipes and one to a tank in the garden. One learning cycle has begun.
 
 id:zone-z-cityroof a perma:GardenZone ; rdfs:label "Flat roof" ;
     perma:zoneKind perma:RoofZone ; perma:exposure perma:FullSun , perma:Windy ;
@@ -88,3 +91,37 @@ id:plant-p-cityplum a perma:GardenPlant ; rdfs:label "Plum" ; perma:inZone id:zo
     perma:grows crop:crop-plum ; perma:plantedYear 2018 ; perma:rootstock "St Julien A" ; perma:xM 6.5 ; perma:yM 7.0 .
 id:plant-p-citycherry a perma:GardenPlant ; rdfs:label "Morello on the north fence" ; perma:inZone id:zone-z-citygarden ;
     perma:grows crop:crop-sour-cherry ; perma:plantedYear 2020 ; perma:rootstock "Colt" ; perma:xM 9.0 ; perma:yM 0.5 .
+
+# ------------------------------------------------------------ the roof guild's water (docs/adr/0025)
+
+id:rain-r-cityroof a perma:RainCatchment ; rdfs:label "Roof beside the bed" ; perma:inGuild id:guild-g-cityroof ;
+    perma:catchmentM2 8.0 ; perma:runoffShare 0.8 ; perma:drainsTo id:store-s-citybarrel .
+id:store-s-citybarrel a perma:WaterStore ; rdfs:label "Rain barrel" ; perma:inGuild id:guild-g-cityroof ;
+    perma:storeKind perma:RainBarrel ; perma:capacityL 200.0 ; perma:holds perma:CleanWater .
+id:store-s-citypipes a perma:WaterStore ; rdfs:label "Tank pipes" ; perma:inGuild id:guild-g-cityroof ;
+    perma:storeKind perma:TankPipes ; perma:capacityL 202.0 ; perma:holds perma:CleanWater , perma:WormLiquid .
+id:store-s-citysump a perma:WaterStore ; rdfs:label "Worm box sump" ; perma:inGuild id:guild-g-cityroof ;
+    perma:storeKind perma:WormBoxSump ; perma:capacityL 14.4 ; perma:holds perma:WormLiquid .
+id:store-s-citygardentank a perma:WaterStore ; rdfs:label "Tank by the trees" ; perma:inGuild id:guild-g-cityroof ;
+    perma:inZone id:zone-z-citygarden ; perma:storeKind perma:GardenTank ; perma:capacityL 300.0 ;
+    perma:holds perma:CleanWater , perma:WormLiquid .
+id:valve-v-citybarrel a perma:Valve ; rdfs:label "Barrel tap" ; perma:inGuild id:guild-g-cityroof ;
+    perma:flowFrom id:store-s-citybarrel ; perma:flowTo id:store-s-citypipes ; perma:valveKind perma:ManualTap .
+id:valve-v-citysumpbed a perma:Valve ; rdfs:label "Sump to the bed" ; perma:inGuild id:guild-g-cityroof ;
+    perma:flowFrom id:store-s-citysump ; perma:flowTo id:store-s-citypipes ; perma:valveKind perma:EdgeValve .
+id:valve-v-citysumpgarden a perma:Valve ; rdfs:label "Sump to the garden" ; perma:inGuild id:guild-g-cityroof ;
+    perma:flowFrom id:store-s-citysump ; perma:flowTo id:store-s-citygardentank ; perma:valveKind perma:EdgeValve .
+
+# ------------------------------------------------------------ what the roof guild is learning (docs/adr/0026)
+
+id:cycle-y-citysizing a perma:LearningCycle ; rdfs:label "WormBed5 sizing, first season"@en ;
+    perma:about id:guild-g-cityroof ; perma:cyclePhase perma:DoPhase ; perma:fromStarter "wormbed5-sizing" ;
+    perma:startedOn "2026-04-01"^^xsd:date ; perma:endsOn "2027-03-31"^^xsd:date ;
+    perma:hasHypothesis id:hyp-h-cityliquid .
+id:hyp-h-cityliquid a perma:Hypothesis ; perma:code "H2" ; rdfs:label "Liquid to the sump per kg eaten"@en ;
+    perma:expected 0.15 ; perma:low 0.05 ; perma:high 0.30 ; perma:unit "l/kg" ;
+    perma:source "docs/specs/wormbed5-sizing.md" ; perma:measuredBy id:measure-m-citysump ; perma:verdict perma:VerdictOpen .
+id:measure-m-citysump a perma:Measure ; perma:code "M3" ; rdfs:label "Liquid out"@en ;
+    perma:method "The sump's level probe; once a month the sump drained into a jug."@en ; perma:everyDays 30 ; perma:reading "wormBin.sumpL" .
+id:check-k-cityliquid1 a perma:Check ; perma:ofHypothesis id:hyp-h-cityliquid ;
+    sosa:hasSimpleResult 0.12 ; sosa:resultTime "2026-05-01"^^xsd:date ; perma:checkedBy "person" .

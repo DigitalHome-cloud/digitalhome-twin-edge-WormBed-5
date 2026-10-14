@@ -55,7 +55,8 @@ def from_python():
                 words = [part.body, part.orelse] if isinstance(part, ast.IfExp) else [part]   # "open" if ... else "closed"
                 out |= {n.value for n in words if isinstance(n, ast.Constant) and isinstance(n.value, str)
                         and re.search(r"[a-z]{2}", n.value) and n.value not in ("kg", "mm/h", "m/s")}
-    from permtek5_twin_edge import disturbances, film, keeper, operator_view, scenarios
+    from permtek5_twin_edge import disturbances, film, habitat, keeper, operator_view, scenarios
+    out.add(habitat.WATER_ASSUMED)                    # said in the Setup screen's "assumed" line, translated by the page
     out |= set(keeper.TEXT.values())
     out |= {t for _, t in operator_view.GROUPS} | set(operator_view.RULES.values())
     for info in operator_view.SENSORS.values():

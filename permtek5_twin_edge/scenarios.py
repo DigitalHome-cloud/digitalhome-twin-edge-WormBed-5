@@ -131,6 +131,9 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
         return None if task is None else task.get("due" if what == "due" else "reason")
     if path.startswith("worms."):
         return (kept.get("worms") or {}).get(path.split(".", 1)[1])
+    if path.startswith("water."):                    # water.RainBarrel | water.GardenTank: a store's litres, by its kind
+        kind = path.split(".", 1)[1]
+        return next((x.get("litres") for x in ((twin.get("bed") or {}).get("water") or {}).get("stores") or [] if x.get("kind") == kind), None)
     cells = [c for c in (bed.get("cells") or {}).values()]
     if path.startswith("bed."):
         v: Any = bed

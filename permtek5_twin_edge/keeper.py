@@ -27,6 +27,9 @@ REACTION with an id:
     box-full      the worm box is nearly full   the person harvests the compost
     crowded       the worms eat like a crowded box  the person harvests, or starts a second box
     dying-back    they eat a third less than a week ago, with food there  the person checks food, moisture, air
+    barrel-refill the tank pipes are low and the rain barrel holds water  the person opens the barrel's tap
+    barrel-full   the rain barrel is full and overflows   rain is lost: the person refills the tank from it, or adds a barrel
+    garden-full   the garden tank is full   the person uses its liquid on the trees; the sump has nowhere else to go
                   (these two go by the feeder's estimate of the worms: `population`)
 
 Reactions are notices to the person, HOLDS on kinds of job (no proposal, and
@@ -59,6 +62,8 @@ TANK_DEAD_L = 1.0                        # under a litre the wick does not reach
 TANK_FALL_L, TANK_FALL_MIN = 5.0, 60.0   # this much lost within this many simulated minutes, with nothing drawing on it
 STUCK_MIN, STUCK_AIR_C = 120.0, 3.0      # a box temperature unchanged this long while the air moved this much
 BOX_FULL_PCT = 90.0
+BARREL_REFILL_BELOW, BARREL_REFILL_FROM_L = 0.4, 20.0     # the tank pipes under 40 %, the barrel holding at least 20 l
+GARDEN_FULL_ON, GARDEN_FULL_OFF = 0.95, 0.85              # of the garden tank's capacity
 OVERFED_ON, OVERFED_OFF = 6.0, 4.5       # °C the core is above the edge: uneaten food is composting (at dusk the core lags a cooling edge by a degree or two)
 GAS_ON, GAS_OFF = 60.0, 30.0             # the gas sensor's 0..100
 WET_ON, WET_OFF = 90.0, 85.0             # % moisture
@@ -89,6 +94,9 @@ TEXT = {
     "box-full": "The worm box is nearly full: harvest the finished compost.",
     "crowded": "The worms eat like a crowded box (about {kg} kg of worms per m²): they will stop breeding. Harvest the compost with some of the worms in it, or start a second box.",
     "dying-back": "The worms eat {pct} % less than a week ago although food lies there: fewer are working. Check the food, the moisture and the air.",
+    "barrel-refill": "The tank pipes are low and the rain barrel holds water: open the barrel's tap.",
+    "barrel-full": "The rain barrel is full and overflows: rain is being lost. Refill the tank pipes from it, or add a second barrel.",
+    "garden-full": "The garden tank is full: use its liquid on the trees, or the sump's liquid has nowhere to go but the bed.",
 }
 HOLDS = {"frost": ["feed", "water"], "heat": ["feed"], "overflow": ["water"], "sensor": ["feed"], "hopper-jam": ["feed"],
          "overfed": ["feed"], "airless": ["feed"], "box-wet": ["feed"], "sump-full": ["feed"], "sour": ["feed"]}
@@ -187,6 +195,18 @@ def evaluate(bed: Optional[Dict[str, Any]], memory: Dict[str, Any], offline: boo
                 active.append("box-full")
         if (bed.get("hopper") or {}).get("jammed"):
             active.append("hopper-jam")
+        water = bed.get("water") or {}
+        stores = {x["kind"]: x for x in water.get("stores") or []}
+        barrel, garden = stores.get("RainBarrel"), stores.get("GardenTank")
+        barrel_tap = next((v for v in water.get("valves") or [] if v.get("from") == (barrel or {}).get("id")), None)
+        if (barrel and barrel_tap and barrel_tap.get("kind") == "ManualTap" and not barrel_tap.get("open") and tank.get("capacity")
+                and tank.get("litres", 0.0) < BARREL_REFILL_BELOW * tank["capacity"] and barrel.get("litres", 0.0) >= BARREL_REFILL_FROM_L):
+            active.append("barrel-refill")
+        if barrel and barrel.get("overflowing"):
+            active.append("barrel-full")
+        if garden and garden.get("capacity") and _switch(memory, "garden-full", garden.get("litres", 0.0) >= GARDEN_FULL_ON * garden["capacity"],
+                                                          garden.get("litres", 0.0) <= GARDEN_FULL_OFF * garden["capacity"]):
+            active.append("garden-full")
     if offline:
         active.append("offline")
 

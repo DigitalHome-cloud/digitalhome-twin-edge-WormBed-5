@@ -1,0 +1,64 @@
+@prefix perma:   <https://permaculture.digitalhome.cloud/ontology#> .
+@prefix permash: <https://permaculture.digitalhome.cloud/shapes#> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix sosa:    <http://www.w3.org/ns/sosa/> .
+
+# ============================================================
+# SHACL shapes for learning cycles in a habitat's A-Box, v0.1. Validate
+# TOGETHER with tbox/perma-learning-concepts.ttl and the habitat's shapes.
+# ============================================================
+
+permash:InCyclePhases a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:CyclePhases ] .
+permash:InVerdicts a sh:NodeShape ; sh:property [ sh:path skos:inScheme ; sh:hasValue perma:Verdicts ] .
+
+permash:LearningCycleShape a sh:NodeShape ;
+    sh:targetClass perma:LearningCycle ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:uniqueLang true ; sh:message "A learning cycle needs a name (one per language)."@en ] ;
+    sh:property [ sh:path perma:about ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+                  sh:message "A learning cycle is about one guild or part."@en ] ;
+    sh:property [ sh:path perma:cyclePhase ; sh:minCount 1 ; sh:maxCount 1 ; sh:node permash:InCyclePhases ;
+                  sh:message "A learning cycle stands in one phase of perma:CyclePhases."@en ] ;
+    sh:property [ sh:path perma:startedOn ; sh:maxCount 1 ; sh:datatype xsd:date ] ;
+    sh:property [ sh:path perma:endsOn ; sh:maxCount 1 ; sh:datatype xsd:date ] ;
+    sh:property [ sh:path perma:fromStarter ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path perma:hasHypothesis ; sh:class perma:Hypothesis ] .
+
+permash:HypothesisShape a sh:NodeShape ;
+    sh:targetClass perma:Hypothesis ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:uniqueLang true ; sh:message "A hypothesis says what it claims (one text per language)."@en ] ;
+    sh:property [ sh:path perma:code ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path perma:expected ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ;
+                  sh:lessThanOrEquals perma:high ; sh:message "A hypothesis expects one number, at most its highest."@en ] ;
+    sh:property [ sh:path perma:low ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ;
+                  sh:lessThanOrEquals perma:expected ; sh:message "Its lowest is at most the number expected."@en ] ;
+    sh:property [ sh:path perma:high ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ] ;
+    sh:property [ sh:path perma:unit ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+                  sh:message "A hypothesis names its unit."@en ] ;
+    sh:property [ sh:path perma:source ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path perma:measuredBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:Measure ;
+                  sh:message "A hypothesis is measured by one measure."@en ] ;
+    sh:property [ sh:path perma:verdict ; sh:maxCount 1 ; sh:node permash:InVerdicts ] ;
+    sh:property [ sh:path perma:actTaken ; sh:maxCount 1 ; sh:datatype xsd:string ] .
+
+permash:MeasureShape a sh:NodeShape ;
+    sh:targetClass perma:Measure ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:uniqueLang true ; sh:message "A measure needs a name (one per language)."@en ] ;
+    sh:property [ sh:path perma:code ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path perma:method ; sh:uniqueLang true ] ;
+    sh:property [ sh:path perma:everyDays ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 366 ;
+                  sh:message "A measure is taken every 1..366 days."@en ] ;
+    sh:property [ sh:path perma:reading ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[A-Za-z][A-Za-z0-9_.]*$" ;
+                  sh:message "An edge reading is a key like wormBin.sumpL."@en ] .
+
+permash:CheckShape a sh:NodeShape ;
+    sh:targetClass perma:Check ;
+    sh:property [ sh:path perma:ofHypothesis ; sh:minCount 1 ; sh:maxCount 1 ; sh:class perma:Hypothesis ;
+                  sh:message "A check is of one hypothesis."@en ] ;
+    sh:property [ sh:path sosa:hasSimpleResult ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ;
+                  sh:message "A check has one measured number."@en ] ;
+    sh:property [ sh:path sosa:resultTime ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:date ;
+                  sh:message "A check has the day it was measured."@en ] ;
+    sh:property [ sh:path perma:checkedBy ; sh:maxCount 1 ; sh:in ( "person" "edge" ) ] .

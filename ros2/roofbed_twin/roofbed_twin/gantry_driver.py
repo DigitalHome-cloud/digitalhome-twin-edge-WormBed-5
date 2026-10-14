@@ -18,6 +18,8 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                      {"op": "feed", "grams", "spot"} the worm box gets a portion from the hopper
                                      {"op": "hopper", "grams" | "mix": {kind: grams}} a person filled the hopper, and with what
                                      {"op": "tank", "litres"}  a person refilled (or emptied) the tank
+                                     {"op": "valve", "id" | "from", "to", "open"}  a tap or an edge valve opened or closed (water.py)
+                                     {"op": "store", "id" | "kind", "litres"}  a barrel's or a garden tank's level (scenarios)
                                      {"op": "care", "what": "bedding", "grams"} | {"what": "moisten", "ml"}  the robot cared for the box
                                      {"op": "topdress", "row", "col", "grams"}  finished compost from the box onto a cell
                                      {"op": "weeds", "count", "large"} a flush of weeds | {"op": "weeds", "pull": "large" | "all"} pulled by hand
@@ -58,6 +60,7 @@ from std_msgs.msg import Bool, String
 
 from .environment import Environment
 from .spin import Drain
+from .water import WaterSystem
 from .wormbox import FULL_G, Sensors, WormBox
 from .soil import SoilLife
 
@@ -117,6 +120,7 @@ class GantryDriver:
         tank = self.cfg.get("tank") or {}
         self.tank_cap = float(tank.get("litres") or 0)
         self.tank_l = self.tank_cap * 0.6                       # starts partly filled
+        self.water = WaterSystem(self.cfg.get("water"))         # the roof's rain, a barrel, a garden tank, and the valves (water.py)
         self.has_bin = bool((self.cfg.get("wormBin") or {}).get("cols"))
         self.hopper_g = 0.0
         seed = int(os.environ.get("PERMTEK5_TWIN_SEED", "5"))
@@ -217,6 +221,20 @@ class GantryDriver:
                 return
             if op == "tank":
                 self.tank_l = max(0.0, min(float(e.get("litres", self.tank_cap)), self.tank_cap))
+                return
+            if op == "valve":                                 # a tap or an edge valve: by its id, or by the kinds it joins
+                vid = e.get("id") or self.water.valve_between(e.get("from"), e.get("to"))
+                if vid:
+                    self.water.open(vid, bool(e.get("open", True)))
+                return
+            if op == "store":                                 # a scenario sets a barrel's, a garden tank's or the sump's level
+                if e.get("kind") == "WormBoxSump":
+                    if self.has_bin:
+                        self.box.sump_l = max(0.0, min(float(e.get("litres", 0)), self.box.sump_cap_l))
+                    return
+                sid = e.get("id") or self.water.of_kind(e.get("kind"))
+                if sid:
+                    self.water.set_level(sid, float(e.get("litres", 0)))
                 return
             if op == "feed":
                 if not self.has_bin:
@@ -563,6 +581,7 @@ class GantryDriver:
                 self.tank_l += rain_mm * self.bed_m2 * RAIN_TO_TANK              # 1 mm on 1 m² is a litre
                 self.overflowing = self.tank_l >= self.tank_cap and rain_mm > 0  # the rest leaves by the overflow
                 self.tank_l = max(0.0, min(self.tank_l, self.tank_cap))
+            self.water.rain(rain_mm)                                             # the roof beside the bed fills the barrel
             if self.cells:
                 live = [c for c in self.cells.values() if c["status"] in ("CellSown", "CellGrowing")]
                 soil_cells = max(1.0, self.soil_x * self.soil_y / self.cfg["world"]["cellM"] ** 2)
@@ -575,6 +594,8 @@ class GantryDriver:
                 self.show_box(now["x"])
                 self.show_worms()
                 box.step(dmin, env.air_c(), env.rain_mm_h())      # its liquid collects in the sump; the tap lets it on
+            if self.tank_cap > 0:                                 # open valves run: barrel -> tank pipes, sump -> tank pipes or garden
+                self.tank_l = max(0.0, min(self.water.step(dmin, self.tank_l, self.tank_cap, box if self.has_bin else None), self.tank_cap))
                 if self.helper and self.helper_day != env.day:
                     self.helper_day = env.day
                     self.daily_care()
@@ -585,6 +606,7 @@ class GantryDriver:
                 "sim": {"soilLife": round(self.soil_life.value, 2), "weeds": len(self.weeds), "weedsLarge": sum(1 for w in self.weeds.values() if w["mm"] >= STAMPABLE_BELOW_MM),
                         "weedsAt": [[round(w["x"], 3), round(w["y"], 3), round(w["mm"])] for w in self.weeds.values()]},
                 "tank": {"litres": round(self.tank_l, 2), "capacity": round(self.tank_cap, 1), "overflowing": self.overflowing},
+                "water": self.water.state(),
                 "wormBin": ({**self.probes.read(box, env.sensor),
                              "fillPct": round(100.0 * box.weight_g() / FULL_G, 1), "fedGrams": round(box.fed_g),
                              "feedings": box.feedings, "wormsMayLeave": box.may_leave, "insulated": box.insulated, "sumpCapacity": round(box.sump_cap_l, 1), "lastFeed": self.last_feed, "lastCare": self.last_care,

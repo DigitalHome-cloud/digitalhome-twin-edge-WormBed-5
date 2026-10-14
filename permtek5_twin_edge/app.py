@@ -242,6 +242,42 @@ def _event(event: dict) -> dict:
     return out
 
 
+def _reading(bed, key):
+    """An edge reading by its key (a measure's perma:reading): wormBin.sumpL, water.barrelL, ..."""
+    if not bed or not key:
+        return None
+    if key == "water.barrelL":
+        return next((x.get("litres") for x in (bed.get("water") or {}).get("stores") or [] if x.get("kind") == "RainBarrel"), None)
+    v = bed
+    for part in key.split("."):
+        v = v.get(part) if isinstance(v, dict) else None
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _learning(cfg, bed):
+    """What the guild is learning (PermTek-5 ADR 0026): its cycles that are measuring, and their measures due today
+    (the cloud's rule: never checked, or as long ago as their rhythm), with what this edge reads for them now."""
+    import datetime as _dt
+    today = _dt.date.today()
+    lang = i18n.current()
+    out = []
+    for c in (cfg or {}).get("learning") or []:
+        if c.get("phase") not in ("DoPhase", "CheckPhase"):
+            continue
+        due = []
+        for m in c.get("measures") or []:
+            last = m.get("lastOn")
+            since = _dt.date.fromisoformat(last) + _dt.timedelta(days=int(m.get("everyDays") or 30)) if last else \
+                _dt.date.fromisoformat(c.get("startedOn") or today.isoformat())
+            if since <= today:
+                label = m.get("label") or {}
+                due.append({"code": m.get("code"), "label": label.get(lang) or label.get("en") or "", "dueOn": since.isoformat(),
+                            "lastOn": last, "reading": m.get("reading") or None, "now": _reading(bed, m.get("reading"))})
+        name = c.get("name") or {}
+        out.append({"id": c["id"], "name": name.get(lang) or name.get("en") or "", "phase": c["phase"], "due": due})
+    return out
+
+
 def _env_view(env):
     """The weather for the page, its disturbances named in the person's language."""
     if not env:
@@ -281,6 +317,7 @@ def _twin_state() -> dict:
             "care": kept.get("care"),
             "env": _env_view((bed or {}).get("env")),
             "operator": _operator(bed, kept["active"]),
+            "learning": _learning(cfg, bed),
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"))
                           if not kept["lockout"] else [])}
@@ -371,6 +408,13 @@ def _run(spec: dict) -> dict:
         if task:
             _care_done(task)
         return out
+    if spec.get("kind") == "valve":                   # an edge valve: open it; it closes itself when done (water.py)
+        out = {**_event({"op": "valve", "from": spec.get("from"), "to": spec.get("to"), "open": True}), "done": "the valve was opened"}
+        if spec.get("from") == "WormBoxSump":
+            sump_task = maintenance.task_for_job(_care_guide, {"kind": "tap"})
+            if sump_task:
+                _care_done(sump_task)
+        return out
     if spec.get("kind") == "rest":
         return {**_event({"op": "box", "do": "rest", "side": spec.get("side")}), "done": "one half of the box now rests"}
     out = sim.gateway("/job", spec)
@@ -449,6 +493,18 @@ def twin_hopper():
         return jsonify(sim.gateway("/event", {"op": "hopper", "grams": grams}))
     except (TypeError, ValueError):
         return jsonify({"errors": ["grams are numbers"]}), 400
+    except RuntimeError as exc:
+        return jsonify({"errors": [_(str(exc))]}), 409
+
+
+@app.post("/api/twin/valve")
+def twin_valve():
+    """A person opened (or closed) a tap of the guild's water: {"id"} or the kinds it joins {"from", "to"}, and "open"."""
+    data = body()
+    event = {"op": "valve", "open": bool(data.get("open", True)),
+             **({"id": str(data["id"])} if data.get("id") else {"from": str(data.get("from") or ""), "to": str(data.get("to") or "")})}
+    try:
+        return jsonify(_event(event))
     except RuntimeError as exc:
         return jsonify({"errors": [_(str(exc))]}), 409
 

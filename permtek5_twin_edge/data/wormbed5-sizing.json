@@ -1,0 +1,177 @@
+{
+  "id": "wormbed5-sizing",
+  "version": 1,
+  "guildType": "WormBed5",
+  "title": {
+    "en": "WormBed5 sizing, first season",
+    "de": "WormBed5-Größe, erste Saison",
+    "fr": "Dimensions de la WormBed5, première saison"
+  },
+  "about": {
+    "en": "How much the worm box turns over, into how much liquid and castings, whether it fits the bed, and how much of the bed's water the rain brings. Baselines to be proved wrong (docs/specs/wormbed5-sizing.md): measure for a season and a winter, check each month, then act.",
+    "de": "Wie viel die Wurmkiste umsetzt, in wie viel Flüssigkeit und Wurmhumus, ob sie zum Beet passt und wie viel vom Wasser des Beets der Regen bringt. Ausgangswerte, die widerlegt werden sollen (docs/specs/wormbed5-sizing.md): eine Saison und einen Winter messen, jeden Monat prüfen, dann handeln.",
+    "fr": "Combien le bac à vers transforme, en combien de liquide et de lombricompost, s'il convient à la planche, et quelle part de l'eau de la planche la pluie apporte. Des valeurs de départ à réfuter (docs/specs/wormbed5-sizing.md) : mesurer une saison et un hiver, vérifier chaque mois, puis agir."
+  },
+  "rule": {
+    "en": "A hypothesis holds while its checks lie within its range. It fails when two checks running lie outside it, or the last one of the season does.",
+    "de": "Eine Hypothese ist bestätigt, solange ihre Prüfungen im Bereich liegen. Sie ist widerlegt, wenn zwei Prüfungen hintereinander außerhalb liegen oder die letzte der Saison.",
+    "fr": "Une hypothèse est confirmée tant que ses vérifications restent dans sa plage. Elle est réfutée quand deux vérifications de suite en sortent, ou la dernière de la saison."
+  },
+  "days": 365,
+  "hypotheses": [
+    {
+      "code": "H1", "measure": "M2", "expected": 90, "low": 60, "high": 130, "unit": "kg/yr",
+      "label": {
+        "en": "Scraps the worm box (0.48 m²) turns over in a year",
+        "de": "Reste, die die Wurmkiste (0,48 m²) in einem Jahr umsetzt",
+        "fr": "Restes que le bac à vers (0,48 m²) transforme en un an"
+      },
+      "why": {
+        "en": "The twin's model gives 103-128 kg in a generic Central European year; practice (1 ft² per lb a week, ~30 active weeks) about 75 kg. Summer days 300-700 g, winter days under 50 g.",
+        "de": "Das Modell des Zwillings ergibt 103–128 kg in einem typischen mitteleuropäischen Jahr; die Praxis (1 ft² pro lb und Woche, ~30 aktive Wochen) etwa 75 kg. Sommertage 300–700 g, Wintertage unter 50 g.",
+        "fr": "Le modèle du jumeau donne 103 à 128 kg sur une année type d'Europe centrale ; la pratique (1 ft² par lb et par semaine, ~30 semaines actives) environ 75 kg. Jours d'été 300 à 700 g, jours d'hiver moins de 50 g."
+      },
+      "source": "twin model scripts/wormbox-year.py; NC State Extension"
+    },
+    {
+      "code": "H2", "measure": "M3", "expected": 0.15, "low": 0.05, "high": 0.3, "unit": "l/kg",
+      "label": {
+        "en": "Liquid to the sump per kg eaten (without rain)",
+        "de": "Flüssigkeit in den Sumpf pro gefressenem kg (ohne Regen)",
+        "fr": "Liquide au puisard par kg mangé (sans pluie)"
+      },
+      "why": {
+        "en": "No measured yield was found; a well-bedded box makes little. The model says 0.30, the top of the range. About 14 l a year: no water supply, but nutrients for the tank.",
+        "de": "Kein gemessener Wert gefunden; eine gut eingestreute Kiste gibt wenig ab. Das Modell sagt 0,30, das obere Ende. Etwa 14 l im Jahr: keine Wasserquelle, aber Nährstoffe für den Tank.",
+        "fr": "Aucune mesure publiée trouvée ; un bac bien paillé en donne peu. Le modèle dit 0,30, le haut de la plage. Environ 14 l par an : pas une source d'eau, mais des nutriments pour la cuve."
+      },
+      "source": "docs/specs/wormbed5-sizing.md"
+    },
+    {
+      "code": "H3", "measure": "M4", "expected": 0.22, "low": 0.15, "high": 0.4, "unit": "kg/kg",
+      "label": {
+        "en": "Castings per kg eaten (moist)",
+        "de": "Wurmhumus pro gefressenem kg (feucht)",
+        "fr": "Lombricompost par kg mangé (humide)"
+      },
+      "why": {
+        "en": "Food is ~85 % water and loses half its dry matter; studies report an 86 % mass reduction of food and paper. The model says 0.40.",
+        "de": "Futter ist zu ~85 % Wasser und verliert die Hälfte seiner Trockenmasse; Studien berichten 86 % Massenabnahme von Futter und Papier. Das Modell sagt 0,40.",
+        "fr": "La nourriture est à ~85 % de l'eau et perd la moitié de sa matière sèche ; des études rapportent 86 % de perte de masse pour nourriture et papier. Le modèle dit 0,40."
+      },
+      "source": "University of Portsmouth; docs/specs/wormbed5-sizing.md"
+    },
+    {
+      "code": "H4", "measure": "M4", "expected": 2.0, "low": 1.0, "high": 3.0, "unit": "g N/kg",
+      "label": {
+        "en": "Nitrogen in the castings per kg eaten",
+        "de": "Stickstoff im Wurmhumus pro gefressenem kg",
+        "fr": "Azote dans le lombricompost par kg mangé"
+      },
+      "why": {
+        "en": "Vegetable scraps carry ~3 g N per kg; ~70 % stays in the castings (vermicompost 1.3-3.3 % N in dry matter), ~10 % goes to the liquid. About 200 g N a year at H1.",
+        "de": "Gemüsereste enthalten ~3 g N pro kg; ~70 % bleiben im Wurmhumus (1,3–3,3 % N in der Trockenmasse), ~10 % gehen in die Flüssigkeit. Etwa 200 g N im Jahr bei H1.",
+        "fr": "Les épluchures portent ~3 g N par kg ; ~70 % restent dans le lombricompost (1,3 à 3,3 % N dans la matière sèche), ~10 % vont au liquide. Environ 200 g N par an avec H1."
+      },
+      "source": "kitchen-waste vermicompost studies; docs/specs/wormbed5-sizing.md"
+    },
+    {
+      "code": "H5", "measure": "M6", "expected": 12.5, "low": 10, "high": 15, "unit": "g N/m²/yr",
+      "label": {
+        "en": "Nitrogen the bed's vegetables need",
+        "de": "Stickstoff, den das Gemüse des Beets braucht",
+        "fr": "Azote dont les légumes de la planche ont besoin"
+      },
+      "why": {
+        "en": "Mixed vegetables need about 10-11 g N per m² a year (brassicas up to 24, beans none). A 3.1 m² bed needs 31-47 g: four to six times less than the box makes. Hence: a third of the castings to the bed, the rest out.",
+        "de": "Gemischtes Gemüse braucht etwa 10–11 g N pro m² und Jahr (Kohl bis 24, Bohnen keinen). Ein Beet von 3,1 m² braucht 31–47 g: vier- bis sechsmal weniger, als die Kiste liefert. Daher: ein Drittel des Wurmhumus aufs Beet, der Rest hinaus.",
+        "fr": "Des légumes variés demandent environ 10 à 11 g N par m² et par an (choux jusqu'à 24, haricots rien). Une planche de 3,1 m² demande 31 à 47 g : quatre à six fois moins que ce que donne le bac. D'où : un tiers du lombricompost à la planche, le reste ailleurs."
+      },
+      "source": "Cornell; Colorado State Extension"
+    },
+    {
+      "code": "H6", "measure": "M7", "expected": 35, "low": 25, "high": 45, "unit": "kg/person/yr",
+      "label": {
+        "en": "Scraps a person gives the worms in a year",
+        "de": "Reste, die eine Person den Würmern im Jahr gibt",
+        "fr": "Restes qu'une personne donne aux vers par an"
+      },
+      "why": {
+        "en": "EU households throw away 72 kg of food per person a year (2022); about half is raw peel, coffee and tea that worms may have. The box then takes the scraps of 2-3 people.",
+        "de": "EU-Haushalte werfen 72 kg Lebensmittel pro Person und Jahr weg (2022); etwa die Hälfte sind rohe Schalen, Kaffee und Tee, die Würmer bekommen dürfen. Die Kiste nimmt dann die Reste von 2–3 Personen.",
+        "fr": "Les ménages de l'UE jettent 72 kg de nourriture par personne et par an (2022) ; environ la moitié sont des épluchures crues, du café et du thé que les vers peuvent avoir. Le bac prend alors les restes de 2 à 3 personnes."
+      },
+      "source": "Eurostat 2022"
+    },
+    {
+      "code": "H7", "measure": "M8", "expected": 60, "low": 30, "high": 100, "unit": "%",
+      "label": {
+        "en": "Share of the bed's water the rain brings (April to September)",
+        "de": "Anteil des Wassers fürs Beet, den der Regen bringt (April bis September)",
+        "fr": "Part de l'eau de la planche apportée par la pluie (avril à septembre)"
+      },
+      "why": {
+        "en": "8 m² of roof at a runoff of 0.8 catch about 6 l per mm of rain; the bed uses 9-16 l a day in summer. A 200 l barrel refills the tank pipes about twice in a wet month and not at all in a dry one.",
+        "de": "8 m² Dach bei einem Abflussanteil von 0,8 fangen etwa 6 l pro mm Regen; das Beet braucht im Sommer 9–16 l am Tag. Eine Tonne von 200 l füllt die Tankrohre in einem nassen Monat etwa zweimal, in einem trockenen gar nicht.",
+        "fr": "8 m² de toit avec un ruissellement de 0,8 captent environ 6 l par mm de pluie ; la planche utilise 9 à 16 l par jour en été. Un récupérateur de 200 l remplit les tuyaux-réservoir environ deux fois un mois humide, et pas du tout un mois sec."
+      },
+      "source": "area climate (rain per month); docs/specs/wormbed5-sizing.md"
+    }
+  ],
+  "measures": [
+    {
+      "code": "M2", "everyDays": 30, "reading": "wormBin.weightKg",
+      "label": { "en": "How much the worms eat", "de": "Wie viel die Würmer fressen", "fr": "Ce que mangent les vers" },
+      "method": {
+        "en": "The box's load cells and the feeder's rate, with the core temperature; the hopper's loads say what went in.",
+        "de": "Die Wägezellen der Kiste und die Rate des Fütterers, mit der Kerntemperatur; die Trichterladungen sagen, was hineinkam.",
+        "fr": "Les pesons du bac et le taux du nourrisseur, avec la température du cœur ; les charges de la trémie disent ce qui est entré."
+      }
+    },
+    {
+      "code": "M3", "everyDays": 30, "reading": "wormBin.sumpL",
+      "label": { "en": "Liquid out", "de": "Flüssigkeit heraus", "fr": "Liquide sorti" },
+      "method": {
+        "en": "The sump's level probe; once a month the sump drained into a measuring jug. Rain through the lid is counted apart.",
+        "de": "Die Füllstandssonde des Sumpfs; einmal im Monat den Sumpf in einen Messbecher ablassen. Regen durch den Deckel wird getrennt gezählt.",
+        "fr": "La sonde de niveau du puisard ; une fois par mois, vider le puisard dans un pot gradué. La pluie entrée par le couvercle est comptée à part."
+      }
+    },
+    {
+      "code": "M4", "everyDays": 182,
+      "label": { "en": "Castings out", "de": "Wurmhumus heraus", "fr": "Lombricompost sorti" },
+      "method": {
+        "en": "Weigh every harvest; twice a year a sample to a lab: dry matter, total N, mineral N, P, K, EC.",
+        "de": "Jede Ernte wiegen; zweimal im Jahr eine Probe ins Labor: Trockenmasse, Gesamt-N, mineralischer N, P, K, EC.",
+        "fr": "Peser chaque récolte ; deux fois par an un échantillon au laboratoire : matière sèche, N total, N minéral, P, K, EC."
+      }
+    },
+    {
+      "code": "M6", "everyDays": 182,
+      "label": { "en": "What the bed does with it", "de": "Was das Beet damit macht", "fr": "Ce qu'en fait la planche" },
+      "method": {
+        "en": "Soil test in spring and autumn (mineral N, P, K, EC, organic matter); the robot's weekly photos; harvests weighed.",
+        "de": "Bodenprobe im Frühjahr und Herbst (mineralischer N, P, K, EC, organische Substanz); die wöchentlichen Fotos des Roboters; Ernten gewogen.",
+        "fr": "Analyse de sol au printemps et à l'automne (N minéral, P, K, EC, matière organique) ; les photos hebdomadaires du robot ; récoltes pesées."
+      }
+    },
+    {
+      "code": "M7", "everyDays": 182,
+      "label": { "en": "Who eats here", "de": "Wer hier isst", "fr": "Qui mange ici" },
+      "method": {
+        "en": "The household's size, and a two-week tally of what goes to the worms and what to the bin; once in summer, once in winter.",
+        "de": "Die Größe des Haushalts und eine zweiwöchige Strichliste, was zu den Würmern geht und was in die Tonne; einmal im Sommer, einmal im Winter.",
+        "fr": "La taille du foyer, et un relevé de deux semaines de ce qui va aux vers et à la poubelle ; une fois l'été, une fois l'hiver."
+      }
+    },
+    {
+      "code": "M8", "everyDays": 30, "reading": "water.barrelL",
+      "label": { "en": "Where the bed's water comes from", "de": "Woher das Wasser des Beets kommt", "fr": "D'où vient l'eau de la planche" },
+      "method": {
+        "en": "Each refill of the tank pipes logged with its litres: from the rain barrel's tap or from the mains. The barrel's level shows what rain brought.",
+        "de": "Jede Befüllung der Tankrohre mit ihren Litern festhalten: aus dem Hahn der Regentonne oder aus der Leitung. Der Füllstand der Tonne zeigt, was der Regen brachte.",
+        "fr": "Chaque remplissage des tuyaux-réservoir noté avec ses litres : par le robinet du récupérateur ou par le réseau. Le niveau du récupérateur montre ce que la pluie a apporté."
+      }
+    }
+  ]
+}
