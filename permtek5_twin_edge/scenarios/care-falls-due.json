@@ -1,0 +1,155 @@
+{
+  "title": "Care falls due",
+  "about": "What keeps a WormBed5 working comes round by a rhythm (every day, week, month) or by the season, and some of it is brought forward when something happens. The care calendar comes from PermTek-5; this edge keeps the record. Here a week passes, you do your part, the robot does its part by a job you confirm, and a storm brings a check of the frame forward.",
+  "fresh": true,
+  "needs": [
+    "wormBin"
+  ],
+  "steps": [
+    {
+      "title": "A week goes by",
+      "why": "The clock runs at five hours a second. On day one the guild counts as settled: nothing is due. After a week the weekly tasks are: filling the hopper and looking at the box are yours, looking the bed over for weeds is the robot's.",
+      "do": {
+        "type": "time",
+        "factor": 300,
+        "label": "Run the clock: 5 hours a second"
+      },
+      "expect": [
+        {
+          "read": "days.step",
+          "is": ">=",
+          "value": 7,
+          "say": "{v} days"
+        },
+        {
+          "read": "care.due.hopper",
+          "is": "==",
+          "value": true,
+          "say": "fill the hopper due: {v}"
+        },
+        {
+          "read": "care.due.weeds",
+          "is": "==",
+          "value": true,
+          "say": "look for weeds due: {v}"
+        },
+        {
+          "read": "care.count.person",
+          "is": ">=",
+          "value": 2,
+          "say": "your tasks due: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: fill the hopper, and say so",
+      "why": "The clock goes back to normal. You fill the hopper and press Done on the task: the record keeps the date, and the task comes round again in a week.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "time",
+            "factor": 1
+          },
+          {
+            "op": "hopper",
+            "grams": 2000
+          },
+          {
+            "op": "care",
+            "id": "hopper"
+          }
+        ],
+        "label": "Fill the hopper (2 kg), done"
+      },
+      "expect": [
+        {
+          "read": "bed.hopper.grams",
+          "is": ">=",
+          "value": 1500,
+          "say": "hopper: {v} g"
+        },
+        {
+          "read": "care.due.hopper",
+          "is": "==",
+          "value": false,
+          "say": "fill the hopper still due: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: look the bed over for weeds",
+      "why": "The robot's tasks are done by its jobs. When the look over the bed finishes, the weekly weed task counts as done; nobody has to tick it.",
+      "do": {
+        "type": "proposal",
+        "id": "scan",
+        "label": "Confirm: look over the bed"
+      },
+      "expect": [
+        {
+          "read": "last.scan.state",
+          "is": "==",
+          "value": "done",
+          "say": "scan: {v}"
+        },
+        {
+          "read": "care.due.weeds",
+          "is": "==",
+          "value": false,
+          "say": "look for weeds still due: {v}"
+        }
+      ],
+      "scored": true
+    },
+    {
+      "title": "A storm",
+      "why": "Storm wind locks the gantry out. It also brings a task forward: after a storm, look at the frame, the roof drain and the waterproofing.",
+      "do": {
+        "type": "disturb",
+        "id": "storm",
+        "calmFirst": true,
+        "label": "Send a storm"
+      },
+      "expect": [
+        {
+          "read": "keeper.storm",
+          "is": "==",
+          "value": true,
+          "say": "storm: {v}"
+        },
+        {
+          "read": "care.due.frame",
+          "is": "==",
+          "value": true,
+          "say": "check the frame due: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: check the frame once the storm has passed",
+      "why": "The wind drops; you look the frame over and press Done.",
+      "do": {
+        "type": "events",
+        "events": [
+          {
+            "op": "calm"
+          },
+          {
+            "op": "care",
+            "id": "frame"
+          }
+        ],
+        "label": "Storm over, frame checked"
+      },
+      "expect": [
+        {
+          "read": "care.due.frame",
+          "is": "==",
+          "value": false,
+          "say": "check the frame still due: {v}"
+        }
+      ],
+      "scored": true
+    }
+  ]
+}

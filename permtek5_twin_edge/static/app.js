@@ -183,6 +183,7 @@ function draw(t) {
     + "Add them to the bed on the Map in PermTek-5 to set your own sizes.";
   drawEnv(t);
   drawBox(t, ready);
+  drawCare(t);
   $("#btn-hopper").disabled = !ready || !(t.bed && t.bed.wormBinCm);
   $("#btn-hopper-empty").disabled = $("#btn-hopper-mix").disabled = $("#btn-browns").disabled = $("#btn-hopper").disabled;
   $("#btn-tank").disabled = !ready || !(t.bed && t.bed.tankLitres);
@@ -414,6 +415,28 @@ function drawPopulation(t, p) {
   svg.innerHTML = `<polyline points="${line}" fill="none" stroke="var(--app-accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`
     + `<text x="2" y="10" class="box-pop-label">${top} g</text>`;
 }
+// The care calendar (maintenance.py): what is due now, by whom, and what comes next. An older server hides it.
+const CARE_WHY = { never: "not done yet", rhythm: "its time has come", season: "its months have begun", brought: "the keeper brings it forward" };
+function drawCare(t) {
+  const care = t.care;
+  $("#care-panel").hidden = !care;
+  if (!care) return;
+  $("#care-today").textContent = `simulated date ${care.today}`;
+  const due = care.tasks.filter((x) => x.due), next = care.tasks.filter((x) => !x.due && x.nextOn).sort((a, b) => a.nextOn.localeCompare(b.nextOn));
+  $("#care-due").innerHTML = !due.length ? `<li class="note">Nothing is due.</li>` : due.map((x) => `<li class="care-${x.who}">
+      <span class="care-who">${x.who === "robot" ? "robot" : "you"}</span> <strong>${core.esc(x.label)}</strong>
+      <span class="note">· ${core.esc(CARE_WHY[x.reason] || "")}${x.overdueDays ? `, ${x.overdueDays} day(s) late` : ""}</span>
+      ${x.who === "person" ? `<button data-care="${core.esc(x.id)}">Done</button>` : `<span class="note"> · done when the robot's job is</span>`}
+      <div class="note">${core.esc(x.why)}</div></li>`).join("");
+  $("#care-next").innerHTML = next.slice(0, 12).map((x) => `<li class="care-${x.who}"><span class="care-who">${x.who === "robot" ? "robot" : "you"}</span>
+      ${core.esc(x.label)} <span class="note">· ${x.nextOn}</span></li>`).join("");
+}
+$("#care-due").addEventListener("click", async (e) => {
+  const id = e.target.dataset && e.target.dataset.care;
+  if (!id) return;
+  if (await post("/api/twin/care/done", { id })) core.toast("Noted as done");
+  refresh();
+});
 const boxDo = async (body, said) => { if (await post("/api/twin/box", body)) core.toast(said); refresh(); };
 $("#btn-insulate").addEventListener("click", (e) => boxDo({ do: "insulate", on: !!e.target.dataset.on }, "Noted"));
 $("#btn-bedding").addEventListener("click", () => boxDo({ do: "bedding", grams: 500 }, "500 g of dry bedding"));

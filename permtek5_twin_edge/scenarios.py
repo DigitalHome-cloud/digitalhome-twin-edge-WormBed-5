@@ -29,7 +29,8 @@ eatsPerDay, uneatenG, offPct), days.run and days.step (simulated days since
 the run or the step began: the simulation's own calendar does not start again
 with a scenario), delta.<any reading> (how much it changed since the step
 began), worms.<key> (the feeder's estimate of the worms:
-kg, kgPerM2, fallPct), composted (cells that got compost), weeds.<key> (the last look over the bed:
+kg, kgPerM2, fallPct), care.due.<task> / care.reason.<task> / care.count.<who>
+(the care calendar, maintenance.py), composted (cells that got compost), weeds.<key> (the last look over the bed:
 small, byHand, scanned).
 A "proposal" step may carry "factor": the clock is set to it before the job starts. A scenario marked "fresh": true starts from a settled worm box, calm weather
 and the normal clock. A step marked "scored": true counts towards the
@@ -119,6 +120,13 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
         return (kept.get("feeder") or {}).get(path.split(".", 1)[1])
     if path.startswith("days."):                     # simulated days since the run (days.run) or the step (days.step) began
         return (kept.get("_days") or {}).get(path.split(".", 1)[1])
+    if path.startswith("care."):                     # care.due.<task>, care.reason.<task>, care.count.robot | person
+        care = kept.get("care") or {}
+        _, what, key = (path.split(".", 2) + [""])[:3]
+        if what == "count":
+            return (care.get("due") or {}).get(key)
+        task = next((t for t in care.get("tasks") or [] if t["id"] == key), None)
+        return None if task is None else task.get("due" if what == "due" else "reason")
     if path.startswith("worms."):
         return (kept.get("worms") or {}).get(path.split(".", 1)[1])
     cells = [c for c in (bed.get("cells") or {}).values()]

@@ -22,6 +22,8 @@ cp "$SRC/abox/library/crops.ttl" "$PKG/data/crops.ttl"
 cp "$SRC/abox/examples/citydemo-habitat.ttl" "$PKG/data/citydemo-habitat.ttl"
 # the feeding guide is the cloud's too; this edge enforces it (feeding_guide.py)
 cp "$SRC/guides/wormbed5-feeding.json" "$PKG/data/wormbed5-feeding.json"
+# and so is the care calendar; this edge keeps its record and follows it (maintenance.py)
+cp "$SRC/guides/wormbed5-care.json" "$PKG/data/wormbed5-care.json"
 # the data-model drawing is the cloud's (docs/data-model.architecture.json there): one source
 MODEL="${1:-../digitalhome-cloud-PermTek-5}/packages/site/static/model/index.html"
 [ -f "$MODEL" ] && cp "$MODEL" "$PKG/static/model.html"

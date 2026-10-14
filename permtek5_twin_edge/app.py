@@ -30,6 +30,7 @@ from . import engine as engine
 from . import cloudsite
 from . import disturbances
 from . import feeder
+from . import maintenance
 from . import feeding_guide
 from . import film
 from . import habitat_store as store
@@ -94,6 +95,8 @@ def favicon():
 _keeper_memory: dict = {}
 _feeder_memory: dict = {}
 _worm_memory: dict = {}         # the feeder's estimate of the worms, a value a day
+_care_guide = maintenance.load()   # the WormBed5 care calendar: PermTek-5's data, followed here
+_care_jobs: dict = {}           # job id -> the care task it does, until the job is done
 _guide = feeding_guide.load()       # the WormBed5 feeding guide: PermTek-5's data, enforced here
 _diary: list = []                   # what was loaded, fed and given as bedding in this simulation (simulated minutes)
 _guide_seen = {"now": 0.0, "feedN": 0, "load": None}
@@ -207,7 +210,10 @@ def _follow_weeds(cfg, bed, twin: dict, kept: dict) -> None:
 
 
 def _event(event: dict) -> dict:
-    """Send what a person did to the twin; dry bedding given by hand also goes into the feeding diary."""
+    """Send what a person did to the twin; dry bedding given by hand also goes into the feeding diary.
+    {"op": "care", "id"} is a care task done (it stays on this edge: the care record)."""
+    if event.get("op") == "care":
+        return _care_done(str(event.get("id") or ""))
     out = sim.gateway("/event", event)
     if event.get("op") == "box" and event.get("do") == "bedding":
         _note(engine.workspace(), {"t": _guide_seen["now"], "what": "bedding", "grams": float(event.get("grams", 500))})
@@ -227,6 +233,7 @@ def _twin_state() -> dict:
         kept = _keep(cfg, bed, out, offline)
     if cfg and bed:
         _follow_weeds(cfg, bed, twin, kept)
+        _follow_care(cfg, bed, twin, out, kept)
     recorded = []
     if cfg and src.get("graph") and twin.get("history"):
         # What the gantry sowed goes into the habitat it was prepared from; the next sync takes it to the cloud.
@@ -242,6 +249,7 @@ def _twin_state() -> dict:
             "instance": instance.describe(),
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
             "feeder": kept.get("feeder"), "worms": kept.get("worms"), "guide": kept.get("guide"), "weeds": kept.get("weeds"),
+            "care": kept.get("care"),
             "env": (bed or {}).get("env"),
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"))
@@ -312,12 +320,68 @@ def twin_job():
 
 
 def _run(spec: dict) -> dict:
-    """Carry out a confirmed job. Most are the gantry's; the tap and the resting half are switches, not movements."""
+    """Carry out a confirmed job. Most are the gantry's; the tap and the resting half are switches, not movements.
+    A job that does a care task marks it done when it is done (a switch at once)."""
+    task = maintenance.task_for_job(_care_guide, spec)
     if spec.get("kind") == "tap":
-        return {**_event({"op": "box", "do": "tap"}), "done": "the tap was opened"}
+        out = {**_event({"op": "box", "do": "tap"}), "done": "the tap was opened"}
+        if task:
+            _care_done(task)
+        return out
     if spec.get("kind") == "rest":
         return {**_event({"op": "box", "do": "rest", "side": spec.get("side")}), "done": "one half of the box now rests"}
-    return sim.gateway("/job", spec)
+    out = sim.gateway("/job", spec)
+    if task and isinstance(out, dict) and out.get("id"):
+        _care_jobs[out["id"]] = task
+    return out
+
+
+def _care_today() -> Optional[str]:
+    bed = (sim.status().get("twin") or {}).get("bed") if sim.running() else None
+    record = maintenance.read(engine.workspace())
+    return maintenance.sim_date(record, (bed or {}).get("env") or {}).isoformat() if record else None
+
+
+def _care_done(task_id: str) -> dict:
+    if not any(t["id"] == task_id for t in _care_guide["tasks"]):
+        raise ValueError("no such care task: " + task_id)
+    today = _care_today()
+    if today:
+        maintenance.done(engine.workspace(), task_id, today)
+    return {"ok": True, "done": task_id, "on": today}
+
+
+def _follow_care(cfg, bed, twin, out, kept: dict) -> None:
+    """The care calendar of a WormBed5 guild: its record, the robot's finished jobs, and what is due."""
+    if not (cfg.get("wormBin") or {}).get("cols"):
+        return
+    env = bed.get("env") or {}
+    record = maintenance.read(out)
+    if not record or env.get("day", 1) < record.get("seenDay", 0):      # a new record, or the simulation started again
+        record = maintenance.begin(out, _care_guide)
+    if record.get("seenDay") != env.get("day", 1):
+        record["seenDay"] = env.get("day", 1)
+        maintenance._write(out, record)
+    today = maintenance.sim_date(record, env)
+    for job in twin.get("history") or []:
+        task = _care_jobs.get(job.get("id"))
+        if task and job.get("state") in ("done", "failed", "cancelled"):
+            _care_jobs.pop(job["id"], None)
+            if job["state"] == "done":
+                record = maintenance.done(out, task, today)
+    tasks = maintenance.due(_care_guide, record, today, kept.get("active"))
+    kept["care"] = {"today": today.isoformat(), "tasks": tasks,
+                    "due": {"robot": sum(1 for t in tasks if t["due"] and t["who"] == "robot"),
+                            "person": sum(1 for t in tasks if t["due"] and t["who"] == "person")}}
+
+
+@app.post("/api/twin/care/done")
+def care_done():
+    """A person did a care task: {"id"}. It is kept in this edge's care record (care.json in the guild's folder)."""
+    try:
+        return jsonify(_care_done(str(body().get("id") or "")))
+    except ValueError as exc:
+        return jsonify({"errors": [str(exc)]}), 400
 
 
 @app.post("/api/twin/hopper")
@@ -517,6 +581,7 @@ def scenario_start():
             sim.gateway("/event", event)
         _feeder_memory.clear()
         _worm_memory.clear()
+        maintenance.begin(engine.workspace(), _care_guide)
         _diary.clear()
         _guide_seen.update(feedN=0, load=None, careN=0)
         _offline["until"] = 0.0

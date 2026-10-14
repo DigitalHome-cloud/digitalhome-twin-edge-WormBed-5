@@ -148,6 +148,13 @@
                   <button id="btn-lid" title="You closed the lid (or left it open)">Lid</button>
                 </div>
               </div>
+              <div class="app-panel" id="care-panel" hidden>
+                <h2 class="app-panel__title">Care <span class="tag" id="care-today"></span></h2>
+                <p class="note">The guild's care calendar from PermTek-5: what is due, and who does it. The robot's tasks count as
+                  done when its job finishes; yours when you say so. A reaction of the keeper brings a task forward.</p>
+                <ul class="care-list" id="care-due"></ul>
+                <details><summary>Coming up</summary><ul class="care-list" id="care-next"></ul></details>
+              </div>
             </div>
 
             <aside class="twin-main">

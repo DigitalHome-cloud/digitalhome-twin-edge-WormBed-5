@@ -1,0 +1,402 @@
+{
+  "id": "wormbed5-care",
+  "version": 1,
+  "guildType": "WormBed5",
+  "about": {
+    "en": "What keeps a WormBed5 working, and who does it: the robot or you. Rhythms in days, seasonal tasks by month; a reaction of the keeper brings a task forward. Rules of thumb; correct them against your own bed.",
+    "de": "Was eine WormBed5 am Laufen hält und wer es tut: der Roboter oder du. Rhythmen in Tagen, Saisonarbeiten nach Monat; eine Reaktion des Wächters zieht eine Aufgabe vor. Faustregeln; am eigenen Beet zu prüfen.",
+    "fr": "Ce qui fait tourner une WormBed5, et qui s'en charge : le robot ou vous. Des rythmes en jours, des tâches de saison par mois ; une réaction du gardien avance une tâche. Des règles empiriques, à corriger d'après votre lit."
+  },
+  "who": {
+    "robot": {
+      "en": "robot",
+      "de": "Roboter",
+      "fr": "robot"
+    },
+    "person": {
+      "en": "you",
+      "de": "du",
+      "fr": "vous"
+    }
+  },
+  "tasks": [
+    {
+      "id": "feed",
+      "who": "robot",
+      "label": {
+        "en": "Feed the worms",
+        "de": "Würmer füttern",
+        "fr": "Nourrir les vers"
+      },
+      "why": {
+        "en": "The feeder proposes a day's eating from the box's weight; you confirm.",
+        "de": "Der Fütterer schlägt aus dem Gewicht der Kiste eine Tagesration vor; du bestätigst.",
+        "fr": "Le nourrisseur propose une ration du jour d'après le poids du bac ; vous confirmez."
+      },
+      "everyDays": 1,
+      "job": "feed",
+      "auto": true
+    },
+    {
+      "id": "probe",
+      "who": "robot",
+      "label": {
+        "en": "Probe the soil's moisture",
+        "de": "Bodenfeuchte messen",
+        "fr": "Mesurer l'humidité du sol"
+      },
+      "why": {
+        "en": "One pass over the planted cells; watering follows from it.",
+        "de": "Eine Runde über die bepflanzten Zellen; danach richtet sich das Gießen.",
+        "fr": "Un passage sur les cellules plantées ; l'arrosage en découle."
+      },
+      "everyDays": 1,
+      "job": "probe"
+    },
+    {
+      "id": "bedding",
+      "who": "robot",
+      "label": {
+        "en": "Dry bedding into the box",
+        "de": "Trockene Einstreu in die Kiste",
+        "fr": "Litière sèche dans le bac"
+      },
+      "why": {
+        "en": "One part browns to three parts scraps keeps the box airy.",
+        "de": "Ein Teil Braunes auf drei Teile Reste hält die Kiste luftig.",
+        "fr": "Une part de brun pour trois parts de restes garde le bac aéré."
+      },
+      "everyDays": 7,
+      "job": "care:bedding",
+      "bringForwardOn": [
+        "box-wet",
+        "airless"
+      ]
+    },
+    {
+      "id": "sump",
+      "who": "robot",
+      "label": {
+        "en": "Let the sump run into the tank",
+        "de": "Sumpf in den Tank ablassen",
+        "fr": "Vider le puisard dans la cuve"
+      },
+      "why": {
+        "en": "A full sump backs up into the worms' bin.",
+        "de": "Ein voller Sumpf staut in die Wurmkiste zurück.",
+        "fr": "Un puisard plein refoule dans le bac des vers."
+      },
+      "everyDays": 7,
+      "job": "tap",
+      "bringForwardOn": [
+        "sump-full"
+      ]
+    },
+    {
+      "id": "weeds",
+      "who": "robot",
+      "label": {
+        "en": "Look the bed over for weeds",
+        "de": "Beet nach Unkraut absuchen",
+        "fr": "Chercher les herbes indésirables"
+      },
+      "why": {
+        "en": "Small ones are stamped under; big ones are for your hands.",
+        "de": "Kleine werden eingedrückt, große sind für deine Hände.",
+        "fr": "Les petites sont enfoncées ; les grandes sont pour vos mains."
+      },
+      "everyDays": 7,
+      "job": "scan"
+    },
+    {
+      "id": "photos",
+      "who": "robot",
+      "label": {
+        "en": "Photograph the plants",
+        "de": "Pflanzen fotografieren",
+        "fr": "Photographier les plantes"
+      },
+      "why": {
+        "en": "A weekly picture of each planted cell shows how it grows.",
+        "de": "Ein Bild pro Woche von jeder bepflanzten Zelle zeigt, wie sie wächst.",
+        "fr": "Une photo par semaine de chaque cellule plantée montre sa croissance."
+      },
+      "everyDays": 7,
+      "job": "photo"
+    },
+    {
+      "id": "harvest",
+      "who": "robot",
+      "label": {
+        "en": "Harvest the castings onto the bed",
+        "de": "Wurmhumus aufs Beet bringen",
+        "fr": "Récolter le lombricompost sur le lit"
+      },
+      "why": {
+        "en": "Rest one half for ten days, then the robot carries its castings to the cells that had least.",
+        "de": "Eine Hälfte zehn Tage ruhen lassen; dann trägt der Roboter den Humus zu den Zellen, die am wenigsten hatten.",
+        "fr": "Laisser reposer une moitié dix jours ; le robot porte ensuite le compost aux cellules qui en ont eu le moins."
+      },
+      "everyDays": 90,
+      "job": "topdress",
+      "bringForwardOn": [
+        "box-full",
+        "crowded"
+      ]
+    },
+    {
+      "id": "hopper",
+      "who": "person",
+      "label": {
+        "en": "Fill the hopper",
+        "de": "Trichter füllen",
+        "fr": "Remplir la trémie"
+      },
+      "why": {
+        "en": "Scraps by the feeding guide, and dry bedding in its own compartment.",
+        "de": "Reste nach dem Fütterungsplan, trockene Einstreu ins eigene Fach.",
+        "fr": "Des restes selon le guide, et de la litière sèche dans son compartiment."
+      },
+      "everyDays": 7
+    },
+    {
+      "id": "look",
+      "who": "person",
+      "label": {
+        "en": "Look at the worm box",
+        "de": "Wurmkiste anschauen",
+        "fr": "Regarder le bac à vers"
+      },
+      "why": {
+        "en": "Smell, flies, mould, worms climbing the walls: what no sensor sees.",
+        "de": "Geruch, Fliegen, Schimmel, Würmer an den Wänden: was kein Sensor sieht.",
+        "fr": "Odeur, mouches, moisissure, vers sur les parois : ce qu'aucun capteur ne voit."
+      },
+      "everyDays": 7,
+      "bringForwardOn": [
+        "dying-back"
+      ]
+    },
+    {
+      "id": "buffer",
+      "who": "person",
+      "label": {
+        "en": "Eggshell or lime into the box",
+        "de": "Eierschalen oder Kalk in die Kiste",
+        "fr": "Coquilles d'œuf ou chaux dans le bac"
+      },
+      "why": {
+        "en": "A spoonful of ground eggshell keeps the bedding from turning sour.",
+        "de": "Ein Löffel gemahlene Eierschale hält die Einstreu davon ab, sauer zu werden.",
+        "fr": "Une cuillère de coquilles moulues empêche la litière de s'acidifier."
+      },
+      "everyDays": 30,
+      "bringForwardOn": [
+        "sour"
+      ]
+    },
+    {
+      "id": "ph-probe",
+      "who": "person",
+      "label": {
+        "en": "Clean and check the pH probe",
+        "de": "pH-Sonde reinigen und prüfen",
+        "fr": "Nettoyer et vérifier la sonde pH"
+      },
+      "why": {
+        "en": "A dirty probe drifts; a drifting probe holds feeding for nothing.",
+        "de": "Eine verschmutzte Sonde driftet und hält das Füttern grundlos an.",
+        "fr": "Une sonde sale dérive et bloque la nourriture pour rien."
+      },
+      "everyDays": 30,
+      "bringForwardOn": [
+        "sensor"
+      ]
+    },
+    {
+      "id": "rails",
+      "who": "person",
+      "label": {
+        "en": "Wipe the gantry's rails",
+        "de": "Schienen des Portals abwischen",
+        "fr": "Essuyer les rails du portique"
+      },
+      "why": {
+        "en": "Grit on the rails wears the wheels and spoils the positions.",
+        "de": "Sand auf den Schienen nutzt die Rollen ab und verdirbt die Positionen.",
+        "fr": "Le sable sur les rails use les roues et fausse les positions."
+      },
+      "everyDays": 30
+    },
+    {
+      "id": "hopper-clean",
+      "who": "person",
+      "label": {
+        "en": "Clean the hopper",
+        "de": "Trichter reinigen",
+        "fr": "Nettoyer la trémie"
+      },
+      "why": {
+        "en": "Old scraps stick and jam the scoop.",
+        "de": "Alte Reste kleben und blockieren die Schaufel.",
+        "fr": "Les vieux restes collent et bloquent la pelle."
+      },
+      "everyDays": 30,
+      "bringForwardOn": [
+        "hopper-jam"
+      ]
+    },
+    {
+      "id": "wrap",
+      "who": "person",
+      "label": {
+        "en": "Wrap the worm box for winter",
+        "de": "Wurmkiste für den Winter einpacken",
+        "fr": "Emballer le bac pour l'hiver"
+      },
+      "why": {
+        "en": "Before the first frost; wrapped, the box loses its warmth five times more slowly.",
+        "de": "Vor dem ersten Frost; eingepackt verliert die Kiste ihre Wärme fünfmal langsamer.",
+        "fr": "Avant le premier gel ; emballé, le bac perd sa chaleur cinq fois plus lentement."
+      },
+      "months": [
+        10,
+        11
+      ],
+      "bringForwardOn": [
+        "frost"
+      ]
+    },
+    {
+      "id": "mulch",
+      "who": "person",
+      "label": {
+        "en": "Renew the mulch",
+        "de": "Mulch erneuern",
+        "fr": "Renouveler le paillis"
+      },
+      "why": {
+        "en": "A thin layer keeps the soil covered and fed over winter; over 3 cm the robot cannot sow.",
+        "de": "Eine dünne Schicht hält den Boden über den Winter bedeckt und genährt; über 3 cm kann der Roboter nicht säen.",
+        "fr": "Une fine couche couvre et nourrit le sol l'hiver ; au-delà de 3 cm le robot ne peut pas semer."
+      },
+      "months": [
+        10,
+        11
+      ]
+    },
+    {
+      "id": "cover",
+      "who": "person",
+      "label": {
+        "en": "Sow a cover crop where the bed is cleared",
+        "de": "Gründüngung säen, wo das Beet frei ist",
+        "fr": "Semer un engrais vert là où le lit est libre"
+      },
+      "why": {
+        "en": "No bare soil over winter.",
+        "de": "Kein nackter Boden über den Winter.",
+        "fr": "Pas de sol nu en hiver."
+      },
+      "months": [
+        9,
+        10
+      ]
+    },
+    {
+      "id": "unwrap",
+      "who": "person",
+      "label": {
+        "en": "Unwrap the worm box",
+        "de": "Wurmkiste auspacken",
+        "fr": "Déballer le bac"
+      },
+      "why": {
+        "en": "Once the frosts are past, or the box overheats on the first warm day.",
+        "de": "Wenn die Fröste vorbei sind, sonst überhitzt die Kiste am ersten warmen Tag.",
+        "fr": "Une fois les gelées passées, sinon le bac surchauffe au premier jour chaud."
+      },
+      "months": [
+        3,
+        4
+      ]
+    },
+    {
+      "id": "pipes",
+      "who": "person",
+      "label": {
+        "en": "Check the tank pipes and the overflow",
+        "de": "Tankrohre und Überlauf prüfen",
+        "fr": "Vérifier les tuyaux de la cuve et le trop-plein"
+      },
+      "why": {
+        "en": "After winter: no cracks, and the overflow runs free.",
+        "de": "Nach dem Winter: keine Risse, und der Überlauf ist frei.",
+        "fr": "Après l'hiver : pas de fissure, et le trop-plein s'écoule."
+      },
+      "months": [
+        3,
+        4
+      ],
+      "bringForwardOn": [
+        "tank-falling",
+        "overflow"
+      ]
+    },
+    {
+      "id": "clean-out",
+      "who": "person",
+      "label": {
+        "en": "Clean out the worm box",
+        "de": "Wurmkiste ausräumen",
+        "fr": "Vider le bac à vers"
+      },
+      "why": {
+        "en": "Once a year: old castings out, fresh bedding in, the worms kept.",
+        "de": "Einmal im Jahr: alter Humus raus, frische Einstreu rein, die Würmer bleiben.",
+        "fr": "Une fois par an : vieux compost dehors, litière neuve, les vers restent."
+      },
+      "months": [
+        4
+      ]
+    },
+    {
+      "id": "frame",
+      "who": "person",
+      "label": {
+        "en": "Check the frame, the roof drain and the waterproofing",
+        "de": "Rahmen, Dachablauf und Abdichtung prüfen",
+        "fr": "Vérifier le cadre, l'évacuation et l'étanchéité"
+      },
+      "why": {
+        "en": "Before the autumn storms, and after any storm.",
+        "de": "Vor den Herbststürmen und nach jedem Sturm.",
+        "fr": "Avant les tempêtes d'automne, et après chaque tempête."
+      },
+      "months": [
+        9
+      ],
+      "bringForwardOn": [
+        "storm"
+      ]
+    },
+    {
+      "id": "probes",
+      "who": "person",
+      "label": {
+        "en": "Replace worn probes",
+        "de": "Abgenutzte Sonden ersetzen",
+        "fr": "Remplacer les sondes usées"
+      },
+      "why": {
+        "en": "Moisture and pH probes age in compost; a year is a fair life.",
+        "de": "Feuchte- und pH-Sonden altern im Kompost; ein Jahr ist eine faire Lebensdauer.",
+        "fr": "Les sondes d'humidité et de pH vieillissent dans le compost ; un an est une durée honnête."
+      },
+      "everyDays": 365
+    }
+  ],
+  "jobs": {
+    "en": "The robot's tasks name the twin edge's job that does them (feed, probe, care:bedding, tap, scan, photo, topdress): when that job is done, so is the task."
+  }
+}

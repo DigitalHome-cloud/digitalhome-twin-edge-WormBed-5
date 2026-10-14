@@ -317,3 +317,9 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
 /* the worm population's trend in the worm box panel */
 .box-pop svg { display: block; width: 100%; height: 60px; border: 1px solid var(--app-border); border-radius: var(--app-radius-sm); }
 .box-pop-label { font-size: 9px; fill: var(--app-text-muted); }
+
+/* the care calendar: who does a task */
+.care-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.care-who { display: inline-block; min-width: 3.2em; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--app-text-muted); }
+.care-robot .care-who { color: var(--app-accent); }
+.care-list button { margin-left: 6px; }
