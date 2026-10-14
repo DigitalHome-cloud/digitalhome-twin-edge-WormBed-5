@@ -420,15 +420,17 @@ def main():
     scene.render.filepath = str(out / f"poster-{args.shot}.png")
     bpy.ops.render.render(write_still=True)
     print(f"poster {time.time() - started:.1f}s", flush=True)
+    if os.getppid() != parent:
+        print("the caller is gone: stopped", flush=True)
+        return 3
     if args.still_only:
         return 0
 
     scene.cycles.samples = args.samples
     todo = list(range(1, args.frames + 1, step))
     for i, f in enumerate(todo, 1):
-        if os.getppid() != parent:            # whoever started us is gone (the edge restarted): stop, nobody follows us
-            print("the caller is gone: stopped", flush=True)
-            shutil.rmtree(frames_dir, ignore_errors=True)
+        if os.getppid() != parent:            # whoever started us is gone (the edge restarted): stop, nobody follows us.
+            print("the caller is gone: stopped", flush=True)   # The frames stay: a new render of this shot may own them now
             return 3
         scene.frame_set(f)
         scene.render.filepath = str(frames_dir / f"f_{i:04d}.png")
