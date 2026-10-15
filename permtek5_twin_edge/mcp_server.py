@@ -110,14 +110,16 @@ def plan_options(graph: str) -> Any:
 
 
 @server.tool()
-def plan_bed(graph: str, sets: list[str], bed: str = "", farm: str = "", shares: list[int] | None = None, seed: int = 5) -> Any:
+def plan_bed(graph: str, sets: list[str], bed: str = "", farm: str = "", shares: list[int] | None = None, seed: int = 5,
+             same: bool = False) -> Any:
     """Plan a bed (or a farm of beds) from plant sets with the cloud's planner: the biggest plants first, the
     little ones last, low ground covers under tall plants. sets are ids from plan_options(); shares (1..5, one per
-    set) say how much room each gets. Returns the plan and PROPOSES writing it: the person confirms before any
+    set) say how much room each gets. For a farm, same=True plants every bed from all the sets; otherwise each set
+    gets beds by its share. Returns the plan and PROPOSES writing it: the person confirms before any
     cell is planted. Another seed gives another plan."""
     web.ensure_server()
     ask = {"graph": graph, "sets": [{"setId": s, "share": (shares or [])[i] if i < len(shares or []) else 1} for i, s in enumerate(sets)],
-           "seed": seed, **({"farmId": farm} if farm else {"bedId": bed})}
+           "seed": seed, **({"farmId": farm, "same": same} if farm else {"bedId": bed})}
     plan = web.call("POST", "/api/plan", ask)
     plans = [{"bedId": p["bedId"], "cells": p["cells"]} for p in plan.get("plans") or []]
     n = sum(len(p["cells"]) for p in plans)

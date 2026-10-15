@@ -769,12 +769,13 @@ def _plan_space(graph: str) -> dict:
 
 @app.post("/api/plan")
 def plan_ask():
-    """{graph, bedId?, farmId?, sets?: [{setId, share}], seed?}: without sets, what can be planned; with them, a plan. Nothing is written."""
+    """{graph, bedId?, farmId?, sets?: [{setId, share}], seed?, same?}: without sets, what can be planned; with them, a plan
+    (same: a farm's every bed from all the sets). Nothing is written."""
     body = request.get_json(silent=True) or {}
     graph = str(body.get("graph") or "")
     try:
         space = _plan_space(graph)
-        ask = {k: body[k] for k in ("bedId", "farmId", "sets", "seed") if k in body}
+        ask = {k: body[k] for k in ("bedId", "farmId", "sets", "seed", "same") if k in body}
         return jsonify(edge_cloud.call("plan", {"name": space["id"], **ask}))
     except (ValueError, edge_cloud.CloudError) as exc:
         return jsonify({"errors": [str(exc)]}), 400
