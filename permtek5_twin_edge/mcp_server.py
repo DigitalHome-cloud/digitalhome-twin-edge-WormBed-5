@@ -101,6 +101,32 @@ def twin_estop(on: bool = True) -> Any:
     return web.call("POST", "/api/twin/estop", {"on": on})
 
 
+@server.tool()
+def plan_options(graph: str) -> Any:
+    """What the cloud's bed planner can plan in an area's A-Box (graph: its name, as knowledge() lists them):
+    the beds and farms of beds, and the plant sets (e.g. set-kitchen-herbs) with their crops."""
+    web.ensure_server()
+    return web.call("POST", "/api/plan", {"graph": graph})
+
+
+@server.tool()
+def plan_bed(graph: str, sets: list[str], bed: str = "", farm: str = "", shares: list[int] | None = None, seed: int = 5) -> Any:
+    """Plan a bed (or a farm of beds) from plant sets with the cloud's planner: the biggest plants first, the
+    little ones last, low ground covers under tall plants. sets are ids from plan_options(); shares (1..5, one per
+    set) say how much room each gets. Returns the plan and PROPOSES writing it: the person confirms before any
+    cell is planted. Another seed gives another plan."""
+    web.ensure_server()
+    ask = {"graph": graph, "sets": [{"setId": s, "share": (shares or [])[i] if i < len(shares or []) else 1} for i, s in enumerate(sets)],
+           "seed": seed, **({"farmId": farm} if farm else {"bedId": bed})}
+    plan = web.call("POST", "/api/plan", ask)
+    plans = [{"bedId": p["bedId"], "cells": p["cells"]} for p in plan.get("plans") or []]
+    n = sum(len(p["cells"]) for p in plans)
+    beds = ", ".join(p.get("bed") or "" for p in plan.get("plans") or [])
+    proposed = act(f"Plant {n} cells in {beds} from {', '.join(sets)}", "POST", "/api/plan/apply", {"graph": graph, "plans": plans}) if n else None
+    return {"plans": [{k: p[k] for k in ("bed", "sets", "crops", "perSet", "goodPairs", "badPairs", "cover")} for p in plan.get("plans") or []],
+            "proposed": proposed}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="permtek5-twin-edge-mcp",
                                  description=__doc__.strip().splitlines()[0])

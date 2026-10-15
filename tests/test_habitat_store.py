@@ -62,3 +62,14 @@ def test_results_are_recorded_once_and_never_for_citydemo(kb, tmp_path):
     assert len(store.record_results(tmp_path, BED, history, kb)) == 1
     assert store.record_results(tmp_path, BED, history, kb) == [], "a job is written once"
     assert store.source(tmp_path)["recorded"] == ["j1"]
+
+
+def test_a_confirmed_plan_from_the_cloud_is_written_as_planned_cells(kb):
+    """The cloud's planner proposes (PermTek-5 /edge/v1/plan); after a person confirmed, the cells are planned."""
+    plans = [{"bedId": BED, "cells": [{"row": 11, "col": 0, "cropId": "crop-radish"}, {"row": 11, "col": 2, "cropId": "crop-chives"}]}]
+    assert store.plan_cells("shared", plans, kb) == 2
+    g = kb.load("shared")
+    assert len(list(g.subjects(RDF.type, hb.PERMA.PlantingCell))) == 30
+    assert store.plan_cells("shared", plans, kb) == 0, "a cell already there is not planted twice"
+    with pytest.raises(ValueError):
+        store.plan_cells("shared", [{"bedId": BED + "-nope", "cells": []}], kb)

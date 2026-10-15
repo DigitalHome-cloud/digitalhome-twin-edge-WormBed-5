@@ -80,6 +80,35 @@ def mark_sown(graph: str, bed_id: str, row: int, col: int, crop_id: str,
     return kb.change(graph, apply)
 
 
+def plan_cells(graph: str, plans: List[Dict[str, Any]], kb: Optional[kn.KnowledgeBase] = None) -> int:
+    """Write a planting the cloud's planner proposed and a person confirmed (docs/adr/0027 in PermTek-5): each
+    plan's cells, "planned", into its bed. A cell where one already stands is skipped. Returns the cells written.
+    Raises knowledge.Invalid if the shapes refuse it."""
+    kb = kb or kn.KnowledgeBase()
+    P = hb.PERMA
+
+    def apply(g: Graph) -> int:
+        n = 0
+        for plan in plans:
+            bed = URIRef(str(plan["bedId"]))
+            if (bed, RDF.type, P.GrowingBed) not in g:
+                raise ValueError(f"no bed {bed} in '{graph}'")
+            taken = {(int(g.value(c, P.row)), int(g.value(c, P.col)), str(g.value(c, P.grows)))
+                     for c in g.subjects(P.inBed, bed) if g.value(c, P.row) is not None and g.value(c, P.col) is not None}
+            for c in plan.get("cells") or []:
+                row, col, crop = int(c["row"]), int(c["col"]), str(c["cropId"])
+                if (row, col, hb.CROP_IRI + crop) in taken:
+                    continue
+                cell = URIRef(f"{ID_SPACE}cell-c-{''.join(secrets.choice(_ALPHABET) for _ in range(10))}")
+                for t in ((RDF.type, P.PlantingCell), (P.inBed, bed), (P.row, Literal(row)), (P.col, Literal(col)),
+                          (P.grows, URIRef(hb.CROP_IRI + crop)), (P.cellStatus, P.CellPlanned)):
+                    g.add((cell, *t))
+                n += 1
+        return n
+
+    return kb.change(graph, apply)
+
+
 # -- which habitat the prepared world came from, and which jobs were recorded -----
 
 def _file(out: Path) -> Path:

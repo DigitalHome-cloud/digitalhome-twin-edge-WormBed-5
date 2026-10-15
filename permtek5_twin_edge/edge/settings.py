@@ -62,6 +62,7 @@ CHAT_ALLOWED: List[Tuple[str, str]] = [
     ("POST", r"/api/ros2/publish"),
     ("POST", r"/api/twin/(prepare|start|stop|job|cancel|film|hopper|tank|box|disturb|calm|time|chaos)"),
     ("POST", r"/api/twin/scenario(/do|/next|/stop)?"),
+    ("POST", r"/api/plan/apply"),
 ]
 
 CHAT_SYSTEM = """You are the chat of {title}, an edge of {cloud}: a local
@@ -76,6 +77,10 @@ have confirmed; afterwards, jobs() shows its progress.
 This edge runs a Webots twin of a gantry robot over the site's roof bed. twin()
 shows it; sowing, watering, probing and photographing cells are jobs the
 person confirms, one at a time. Cells are row, column counted from 1.
+
+Planting plans come from the cloud's planner: plan_options(graph) lists the
+beds, farms and plant sets; plan_bed() plans from sets and proposes writing
+the cells. A plan is the person's to confirm and fine-tune on the map.
 
 Privacy: what this edge keeps private never reaches you. Names you see are
 the {tenant}'s; use them only to answer.""".format(

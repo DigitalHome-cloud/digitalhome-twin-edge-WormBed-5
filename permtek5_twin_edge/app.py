@@ -51,6 +51,7 @@ app = server.create_app(__name__)
 
 from .edge import routes as edge_routes  # edge layer
 from .edge import cloud as edge_cloud
+from .edge import knowledge as kn
 edge_routes.install(app)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 # The page and its script change together. Flask caches a template for the
@@ -752,6 +753,50 @@ def chaos_now():
     except RuntimeError as exc:
         return jsonify({"errors": [_(str(exc))]}), 409
     return jsonify({"id": key, "title": _(disturbances.CATALOGUE[key]["title"])})
+
+
+# ----------------------------------------------------------- bed planning ---
+# The cloud plans (PermTek-5's /edge/v1/plan, docs/adr/0027): a bed or a farm of beds from plant sets. The edge
+# asks, shows the plan as a proposal, and writes it into the area's A-Box only after a person confirmed; the
+# next sync takes it to the cloud's map.
+
+def _plan_space(graph: str) -> dict:
+    space = edge_cloud.space_by_slug(graph)
+    if space is None:
+        raise ValueError(f"no linked cloud has an area for the A-Box '{graph}'")
+    return space
+
+
+@app.post("/api/plan")
+def plan_ask():
+    """{graph, bedId?, farmId?, sets?: [{setId, share}], seed?}: without sets, what can be planned; with them, a plan. Nothing is written."""
+    body = request.get_json(silent=True) or {}
+    graph = str(body.get("graph") or "")
+    try:
+        space = _plan_space(graph)
+        ask = {k: body[k] for k in ("bedId", "farmId", "sets", "seed") if k in body}
+        return jsonify(edge_cloud.call("plan", {"name": space["id"], **ask}))
+    except (ValueError, edge_cloud.CloudError) as exc:
+        return jsonify({"errors": [str(exc)]}), 400
+
+
+@app.post("/api/plan/apply")
+def plan_apply():
+    """{graph, plans: [{bedId, cells: [{row, col, cropId}]}]}: write a confirmed plan as planned cells, then sync."""
+    body = request.get_json(silent=True) or {}
+    graph = str(body.get("graph") or "")
+    try:
+        n = store.plan_cells(graph, body.get("plans") or [])
+    except (ValueError, KeyError, kn.Invalid) as exc:
+        return jsonify({"errors": [str(exc)]}), 400
+    synced = False
+    if n and edge_cloud.linked_profiles():
+        try:
+            edge_routes.JOBS.submit("knowledge-sync", {"graph": graph})
+            synced = True
+        except Exception:                         # busy: the person syncs from Connections
+            pass
+    return jsonify({"cells": n, "syncing": synced})
 
 
 # ------------------------------------------------------------- scenarios ----
