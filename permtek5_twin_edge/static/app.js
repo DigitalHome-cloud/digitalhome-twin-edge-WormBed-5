@@ -313,6 +313,13 @@ async function drawTarget() {
     + ps.map((p) => `<option value="${core.esc(p.id)}">${core.esc(p.name)} · ${core.esc(span(p))} · ${core.esc(p.kind === "RestKind" ? tr("rest period") : tr("growing period"))}</option>`).join("");
   sel.value = t.period ? t.period.id : "";
   $("#lbl-period").hidden = !ps.length;
+  // a rehearsal is of a growing period: open on the next one when today lies in a rest
+  if (!TG.picked && t.period && t.period.kind === "RestKind") {
+    const after = ps.filter((p) => p.kind === "GrowingKind").sort((a, b) => ((a.fromMonth - month + 12) % 12) - ((b.fromMonth - month + 12) % 12))[0];
+    if (after) { TG.picked = true; sel.value = after.id; return drawTarget(); }
+  }
+  // a clean start begins in the period's first month
+  if (t.period && $("#sel-start").value === "clean" && !$("#lbl-month").hidden) $("#sel-month").value = String(t.period.fromMonth);
   const on = t.period ? new Set(t.period.months) : new Set();
   const kind = {};
   for (const p of ps) for (const m of p.months) kind[m] = p.kind;
@@ -337,6 +344,7 @@ async function drawTarget() {
 $("#sel-source").addEventListener("change", () => { TG.picked = false; drawTarget(); });
 $("#sel-period").addEventListener("change", () => { TG.picked = true; drawTarget(); });
 $("#sel-month").addEventListener("change", () => { if (!TG.picked) drawTarget(); });
+$("#sel-start").addEventListener("change", () => { TG.key = ""; drawTarget(); });
 $("#btn-start").addEventListener("click", async () => {
   const gui = $("#chk-window").checked;
   try { localStorage.setItem("permtek5-twin-edge-window", gui ? "1" : ""); } catch (_) { /* private window */ }
