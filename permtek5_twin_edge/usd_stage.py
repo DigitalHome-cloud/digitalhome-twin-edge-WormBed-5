@@ -105,23 +105,21 @@ def _held(keys: List[Tuple[float, Any]], tc: float, value: Any) -> None:
     keys.append((tc, value))
 
 
-def write(cfg: Dict[str, Any], track: Dict[str, Any], out: Path, shapes: Path = SHAPES, frames: Optional[int] = None) -> Path:
-    """Write the run's stage to `out` and return it. `track` is track.read(); without samples the stage holds the
-    prepared bed as it starts."""
-    bed, world, gantry = cfg["bed"], cfg["world"], cfg.get("gantry") or {}
-    L, W, cell = bed["length_cm"] / 100.0, bed["width_cm"] / 100.0, world["cellM"]
-    soil_z, rail_z = world["soilZ"], gantry.get("railZ", 0.95)
-    rail_out, frame_t, tip = gantry.get("railOut", 0.10), gantry.get("frameT", 0.03), world.get("tipHome", soil_z + 0.42)
+def timeline(cfg: Dict[str, Any], track: Dict[str, Any], frames: Optional[int] = None) -> Dict[str, Any]:
+    """The run as time samples: each cell's size (0..its grown width, as the twin's meshes grow) and whether it shows,
+    the gantry's x/y/z, the sun and the dates. Time codes are simulated hours since the run began, or with `frames`
+    the run spread over 1..frames. The stage (write) and the edge page's replay both read it."""
+    world = cfg["world"]
+    cell = world["cellM"]
     samples = track.get("samples") or []
     t0 = samples[0]["t"] if samples else 0.0
     t1 = samples[-1]["t"] if samples else 0.0
     if frames:
         tc = lambda t: 1.0 + (t - t0) / max(1e-6, t1 - t0) * (frames - 1)     # noqa: E731
-        end = float(frames)
+        start, end = 1.0, float(frames)
     else:
         tc = lambda t: (t - t0) / 60.0                                         # noqa: E731
-        end = tc(t1)
-    start = 1.0 if frames else 0.0
+        start, end = 0.0, (t1 - t0) / 60.0
 
     # the cells: the prepared ones, and every period's target the run may move on to
     cells: Dict[str, Dict[str, Any]] = {}
@@ -129,40 +127,54 @@ def write(cfg: Dict[str, Any], track: Dict[str, Any], out: Path, shapes: Path = 
         cells.setdefault(f'{c["row"]}_{c["col"]}', c)
     full = {k: max(0.02, (c.get("job") or {}).get("spacingMm", cell * 1000) / 1000.0 * 0.38) / 0.1 for k, c in cells.items()}
 
-    def look(state: Optional[Dict[str, Any]], k: str) -> Tuple[Tuple[float, float, float], str]:
+    def look(state: Optional[Dict[str, Any]], k: str) -> Tuple[float, str]:
         st = state or {}
         status = st.get("status") or cells[k].get("status")
         if status == "CellGrowing" or st.get("up"):
             # a recorded plant by its growth; one standing when the run began (no record yet) as half grown
             growth = float(st.get("growth") or 0.0) if state else 0.6
-            s = full[k] * (UP_FROM + (1.0 - UP_FROM) * min(1.0, growth))
-        elif status == "CellSown":
-            s = full[k] * SEED_SIZE
-        else:
-            return (0.0, 0.0, 0.0), '"invisible"'
-        return (s, s, s), '"inherited"'
+            return full[k] * (UP_FROM + (1.0 - UP_FROM) * min(1.0, growth)), '"inherited"'
+        if status == "CellSown":
+            return full[k] * SEED_SIZE, '"inherited"'
+        return 0.0, '"invisible"'
 
-    scale_keys: Dict[str, List[Tuple[float, Any]]] = {k: [] for k in cells}
-    vis_keys: Dict[str, List[Tuple[float, Any]]] = {k: [] for k in cells}
+    sizes: Dict[str, List[Tuple[float, Any]]] = {k: [] for k in cells}
+    shown: Dict[str, List[Tuple[float, Any]]] = {k: [] for k in cells}
     for k in cells:                                          # as the run began
         s, v = look(None, k)
-        scale_keys[k].append((start, s))
-        vis_keys[k].append((start, v))
-    bridge, carriage, tool, sun = [], [], [], []
+        sizes[k].append((start, (s, s, s)))
+        shown[k].append((start, v))
+    gantry, sun, dates = [], [], []
     for x in samples:
         at = tc(x["t"])
         for k, st in (x.get("cells") or {}).items():
             if k not in cells:
                 continue
             s, v = look(st, k)
-            _held(scale_keys[k], at, s)
-            _held(vis_keys[k], at, v)
-        gx, gy, gz = x.get("gantry") or (0.0, 0.0, 0.0)
-        bridge.append((at, (gx, 0.0, 0.0)))
-        carriage.append((at, (0.0, gy, rail_z + 0.04)))
-        tool.append((at, (0.0, 0.0, tip + 0.015 - gz - (rail_z + 0.04))))
+            _held(sizes[k], at, (s, s, s))
+            _held(shown[k], at, v)
+        gantry.append((at, tuple(x.get("gantry") or (0.0, 0.0, 0.0))))
         if x.get("sun") is not None:
             sun.append((at, 3.0 * float(x["sun"])))
+        if x.get("date") and (not dates or dates[-1][1] != x["date"]):
+            dates.append((at, x["date"]))
+    return {"start": start, "end": max(start, end), "cells": cells, "full": full, "sizes": sizes, "shown": shown,
+            "gantry": gantry, "sun": sun, "dates": dates}
+
+
+def write(cfg: Dict[str, Any], track: Dict[str, Any], out: Path, shapes: Path = SHAPES, frames: Optional[int] = None) -> Path:
+    """Write the run's stage to `out` and return it. `track` is track.read(); without samples the stage holds the
+    prepared bed as it starts."""
+    bed, world, gantry = cfg["bed"], cfg["world"], cfg.get("gantry") or {}
+    L, W, cell = bed["length_cm"] / 100.0, bed["width_cm"] / 100.0, world["cellM"]
+    soil_z, rail_z = world["soilZ"], gantry.get("railZ", 0.95)
+    rail_out, frame_t, tip = gantry.get("railOut", 0.10), gantry.get("frameT", 0.03), world.get("tipHome", soil_z + 0.42)
+    tl = timeline(cfg, track, frames)
+    start, end, cells = tl["start"], tl["end"], tl["cells"]
+    scale_keys, vis_keys, sun = tl["sizes"], tl["shown"], tl["sun"]
+    bridge = [(at, (gx, 0.0, 0.0)) for at, (gx, gy, gz) in tl["gantry"]]
+    carriage = [(at, (0.0, gy, rail_z + 0.04)) for at, (gx, gy, gz) in tl["gantry"]]
+    tool = [(at, (0.0, 0.0, tip + 0.015 - gz - (rail_z + 0.04))) for at, (gx, gy, gz) in tl["gantry"]]
 
     head = track.get("head") or {}
     period = head.get("period") or cfg.get("period") or {}

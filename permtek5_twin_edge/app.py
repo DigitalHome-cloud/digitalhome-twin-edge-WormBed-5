@@ -1208,6 +1208,37 @@ def twin_track():
     return jsonify(track.summary(engine.workspace()))
 
 
+@app.get("/api/twin/replay")
+def twin_replay():
+    """The last run for the page's 3D replay: the bed's measures and the run's timeline (usd_stage.timeline), times
+    in simulated hours. Each plant's size is a share of its grown size; the page draws it as tall as its crop grows."""
+    cfg = engine.config()
+    if not cfg:
+        return jsonify({"errors": [_("prepare a world first")]}), 400
+    tl = usd_stage.timeline(cfg, track.read(engine.workspace()))
+    bed, world, g = cfg["bed"], cfg["world"], cfg.get("gantry") or {}
+    crops = cfg.get("crops") or {}
+    L = bed["length_cm"] / 100.0
+    wb = cfg.get("wormBin") or {}
+    planted = (wb.get("x") or [L, L])[0]
+    cells = []
+    for k, c in tl["cells"].items():
+        full = tl["full"][k]
+        cells.append({"key": k, "row": c["row"], "col": c["col"], "crop": c["crop"],
+                      "name": (c.get("cropNames") or {}).get(i18n.current()) or c.get("cropName") or c["crop"], "rgb": c.get("rgb"),
+                      "spacingM": (c.get("job") or {}).get("spacingMm", world["cellM"] * 1000) / 1000.0,
+                      "heightM": ((crops.get(c["crop"]) or {}).get("heightCm") or 25) / 100.0,
+                      "sizes": [[round(t, 3), round(v[0] / full, 3)] for t, v in tl["sizes"][k]],
+                      "shown": [[round(t, 3), 1 if v == '"inherited"' else 0] for t, v in tl["shown"][k]]})
+    return jsonify({"bed": {"name": bed.get("name"), "lengthM": L, "widthM": bed["width_cm"] / 100.0, "cellM": world["cellM"],
+                            "soilM": world["soilZ"], "railM": g.get("railZ", 0.95), "railOutM": g.get("railOut", 0.10),
+                            "plantedM": planted, "boxM": (world["binSurfaceZ"] / 0.88) if "binSurfaceZ" in world else world["soilZ"] + 0.3},
+                    "period": (cfg.get("period") or {}).get("name"), "start": tl["start"], "end": tl["end"],
+                    "dates": [[round(t, 3), d] for t, d in tl["dates"]],
+                    "gantry": [[round(t, 3), *[round(v, 3) for v in p]] for t, p in tl["gantry"]],
+                    "cells": cells})
+
+
 @app.get("/api/twin/run.usda")
 def twin_run_usda():
     """The last run as an OpenUSD stage (usd_stage.py), to replay in usdview or Blender. ?frames=720 spreads it over

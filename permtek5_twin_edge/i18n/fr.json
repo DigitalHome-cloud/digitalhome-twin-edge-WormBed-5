@@ -1228,5 +1228,15 @@
  "the autopilot runs only in a rehearsal": "le pilote automatique ne fonctionne que pendant une répétition",
  "The season, from a clean bed": "La saison, à partir d'une planche vide",
  "The last run: {from} – {to}, {days} simulated days, {n} samples. The season film renders it.": "La dernière simulation : {from} – {to}, {days} jours simulés, {n} échantillons. Le film de saison la montre.",
- "Download it as OpenUSD (.usda)": "La télécharger en OpenUSD (.usda)"
+ "Download it as OpenUSD (.usda)": "La télécharger en OpenUSD (.usda)",
+ "Drag to turn, scroll to come closer. Each plant as tall as its crop grows; nothing leaves this PC.": "Faites glisser pour tourner, défilez pour vous approcher. Chaque plante aussi haute que sa culture pousse ; rien ne quitte ce PC.",
+ "No run recorded yet: start one on the Loop.": "Aucune simulation enregistrée : lancez-en une dans la Boucle.",
+ "Pause": "Pause",
+ "Play": "Lire",
+ "Read the run again: it goes on while the twin runs": "Relire la simulation : elle continue tant que le jumeau tourne",
+ "Reload": "Recharger",
+ "Replay the last run in 3D": "Rejouer la dernière simulation en 3D",
+ "The last run in 3D": "La dernière simulation en 3D",
+ "When in the run": "À quel moment de la simulation",
+ "{date} · day {day} · {n} plant(s) in the bed": "{date} · jour {day} · {n} plante(s) dans la planche"
 }

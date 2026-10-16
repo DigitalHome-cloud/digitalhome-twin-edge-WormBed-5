@@ -48,6 +48,7 @@ class Crop:
     sow_min_temp_c: Optional[float] = None
     frost_tender: bool = False
     perennial: bool = False
+    height_cm: Optional[int] = None    # how tall it grows (the run replay draws it so)
 
     def name(self, lang: str = "en") -> str:
         return self.names.get(lang) or self.names.get("en") or self.id
@@ -243,6 +244,7 @@ def load_library(path: Path = LIBRARY) -> Dict[str, Crop]:
             sow_min_temp_c=_num(g, c, "sowMinTempC", float),
             frost_tender=bool((g.value(c, PERMA.frostTender) or Literal(False)).toPython()),
             perennial=any(_local(o) == "Perennial" for n in g.objects(c, PERMA.seedSaving) for o in g.objects(n, PERMA.lifeCycle)),
+            height_cm=_num(g, c, "heightCm", int),
         )
     return out
 
@@ -516,7 +518,7 @@ def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop], period: Optional[
     used = {c["crop"] for c in cells} | {c["crop"] for t in targets.values() for c in t}
     crops = {cid: {"germinationDays": library[cid].germination_days, "daysToHarvest": library[cid].days_to_harvest,
                    "sowMinTempC": library[cid].sow_min_temp_c, "frostTender": library[cid].frost_tender,
-                   "perennial": library[cid].perennial}
+                   "perennial": library[cid].perennial, "heightCm": library[cid].height_cm}
              for cid in sorted(used) if cid in library}
     plain = lambda p: {"id": p.id, "name": p.name, "kind": p.kind, "fromMonth": p.from_month, "toMonth": p.to_month,  # noqa: E731
                        "months": p.months, "sets": p.sets}

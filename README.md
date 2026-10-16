@@ -344,7 +344,15 @@ The Film tab offers the last run as **OpenUSD** (`GET /api/twin/run.usda`, writt
 - every plant coming up, growing and harvested over the run;
 - a time code is a simulated hour, so it plays a day a second.
 
-Open it in `usdview` (`pip install usd-core`) or Blender (File › Import ›
+**Replay the last run in 3D** on the Film tab:
+- the bed, the gantry travelling, and every plant coming up, growing and harvested, along a time slider;
+- each plant drawn as tall as its crop grows;
+- drawn in the page with three.js, from the same timeline as the USD file (`GET /api/twin/replay`).
+
+three.js is vendored as one minified module (`static/vendor/three-replay.js`, made by `scripts/vendor-three.sh`),
+because the edge runs offline. Nothing leaves this PC.
+
+Open the `.usda` in `usdview` (`pip install usd-core`) or Blender (File › Import ›
 Universal Scene Description) and scrub through the season. `?frames=720` spreads it over
 30 seconds.
 

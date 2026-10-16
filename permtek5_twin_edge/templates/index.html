@@ -434,6 +434,17 @@
           <ul id="film-missing" class="missing" hidden></ul>
           <progress id="film-progress" max="1" value="0" hidden></progress>
           <p class="note" id="film-run" hidden></p>
+          <details class="replay" id="replay">
+            <summary>Replay the last run in 3D</summary>
+            <div class="replay__view" id="replay-view" role="img" aria-label="The last run in 3D"></div>
+            <div class="hero-controls">
+              <button id="replay-play" type="button">Play</button>
+              <input type="range" id="replay-time" min="0" max="1" value="0" aria-label="When in the run">
+              <button id="replay-reload" type="button" title="Read the run again: it goes on while the twin runs">Reload</button>
+            </div>
+            <p class="note" id="replay-when"></p>
+            <p class="note">Drag to turn, scroll to come closer. Each plant as tall as its crop grows; nothing leaves this PC.</p>
+          </details>
         </div>
         <div class="film-grid" id="film-shots"></div>
       </section>
@@ -472,6 +483,7 @@
 {% block scripts %}
 <script>window.I18N_BOOT = {{ i18n|tojson }};</script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='replay.js') }}"></script>
 {#- The edge layer's own panel code (connections, jobs, chat). scripts/edge-wire.py
     appends these two lines after the last block, where a template that
     extends another drops them; they belong inside the blocks. -#}

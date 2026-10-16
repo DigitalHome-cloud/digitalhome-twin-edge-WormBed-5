@@ -105,7 +105,7 @@ def from_page():
     p = _Text()
     p.feed(src)
     out = {t for t in p.found if not re.fullmatch(r"[A-Z]{2}", t)}                # the EN/DE/FR buttons stay
-    js = (PKG / "static" / "app.js").read_text(encoding="utf-8")
+    js = "\n".join((PKG / "static" / f).read_text(encoding="utf-8") for f in ("app.js", "replay.js"))   # the page and its 3D replay
     for m in re.finditer(r"(?<![\w.$])tr\(", js):
         depth, i = 1, m.end()
         while depth and i < len(js):

@@ -44,6 +44,11 @@ from roofbed_interfaces.action import CareBox, FeedWorms, PhotoPass, PlantCell, 
 CAMERAS = {"tool": "/gantry/tool_camera/compressed", "overview": "/gantry/overview_camera/compressed"}
 
 
+
+# the events a person's act becomes, as the bed (gantry_driver.on_event) takes them
+EVENT_OPS = ("hopper", "tank", "dry", "disturb", "calm", "time", "season", "chaos", "box", "weeds", "valve", "store",
+             "harvest", "clear", "plan")
+
 class Gateway(Node):
     def __init__(self):
         super().__init__("gateway")
@@ -262,10 +267,12 @@ def handler_for(gw: Gateway):
                 return self.send_json(200, {"id": job_id}) if job_id else self.send_json(409, {"error": "a job is running"})
             if self.path == "/event":
                 # what a person did at the bed: filled the hopper, refilled the tank
-                if data.get("op") not in ("hopper", "tank", "dry", "disturb", "calm", "time", "chaos", "box", "weeds", "valve", "store", "season"):
-                    return self.send_json(400, {"error": "op must be hopper, tank, dry, disturb, calm, time, season, chaos, box, weeds, valve or store"})
+                # and a person's part of the bed's season (PermTek-5 ADR 0029): harvested, cleared, the next period's target
+                if data.get("op") not in EVENT_OPS:
+                    return self.send_json(400, {"error": "op must be one of " + ", ".join(EVENT_OPS)})
                 keys = ("op", "grams", "litres", "percent", "id", "title", "effect", "minutes", "factor", "rate", "pool",
-                        "do", "on", "ml", "open", "mix", "to", "from", "kind", "browns", "side", "count", "large", "pull", "start")
+                        "do", "on", "ml", "open", "mix", "to", "from", "kind", "browns", "side", "count", "large", "pull", "start",
+                        "ready", "cells")
                 gw.pub_event.publish(String(data=json.dumps({k: data[k] for k in keys if k in data})))
                 return self.send_json(200, {"ok": True})
             if self.path == "/cancel":

@@ -105,3 +105,24 @@ def test_every_shape_of_the_library_is_there_as_usd():
     for name, s in shapes.items():
         stage = Usd.Stage.Open(str(usd_stage.SHAPES / s["usd"]))
         assert stage.GetDefaultPrim().GetName() == name and UsdGeom.GetStageUpAxis(stage) == "Z", name
+
+
+def test_the_page_replays_the_same_timeline(monkeypatch, tmp_path, cfg):
+    """/api/twin/replay: the bed's measures and the run's timeline, each plant's size a share of its grown size."""
+    from permtek5_twin_edge import app as web, engine
+    from permtek5_twin_edge.core import version, workspace as ws
+    monkeypatch.setattr(version, "UPDATE_CHECK", False)
+    monkeypatch.setitem(ws.FOLDERS, ws.USER, tmp_path / "user")
+    monkeypatch.setitem(ws.FOLDERS, ws.SHARED, tmp_path / "shared")
+    ws.configure()
+    client = web.app.test_client()
+    assert client.get("/api/twin/replay").status_code == 400, "nothing prepared"
+    run, k = run_of(cfg)
+    monkeypatch.setattr(engine, "config", lambda out=None: cfg)
+    monkeypatch.setattr(track, "read", lambda folder: run)
+    r = client.get("/api/twin/replay").get_json()
+    assert r["bed"]["soilM"] == pytest.approx(world.SOIL_Z) and r["end"] == pytest.approx(70 * 24)
+    plant = next(c for c in r["cells"] if c["key"] == k)
+    assert plant["shown"][0] == [0, 0] and [0.0, 0] not in plant["shown"][1:2]
+    assert max(s for _, s in plant["sizes"]) == pytest.approx(1.0), "grown is the whole of its size"
+    assert plant["heightM"] > 0 and r["gantry"][1][1:] == [1.2, 0.5, 0.08]
