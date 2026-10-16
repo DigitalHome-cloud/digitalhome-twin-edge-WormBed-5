@@ -11,7 +11,8 @@ where each shot's poster and film are. Its output goes to a file, never a
 pipe. Standard library only: this app never imports bpy.
 
     SHOTS     bed (the camera circles the bed), box (close up over the open
-              worm box), flight (from the whole bed down into the box)
+              worm box), flight (from the whole bed down into the box), season
+              (the prepared period from a clean bed, as a time-lapse)
     QUALITY   draft, good, best: a bigger picture and more samples take longer
     WHOLE     the shots one after another, cross-faded (stitch): made anew with
               ffmpeg whenever a shot is rendered, so it needs no rendering
@@ -35,7 +36,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "assets" / "demo.py"
 PYTHON = ROOT / ".venv-bpy" / "bin" / "python"
 FRAME = re.compile(r"^frame (\d+)/(\d+)", re.M)
-SHOTS = {"bed": "The bed", "box": "The worm box, close up", "flight": "Into the worm box"}
+SHOTS = {"bed": "The bed", "box": "The worm box, close up", "flight": "Into the worm box", "season": "The season, from a clean bed"}
 QUALITY = {"draft": "draft: under an hour a shot", "good": "good: one to three hours a shot", "best": "best: half a day a shot"}
 WHOLE = "film-whole.mp4"
 STORY = ("bed", "flight", "box")      # the whole film: the bed, the flight into the box, the worms

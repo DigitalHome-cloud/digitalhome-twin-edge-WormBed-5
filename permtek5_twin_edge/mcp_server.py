@@ -100,6 +100,25 @@ def twin_confirm(proposal: str) -> Any:
 
 
 @server.tool()
+def twin_autopilot(on: bool = True) -> Any:
+    """Switch the autopilot on or off. In a rehearsal it does a person's part (hopper, bedding, tank, the person's
+    care tasks, harvest, clear, move on to the next period), confirms the robot's proposals one at a time and walks
+    a running scenario's steps, so the twin can run unattended. Every act goes into the logbook."""
+    return act(f"Twin: autopilot {'on' if on else 'off'}", "POST", "/api/twin/autopilot", {"on": on})
+
+
+@server.tool()
+def logbook(after: int = 0, who: str = "", what: str = "", limit: int = 100) -> Any:
+    """The guild's logbook, oldest first: who did what and when (wall clock and the simulation's date).
+    after: only entries numbered above it (pass the last "n" you saw to get only what is new). who: a comma list of
+    person, autopilot, robot, plants, keeper, edge. what: e.g. plant.lost,job.failed,notice. Returns
+    {"entries": [{"n", "t", "sim", "who", "what", "text"}], "last": the newest n}. Reading only."""
+    web.ensure_server()
+    q = "&".join(f"{k}={v}" for k, v in (("after", after), ("who", who), ("what", what), ("limit", limit)) if v)
+    return web.call("GET", "/api/logbook" + (f"?{q}" if q else ""))
+
+
+@server.tool()
 def twin_estop(on: bool = True) -> Any:
     """Hold the gantry where it is and abort its job (on=False releases it). Never a proposal: stopping is always allowed."""
     web.ensure_server()

@@ -191,7 +191,7 @@ def test_the_drawing_and_its_source_agree():
 def test_the_films_need_a_prepared_world_and_serve_only_their_own_files(client, tmp_path):
     f = client.get("/api/twin/film").get_json()
     assert f["prepared"] is False and f["job"] is None
-    assert [x["id"] for x in f["shots"]] == ["bed", "box", "flight"] and all(x["film"] is None for x in f["shots"])
+    assert [x["id"] for x in f["shots"]] == ["bed", "box", "flight", "season"] and all(x["film"] is None for x in f["shots"])
     assert client.post("/api/twin/film", json={"shot": "box"}).status_code == 400
     assert client.get("/api/twin/film/film-box.mp4").status_code == 404
     assert client.get("/api/twin/film/other.txt").status_code == 404

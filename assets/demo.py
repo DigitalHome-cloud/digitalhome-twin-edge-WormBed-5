@@ -22,6 +22,12 @@ The shots:
             drifting along them; shallow focus (15 s)
     flight  from the whole bed, along it, down into the open worm box, and a
             while with the worms (18 s)
+    season  the prepared period from a clean bed, as a time-lapse (30 s): the
+            gantry sows what may be sown, the plants come up, grow and ripen,
+            some are lost and sown again, the ripe ones are harvested. The days
+            are the twin's own: its generic year and its plants (plants.py),
+            so the film shows what a rehearsal of the period would (PermTek-5
+            ADR 0029). The month runs in the corner.
 
 Writes poster-<shot>.png (one still) and film-<shot>.mp4 (needs ffmpeg on the
 PATH, otherwise the frames stay in frames-<shot>/). Rendered with Cycles on the
@@ -46,10 +52,16 @@ import bpy  # first: it puts mathutils on the path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build  # noqa: E402  the same shapes the simulation uses
 import wormlife  # noqa: E402  the inside of the worm box
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ros2" / "roofbed_twin"))
+from roofbed_twin.environment import YEAR  # noqa: E402  the twin's generic year: plain Python
+from roofbed_twin.plants import Plants  # noqa: E402  and its plants
 
 FPS = 24
-SHOTS = ("bed", "box", "flight")
-FRAMES = {"bed": 480, "box": 360, "flight": 432}          # 20, 15 and 18 seconds
+SHOTS = ("bed", "box", "flight", "season")
+FRAMES = {"bed": 480, "box": 360, "flight": 432, "season": 720}          # 20, 15, 18 and 30 seconds
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+HARVEST_AFTER_DAYS = 7      # a person harvests about a week after the photos show it ready
+MARKS = []                  # the season shot's months, by frame, for the caption
 # draft, good, best: size, samples, and every how many frames one is rendered (ffmpeg makes the ones between)
 QUALITY = {"draft": (640, 360, 8, 2), "good": (960, 540, 12, 2), "best": (1280, 720, 24, 1)}
 
@@ -157,12 +169,24 @@ def scene_from(cfg, frames, shot, worms):
     # every planted cell, in its crop's colour
     grown, seedling = build.plant_grown(), build.plant_seedling()
     crop_mats = {}
+    season = season_timeline(cfg, frames) if shot == "season" else None
     for c in cfg["cells"]:
-        if c["status"] not in ("CellSown", "CellGrowing"):
+        if c["status"] not in ("CellSown", "CellGrowing") and not season:
             continue
         rgb = [v * 0.8 for v in c.get("rgb", (0.3, 0.6, 0.3))]
         mat = crop_mats.setdefault(c["crop"], textured(c["crop"], [v * 0.7 for v in rgb], rgb, 60.0, 0.55, 0.2))
         wormlife._set(mat.node_tree.nodes["Principled BSDF"], Subsurface_Weight=0.25, Subsurface_Radius=(0.01, 0.01, 0.005))
+        if season:                                # the plant comes and goes with the season: its size by frame
+            spacing = (c.get("job") or {}).get("spacingMm", cell * 1000) / 1000.0
+            k = max(0.02, spacing * 0.38) / 0.1
+            o = copy_of(grown, f'cell {c["row"]} {c["col"]}')
+            place(o, mat, ((c["col"] + 0.5) * cell, (c["row"] + 0.5) * cell, soil_z), (0, 0, 0))
+            o.rotation_euler.z = (c["row"] * 7 + c["col"] * 13) % 6
+            for frame, size in season["cells"].get(f'{c["row"]}_{c["col"]}', []):
+                s_ = k * size
+                o.scale = (s_, s_, s_)
+                o.keyframe_insert("scale", frame=frame)
+            continue
         big = c["status"] == "CellGrowing"
         spacing = (c.get("job") or {}).get("spacingMm", cell * 1000) / 1000.0
         k = (max(0.02, spacing * 0.38) if big else 0.012) / 0.1
@@ -188,7 +212,8 @@ def scene_from(cfg, frames, shot, worms):
     tip = w["tipHome"]
     box("z column", (0, carriage_y, (tip + rail_z) / 2 + 0.02), (0.03, 0.03, rail_z - tip + 0.04), m_alu, rig)
     box("tool", (0, carriage_y, tip + 0.015), (0.024, 0.024, 0.03), m_tool, rig)
-    travel = ((1, 0.25), (frames // 2, L - 0.25 - (L - feed["x0"])), (frames, 0.25)) if shot == "bed" else ((1, 0.6), (frames, 1.1))
+    travel = ((1, 0.25), (frames // 2, L - 0.25 - (L - feed["x0"])), (frames, 0.25)) if shot == "bed" else \
+        season["gantry"] if season else ((1, 0.6), (frames, 1.1))
     for frame, x in travel:                                       # along the bed and back; out of the way for the box
         rig.location = (x, 0, 0)
         rig.keyframe_insert("location", frame=frame)
@@ -211,7 +236,80 @@ def scene_from(cfg, frames, shot, worms):
     sky(scene)
     cameras(scene, shot, frames, L, W, soil_z, feed, rig)
     scene.frame_start, scene.frame_end = 1, frames
+    MARKS[:] = season["months"] if season else []
     return scene
+
+
+def season_timeline(cfg, frames):
+    """A rehearsal of the prepared period, day by day, with the twin's own rules: the generic year's day means
+    (environment.YEAR) and its plants (plants.py). A planned cell is sown on the first day warm enough for its crop
+    (the edge's sowing_waits), comes up or is lost (then sown again while the period lasts), grows, and is harvested
+    a week after it is ready. Returns each cell's (frame, size 0..1) keys, the gantry's travel, and the months by frame."""
+    period = cfg.get("period") or {}
+    months = period.get("months") or [4, 5, 6, 7, 8, 9]
+    days = 30 * len(months)
+    frame = lambda d: 1 + round(d / days * (frames - 1))                        # noqa: E731
+    mid = [15 + 30 * i for i in range(12)]                                       # the day means run month middle to middle
+
+    def mean_c(m, d):
+        """The day mean of day d (0..29) of month m: between the month's middle and the next."""
+        a, b = (m - 1, m % 12) if d >= 15 else ((m - 2) % 12, m - 1)
+        share = ((d - 15) if d >= 15 else (d + 15)) / 30.0
+        return YEAR[a][0] + (YEAR[b][0] - YEAR[a][0]) * share
+
+    crops = cfg.get("crops") or {}
+    plants = Plants(crops, seed=5)
+    cells = {f'{c["row"]}_{c["col"]}': {"status": "CellPlanned", "crop": c["crop"], "moisture": 40.0, "x": (c["col"] + 0.5) * cfg["world"]["cellM"]}
+             for c in cfg["cells"]}
+    keys = {k: [(1, 0.0)] for k in cells}
+    ready_on, sown_x = {}, []
+    for day in range(days):
+        m, d = months[day // 30], day % 30
+        mean = mean_c(m, d)
+        swing = YEAR[m - 1][1]
+        today = []
+        for k, c in cells.items():
+            need = (crops.get(c["crop"]) or {}).get("sowMinTempC")
+            if c["status"] in ("CellPlanned", "CellLost") and (need is None or mean >= need - 1.0) and day < days - 20:
+                c["status"] = "CellSown"
+                plants.sow(k, c["crop"])
+                keys[k].append((frame(day), 0.0))
+                today.append(c["x"])
+        if today:
+            sown_x.append((frame(day), sum(today) / len(today)))
+        for _ in range(4):                       # the day in four steps: the night's low counts for frost
+            plants.step(cells, 360, mean, mean - swing if _ == 0 else mean)
+        for k, c in cells.items():
+            st = plants.state(k)
+            if c["status"] == "CellGrowing":
+                g = min(1.0, st.get("growth", 0.0))
+                keys[k].append((frame(day), 0.12 + 0.88 * g))
+                if st.get("ready"):
+                    ready_on.setdefault(k, day)
+                    if day - ready_on[k] >= HARVEST_AFTER_DAYS:
+                        c["status"] = "CellHarvested"
+                        plants.drop(k)
+                        keys[k].append((frame(day) + 3, 0.0))
+            elif c["status"] == "CellLost" and keys[k][-1][1] > 0:
+                keys[k].append((frame(day) + 2, 0.0))
+    # one key a week is enough for the eye; keep every change to or from nothing
+    for k, ks in keys.items():
+        kept, last = [], None
+        for f, size in ks:
+            if last is None or size == 0.0 or last[1] == 0.0 or f - last[0] >= 7 * frames // days or f == ks[-1][0]:
+                kept.append((f, size))
+                last = (f, size)
+        keys[k] = kept
+    # the gantry goes where it sows, and parks between
+    park = 0.25
+    gantry = [(1, park)]
+    for f, x in sown_x:
+        gantry += [(max(gantry[-1][0] + 1, f - 6), park), (f, x), (f + 6, park)]
+    gantry.append((frames, park))
+    marks = [(frame(30 * i), MONTHS[m - 1]) for i, m in enumerate(months)]
+    said = {st: sum(1 for c in cells.values() if c["status"] == st) for st in ("CellGrowing", "CellHarvested", "CellLost", "CellPlanned", "CellSown")}
+    print(f"season: {days} days, {len(sown_x)} sowing days, at the end {said}", flush=True)
+    return {"cells": keys, "gantry": gantry, "months": marks, "name": period.get("name") or ""}
 
 
 def worm_box(cfg, L, W, soil_z, m_wood, worms, frames):
@@ -300,6 +398,17 @@ def cameras(scene, shot, frames, L, W, soil_z, feed, rig):
             cam.location = (0, -(L * 0.62 + back), z)
             cam.keyframe_insert("location", frame=frame)
         _ease(rig)
+        return
+    if shot == "season":                      # high over the bed's long side, a slow quarter turn: the whole bed in view
+        cam.data.lens = 30
+        cam.data.dof.aperture_fstop = 16
+        orbit = empty("orbit", target.location)
+        cam.parent = orbit
+        for frame, angle in ((1, math.radians(-40)), (frames, math.radians(25))):
+            orbit.rotation_euler = (0, 0, angle)
+            orbit.keyframe_insert("rotation_euler", frame=frame)
+        _linear(orbit)
+        cam.location = (0, -(L * 0.55 + 1.2), 1.9)
         return
     # close over the box: a slow push towards the food, the camera low over the box's open side
     near = [((fx - 0.13, fy - 0.26, fz + 0.20), (fx, fy, fz)), ((fx - 0.07, fy - 0.15, fz + 0.12), (fx + 0.005, fy + 0.01, fz))]
@@ -390,7 +499,7 @@ def main():
     ap.add_argument("--bed", default="mydocs/twin/bed.json")
     ap.add_argument("--out", default="mydocs/twin/demo")
     ap.add_argument("--shot", choices=SHOTS, default="bed")
-    ap.add_argument("--frames", type=int, default=None, help="default: 480 (bed), 360 (box) or 432 (flight)")
+    ap.add_argument("--frames", type=int, default=None, help="default: 480 (bed), 360 (box), 432 (flight) or 720 (season)")
     ap.add_argument("--quality", choices=tuple(QUALITY), default="good")
     ap.add_argument("--worms", type=int, default=None, help="worms to show (default: from --adults, else 40)")
     ap.add_argument("--adults", type=int, default=None, help="the simulated adult worms, to pick how many show")
@@ -404,6 +513,8 @@ def main():
     args.width, args.height, args.samples = args.width or qw, args.height or qh, args.samples or qs
     args.frames = args.frames or FRAMES[args.shot]
     worms = args.worms if args.worms is not None else visible_worms(args.adults) if args.adults is not None else 40
+    if args.shot == "season":                 # seen from high over the bed: the worms would not show
+        worms = 0
     out = Path(args.out)
     frames_dir = out / f"frames-{args.shot}"
     if frames_dir.exists():
@@ -415,7 +526,7 @@ def main():
     setup_render(scene, args.width, args.height, args.samples)
     print(f"scene {time.time() - started:.1f}s, {worms} worms", flush=True)
 
-    scene.frame_set(max(1, args.frames * 2 // 3) if args.shot != "bed" else 1)
+    scene.frame_set(max(1, args.frames * 2 // 3) if args.shot != "bed" else 1)       # the season: high summer
     scene.cycles.samples = args.samples * 2
     scene.render.filepath = str(out / f"poster-{args.shot}.png")
     bpy.ops.render.render(write_still=True)
@@ -442,7 +553,15 @@ def main():
         print("no ffmpeg on the PATH: the frames stay in " + str(frames_dir), flush=True)
         return 0
     film = out / f"film-{args.shot}.mp4"
-    between = ["-vf", f"minterpolate=fps={FPS}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir"] if step > 1 else []
+    filters = [f"minterpolate=fps={FPS}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir"] if step > 1 else []
+    marks = list(MARKS)
+    font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    if marks and Path(font).exists():           # the season's month in the corner
+        ends = [m[0] for m in marks[1:]] + [args.frames + 1]
+        for (f0, name), f1 in zip(marks, ends):
+            filters.append(f"drawtext=fontfile={font}:text='{name}':x=w*0.04:y=h*0.06:fontsize=h*0.06:fontcolor=white:"
+                           f"borderw=2:bordercolor=black@0.6:enable='between(n,{f0 - 1},{f1 - 2})'")
+    between = ["-vf", ",".join(filters)] if filters else []
     subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-framerate", str(FPS / step), "-i", str(frames_dir / "f_%04d.png"), *between,
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-movflags", "+faststart", str(film) + ".tmp.mp4"],
                    check=True, stdin=subprocess.DEVNULL)

@@ -268,6 +268,7 @@ function draw(t) {
   stats(t);
   drawBed(t);
   drawJobs(t);
+  drawAutopilot(t);
   const job = t.twin && t.twin.job;
   $("#strip-job").textContent = !t.running ? "" : job ? tr("job: {kind} · {state}", { kind: job_(job.kind), state: job_(job.state) })
     + (job.feedback && job.state === "running" ? " · " + job.feedback : "") : tr("no job");
@@ -563,7 +564,7 @@ setInterval(refreshLoop, 1500);
 /* ---------------------------------------------------------------- shell -- */
 // The rail's own buttons call core's (its header stays in the page, hidden).
 
-const TABS = ["loop", "operator", "robot", "care", "sim", "film", "connections", "chat"];
+const TABS = ["loop", "operator", "robot", "care", "sim", "logbook", "film", "connections", "chat"];
 
 function showTab(name) {
   const tab = TABS.includes(name) ? name : "loop";          // "#setup", the old home, lands on the loop too
@@ -576,7 +577,46 @@ function showTab(name) {
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
   views(S.ready);
+  if (tab === "logbook") refreshLogbook();
 }
+
+/* ---------------------------------------------------------------- logbook -- */
+// The guild's logbook (logbook.py): who did what, when. Read in pieces: only what is newer than the last row.
+const LB = { last: 0, rows: [] };
+const WHO_SAYS = { person: "you", autopilot: "autopilot", robot: "robot", plants: "plants", keeper: "keeper", edge: "edge" };
+async function refreshLogbook() {
+  if (S.tab !== "logbook") return;
+  let r;
+  try { r = await core.api("GET", `/api/logbook?after=${LB.last}&limit=500`); } catch (_) { return; }
+  if (r.last < LB.last) { LB.last = 0; LB.rows = []; return refreshLogbook(); }      // a new logbook
+  LB.rows = LB.rows.concat(r.entries).slice(-2000);
+  LB.last = r.last;
+  drawLogbook();
+}
+function drawLogbook() {
+  const show = new Set([...document.querySelectorAll(".logbook-filter input:checked")].map((i) => i.dataset.who));
+  const rows = LB.rows.filter((e) => show.has(e.who)).slice().reverse();
+  $("#logbook-rows").innerHTML = rows.map((e) => `<tr class="logbook--${core.esc(e.who)}"><td>${core.esc(new Date(e.t).toLocaleString(I18N.lang))}</td>`
+    + `<td>${core.esc(e.sim || "")}</td><td>${core.esc(tr(WHO_SAYS[e.who] || e.who))}</td><td>${core.esc(e.text)}</td></tr>`).join("");
+  $("#logbook-empty").hidden = rows.length > 0;
+}
+document.querySelectorAll(".logbook-filter input").forEach((i) => i.addEventListener("change", drawLogbook));
+setInterval(refreshLogbook, 3000);
+
+// The autopilot (rehearsals only): it does a person's part, so a run can go on unattended.
+function drawAutopilot(t) {
+  const a = t.autopilot || {};
+  const box = $("#chk-autopilot");
+  box.checked = !!a.on;
+  box.disabled = !t.running || !t.rehearsal;
+  $("#autopilot-status").textContent = a.on
+    ? tr("Autopilot on: {n} act(s) so far", { n: a.acts || 0 }) + (a.last ? " · " + a.last : "")
+    : a.why ? tr("Autopilot off: {why}", { why: a.why }) : "";
+}
+$("#chk-autopilot").addEventListener("change", async (e) => {
+  await post("/api/twin/autopilot", { on: e.target.checked });
+  refresh();
+});
 
 function railOpen(open, remember = false) {
   $("#rail").classList.toggle("app-rail--closed", !open);

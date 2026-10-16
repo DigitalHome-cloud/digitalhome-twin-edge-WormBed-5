@@ -78,7 +78,11 @@ The **Film** tab renders the prepared guild with Blender (`assets/demo.py`), in
 three shots: **the bed** (20 s: the camera circles it), **the worm box, close up**
 (15 s: red wigglers crawling over moist castings, newspaper, scraps and cocoons, with
 shallow focus) and **into the worm box** (18 s: a flight from the whole bed down into
-it). Once two or more are rendered, `ffmpeg` cross-fades them into **the whole
+it). A fourth, **the season** (30 s), is a time-lapse of the prepared period
+from a clean bed: the gantry sows what may be sown, the plants come up, grow and
+ripen, some are lost and sown again, the ripe ones are harvested, and the month
+runs in the corner. Its days are the twin's own (its generic year and `plants.py`).
+Once two or more of the first three are rendered, `ffmpeg` cross-fades them into **the whole
 film** (`film-whole.mp4`), made anew whenever a shot is rendered. The box's insides are `assets/wormlife.py`: every shape and surface is
 made there, nothing is downloaded. It shows about as many worms as the
 simulation's box holds. Cycles on the CPU, so it takes a while: on a 4-core
@@ -300,6 +304,32 @@ pipx install --force git+https://github.com/DigitalHome-cloud/digitalhome-twin-e
 
 If you copied the skill with `--install`, refresh it afterwards:
 `permtek5-twin-edge-skill --install --force`.
+
+## Unattended runs: the autopilot and the logbook
+
+- **Autopilot** (the switch on the Loop's Control card, `twin_autopilot(on)`):
+  in a rehearsal it does a person's part, so a run goes on with nobody at the page:
+  - fills the hopper and the bedding compartment, refills the tank;
+  - ticks off the care tasks that are yours;
+  - harvests what is ready, clears the bed and moves on to the next period;
+  - confirms the robot's proposals one at a time, the most needed first (looking
+    jobs only once a simulated day);
+  - walks a running scenario's steps.
+
+  It never runs on a real bed, and it switches itself off when the twin stops, a
+  world is prepared, or the gantry is locked out.
+- **Logbook** (a menu item, `logbook()` over MCP, `GET /api/logbook`): who did what and
+  when, with the simulation's own date. It holds:
+  - your acts, and the autopilot's;
+  - how each robot job ended;
+  - plants coming up, ripening, lost and harvested;
+  - the keeper's notices.
+
+  It is `logbook.jsonl` in the guild's folder and stays on this PC.
+- **Watching a run:** the skill `permtek5-twin-logbook` (`plugin/skills/`, and
+  `.claude/skills/` for agents in this repository) reads the logbook, reports what is
+  new and flags what needs a person. With `/loop` it keeps watching, e.g.
+  `/loop 10m use the permtek5-twin-logbook skill to look at the twin`.
 
 ## For agents
 

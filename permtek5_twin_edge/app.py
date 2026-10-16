@@ -27,7 +27,7 @@ import urllib.error
 import urllib.request
 from typing import Dict, Optional
 
-from flask import Response, abort, jsonify, render_template, request, send_file
+from flask import Response, abort, g as flask_g, jsonify, render_template, request, send_file
 
 from . import engine as engine
 from . import cloudsite
@@ -42,6 +42,7 @@ from . import i18n
 from .i18n import _
 from . import instance
 from . import keeper
+from . import logbook
 from . import loop_view
 from . import scenarios
 from . import sim
@@ -66,6 +67,70 @@ app.jinja_env.auto_reload = True
 def _language() -> None:
     """Every request speaks the person's language: their choice on the page, else their browser's."""
     i18n.use(i18n.pick(request.cookies.get("lang"), request.headers.get("Accept-Language")))
+
+
+# ---------------------------------------------------------------- logbook ----
+# Everything a person does through this server goes into the guild's logbook (logbook.py), as it happens;
+# the autopilot writes its own acts, and the follower what the twin shows as new (robot jobs, plants, notices).
+
+def _sim_now() -> Optional[str]:
+    return logbook.sim_when(((sim.status().get("twin") or {}).get("bed") or {}).get("env"))
+
+
+def _say(path: str, data: dict, status: int) -> Optional[str]:
+    """A person's request in words, for the logbook; None for what is not worth a line."""
+    if status >= 400:
+        return None
+    if getattr(flask_g, "log_text", None):
+        return flask_g.log_text
+    act = path[len("/api/twin/"):] if path.startswith("/api/twin/") else path
+    if act == "hopper":
+        if "browns" in data:
+            return f"filled the bedding compartment: {data['browns']:.0f} g"
+        mix = data.get("mix")
+        if isinstance(mix, dict):
+            return "filled the hopper: " + ", ".join(f"{k} {float(v):.0f} g" for k, v in mix.items() if float(v) > 0)
+        return "emptied the hopper" if not float(data.get("grams", 1000)) else f"filled the hopper: {float(data.get('grams', 1000)):.0f} g"
+    texts = {
+        "tank": lambda: f"refilled the tank{(': ' + format(float(data['litres']), '.0f') + ' l') if 'litres' in data else ''}",
+        "valve": lambda: f"{'opened' if data.get('open', True) else 'closed'} the tap {data.get('id') or (str(data.get('from')) + ' → ' + str(data.get('to')))}",
+        "box": lambda: "worm box: " + " ".join(str(x) for x in data.values()),
+        "care/done": lambda: f"done: {data.get('id')}",
+        "prepare": lambda: "prepared a world" + (f" from {data['graph']}" if data.get("graph") else " from CityDemo")
+                           + (f", start {data.get('start', 'clean')}") + (", latest from the cloud" if data.get("sync") else ""),
+        "start": lambda: "started the simulation" + (" with the Webots window" if data.get("gui") else ""),
+        "stop": lambda: "stopped the simulation",
+        "go": lambda: "prepare and start" + (f": {data['graph']}" if data.get("graph") else ": CityDemo")
+                      + (f", scenario {data['scenario']}" if data.get("scenario") else "") + (f", {data.get('start')}" if data.get("start") else ""),
+        "scenario": lambda: f"scenario started: {data.get('id')}",
+        "scenario/do": lambda: "scenario: did the step",
+        "scenario/next": lambda: "scenario: next step" + (" (skipped)" if data.get("skip") else ""),
+        "scenario/stop": lambda: "scenario stopped",
+        "disturb": lambda: f"chaos: {data.get('id')}",
+        "chaos/now": lambda: "chaos: one thrown at random",
+        "calm": lambda: "calmed the trouble",
+        "chaos": lambda: f"chaos monkey rate {data.get('rate')}",
+        "time": lambda: f"clock: {data.get('factor')} min a second",
+        "cancel": lambda: "cancelled the robot's job",
+        "estop": lambda: "e-stop " + ("on" if data.get("on", True) else "released"),
+        "film": lambda: f"film: {data.get('shot', 'bed')} ({data.get('quality', 'good')})",
+        "/api/plan/apply": lambda: f"planted {sum(len(p.get('cells') or []) for p in data.get('plans') or [])} cell(s) from the cloud's plan",
+        "/api/knowledge/sync": lambda: "synced with the cloud",
+    }
+    return texts[act]() if act in texts else None
+
+
+@app.after_request
+def _log_request(resp):
+    if request.method == "POST" and (request.path.startswith("/api/twin/") or request.path in ("/api/plan/apply", "/api/knowledge/sync")):
+        try:
+            data = request.get_json(silent=True) or {}
+            text = _say(request.path, data if isinstance(data, dict) else {}, resp.status_code)
+            if text:
+                logbook.write(engine.workspace(), "person", request.path.rsplit("/api/", 1)[-1], text, _sim_now())
+        except Exception:                          # the logbook never stands in the way of what was done
+            pass
+    return resp
 
 
 def body() -> dict:
@@ -336,6 +401,12 @@ def _twin_state() -> dict:
             _offline["queued"] = 0
         except Exception:                         # busy: the person syncs from Connections
             pass
+    if cfg and bed:
+        names = {c["crop"]: c.get("cropName") or c["crop"] for t in [cfg["cells"], *(cfg.get("targets") or {}).values()] for c in t}
+        try:
+            _follower.follow(out, cfg, twin, [n["text"] for n in kept["notices"]], lambda c: names.get(c, c))
+        except OSError:
+            pass
     period = engine.period_of(cfg, _run_period["id"]) if cfg else None
     summary = engine.summary(cfg)
     if cfg and bed and bed.get("cells"):             # the counts as the twin has them now, not as the world was prepared
@@ -346,6 +417,7 @@ def _twin_state() -> dict:
         summary["ready"] = sum(1 for c in bed["cells"].values() if c.get("ready") and c["status"] == "CellGrowing")
     return {**status, **summary, "config": cfg, "source": src.get("graph") or "citydemo",
             "runPeriod": period, "rehearsal": bool(cfg) and cfg.get("rehearsal", True),
+            "autopilot": {k: v for k, v in _auto.items() if k != "seen"},
             "waits": engine.sowing_waits(cfg, bed, period) if cfg and bed else [],
             "instance": instance.describe(),
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
@@ -417,6 +489,8 @@ def _prepare(ttl: str, data: dict) -> dict:
     out = engine.prepare(ttl, period=data.get("period"), start=str(data.get("start") or "clean"),
                          month=int(month) if month else dt.date.today().month)
     _run_period["id"] = None
+    _follower.reset()
+    _auto_off("a new world was prepared")
     return out
 
 
@@ -454,6 +528,7 @@ def twin_start():
 @app.post("/api/twin/stop")
 def twin_stop():
     scenarios.stop()
+    _auto_off("the simulation stopped")
     sim.stop()
     return jsonify(_twin_state())
 
@@ -464,9 +539,11 @@ def twin_job():
     data = body()
     spec = data.get("spec")
     if data.get("proposal"):
-        spec = next((p["spec"] for p in _twin_state()["proposals"] if p["id"] == data["proposal"]), None)
+        found = next((p for p in _twin_state()["proposals"] if p["id"] == data["proposal"]), None)
+        spec = found["spec"] if found else None
         if spec is None:
             return jsonify({"errors": [_("that proposal is no longer current")]}), 409
+        flask_g.log_text = "confirmed: " + found["title"]
     if not isinstance(spec, dict):
         return jsonify({"errors": ["name a proposal or give a job spec"]}), 400
     kept = _twin_state()["keeper"]
@@ -518,6 +595,7 @@ def _run(spec: dict) -> dict:
     return out
 
 
+_follower = logbook.Follower()
 _run_period: Dict[str, Optional[str]] = {"id": None}     # the period the run moved on to; None: the one prepared
 
 
@@ -531,6 +609,7 @@ def _move_on(period_id: str) -> dict:
              for c in (cfg.get("targets") or {}).get(period_id, [])]
     out = _event({"op": "plan", "cells": cells})
     _run_period["id"] = period_id
+    logbook.write(engine.workspace(), "edge", "period", f"on to the period “{p['name']}”: {len(cells)} cell(s) planned", _sim_now())
     return {**out, "done": "the next period's target is the plan"}
 
 
@@ -968,29 +1047,154 @@ def scenario_do():
     """Carry out the current step's one action."""
     t = _twin_state()
     try:
-        act = scenarios.action(t["proposals"])
-        if act.get("calm"):
-            _calm()
-        if "disturb" in act:
-            _disturb(act["disturb"], act.get("minutes"))
-        if "factor" in act:
-            sim.gateway("/event", {"op": "time", "factor": float(act["factor"])})
-        for event in act.get("events", []):
-            if event.get("op") == "tank" and "litres" not in event:           # "refill": to the brim
-                event = {**event, "litres": float(((t.get("config") or {}).get("tank") or {}).get("litres") or 0)}
-            _event(event)
-        if "estop" in act:
-            sim.gateway("/estop", {"on": act["estop"]})
-        if "job" in act:
-            _run(act["job"])
-        if "batch" in act:
-            _batch_start(act["batch"], act["max"])
+        _scenario_act(t)
     except ValueError as exc:
         return jsonify({"errors": [_(str(exc))]}), 400
     except RuntimeError as exc:
         return jsonify({"errors": [_(str(exc))]}), 409
     scenarios.mark_done()
     return jsonify(_scenario_view())
+
+
+def _scenario_act(t: dict) -> None:
+    """Carry out the current scenario step's one action. Raises ValueError or RuntimeError when it cannot."""
+    act = scenarios.action(t["proposals"])
+    if act.get("calm"):
+        _calm()
+    if "disturb" in act:
+        _disturb(act["disturb"], act.get("minutes"))
+    if "factor" in act:
+        sim.gateway("/event", {"op": "time", "factor": float(act["factor"])})
+    for event in act.get("events", []):
+        if event.get("op") == "tank" and "litres" not in event:           # "refill": to the brim
+            event = {**event, "litres": float(((t.get("config") or {}).get("tank") or {}).get("litres") or 0)}
+        _event(event)
+    if "estop" in act:
+        sim.gateway("/estop", {"on": act["estop"]})
+    if "job" in act:
+        _run(act["job"])
+    if "batch" in act:
+        _batch_start(act["batch"], act["max"])
+
+
+# ---------------------------------------------------------------- autopilot --
+# For a rehearsal that runs unattended: the autopilot does a person's part (fill the hopper and the bedding
+# compartment, refill the tank, the care tasks that are yours, harvest, clear, move on to the next period),
+# confirms the robot's proposals one at a time, and walks a running scenario's steps. Every act goes into the
+# logbook as the autopilot's. Only ever in a rehearsal: it switches itself off when the twin stops, a world is
+# prepared, or the gantry is locked out.
+
+AUTO_EVERY_S = 2.0
+AUTO_ORDER = ("harvest", "clear", "period", "water", "valve", "feed", "care", "rest", "tap", "topdress", "plant", "stamp",
+              "scan", "probe", "photo")
+AUTO_DAILY = ("scan", "probe", "photo")         # looking, not doing: once a simulated day each
+HOPPER_LOW_G, BROWNS_LOW_G, TANK_LOW = 300, 200, 0.2
+_auto: Dict[str, object] = {"on": False, "since": None, "acts": 0, "last": None, "why": None, "seen": {}}
+
+
+def _auto_log(text: str, what: str = "act") -> None:
+    _auto["acts"] = int(_auto["acts"]) + 1
+    _auto["last"] = text
+    logbook.write(engine.workspace(), "autopilot", what, text, _sim_now())
+
+
+def _auto_off(why: str) -> None:
+    if _auto["on"]:
+        _auto.update(on=False, why=why)
+        logbook.write(engine.workspace(), "autopilot", "off", f"autopilot off: {why}", _sim_now())
+
+
+def _auto_tick() -> None:
+    t = _twin_state()
+    if not t["running"]:
+        return _auto_off("the simulation stopped")
+    if not t.get("rehearsal"):
+        return _auto_off("not a rehearsal")
+    if (t.get("keeper") or {}).get("lockout"):
+        return _auto_off("the gantry is locked out: a person has to look")
+    bed = (t.get("twin") or {}).get("bed") or {}
+    cfg = t.get("config") or {}
+    day = (bed.get("env") or {}).get("day")
+    # a person's part at the bed
+    hopper = bed.get("hopper") or {}
+    if cfg.get("wormBin", {}).get("cols") and hopper.get("grams", HOPPER_LOW_G) < HOPPER_LOW_G:
+        sim.gateway("/event", {"op": "hopper", "mix": {"vegetable": 600, "fruit": 300, "coffee": 100}, "grams": 1000})
+        return _auto_log("filled the hopper: vegetable 600 g, fruit 300 g, coffee 100 g")
+    if cfg.get("wormBin", {}).get("cols") and hopper.get("brownsGrams", BROWNS_LOW_G) < BROWNS_LOW_G:
+        sim.gateway("/event", {"op": "hopper", "browns": 1000})
+        return _auto_log("filled the bedding compartment: 1000 g")
+    tank = bed.get("tank") or {}
+    if tank.get("capacity") and tank.get("litres", 0) < TANK_LOW * tank["capacity"]:
+        sim.gateway("/event", {"op": "tank", "litres": float(tank["capacity"])})
+        return _auto_log(f"refilled the tank: {tank['capacity']:.0f} l")
+    for task in ((t.get("care") or {}).get("tasks") or []):
+        if task.get("due") and task.get("who") == "person":
+            _care_done(task["id"])
+            return _auto_log(f"done: {task.get('label') or task['id']}")
+    if ((t.get("twin") or {}).get("job") or {}).get("state") == "running" or _batch["running"]:
+        return
+    # a scenario's step
+    run = (_scenario_view() or {}).get("run")
+    if run:
+        if run.get("ready"):
+            scenarios.advance(ok=True)
+            return _auto_log(f"scenario: on from “{run['step']['title']}”", "scenario")
+        if not run.get("did") and run["step"]["type"] != "none":
+            try:
+                _scenario_act(t)
+                scenarios.mark_done()
+                return _auto_log(f"scenario: {run['step'].get('label') or run['step']['title']}", "scenario")
+            except (ValueError, RuntimeError):
+                pass                                   # not now: the robot's proposals go on meanwhile
+    # the robot's proposals, the most needed first; looking only once a simulated day
+    seen = _auto["seen"]
+    props = [p for p in t.get("proposals") or [] if not (p["kind"] in AUTO_DAILY and seen.get(p["kind"]) == day)]
+    props.sort(key=lambda p: AUTO_ORDER.index(p["kind"]) if p["kind"] in AUTO_ORDER else len(AUTO_ORDER))
+    for p in props:
+        try:
+            _run(dict(p["spec"]))
+        except RuntimeError:
+            continue
+        if p["kind"] in AUTO_DAILY:
+            seen[p["kind"]] = day
+        return _auto_log("confirmed: " + p["title"], "confirm")
+
+
+def _autopilot_loop() -> None:
+    while _auto["on"]:
+        try:
+            _auto_tick()
+        except Exception as exc:                     # one failed look never ends the run; it is written down
+            logbook.write(engine.workspace(), "autopilot", "error", f"autopilot: {exc}", _sim_now())
+        time.sleep(AUTO_EVERY_S)
+
+
+@app.post("/api/twin/autopilot")
+def twin_autopilot():
+    """{"on": true|false}: the autopilot does a person's part in a rehearsal, so it can run unattended."""
+    on = bool(body().get("on", True))
+    if on and not _auto["on"]:
+        cfg = engine.config() or {}
+        if not sim.running():
+            return jsonify({"errors": [_("start the simulation first")]}), 409
+        if not cfg.get("rehearsal", True):
+            return jsonify({"errors": [_("the autopilot runs only in a rehearsal")]}), 409
+        _auto.update(on=True, since=time.time(), acts=0, last=None, why=None, seen={})
+        flask_g.log_text = "autopilot on: it does your part and confirms the robot's jobs"
+        threading.Thread(target=_autopilot_loop, name="autopilot", daemon=True).start()
+    elif not on and _auto["on"]:
+        _auto.update(on=False, why="switched off")
+        flask_g.log_text = "autopilot off"
+    return jsonify({k: v for k, v in _auto.items() if k != "seen"})
+
+
+@app.get("/api/logbook")
+def logbook_read():
+    """?after=<n>&who=person,autopilot&what=...&limit=200: the guild's logbook, oldest first."""
+    split = lambda k: [x for x in (request.args.get(k) or "").split(",") if x]       # noqa: E731
+    entries = logbook.read(engine.workspace(), after=request.args.get("after", 0, type=int), who=split("who"),
+                           what=split("what"), limit=request.args.get("limit", 200, type=int))
+    return jsonify({"entries": entries, "last": logbook.last(engine.workspace())})
 
 
 _batch: Dict[str, object] = {"running": False, "done": 0}

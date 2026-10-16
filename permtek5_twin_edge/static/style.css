@@ -507,3 +507,14 @@ button.op-tile:focus-visible { outline: 2px solid var(--app-accent); outline-off
 .target__cell { width: 0.55rem; height: 0.55rem; background: var(--app-bg-sunken); border-radius: 1px; }
 .target__cell--bin { background: color-mix(in srgb, #8a6a4a 45%, transparent); }
 .rehearsal { font-style: italic; }
+
+/* The logbook: who did what, newest first */
+.logbook-scroll { max-height: 70vh; overflow: auto; }
+.logbook { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.logbook th, .logbook td { text-align: left; padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--app-border, #ddd); vertical-align: top; }
+.logbook th { position: sticky; top: 0; background: var(--app-bg, #fff); }
+.logbook td:nth-child(1), .logbook td:nth-child(2) { white-space: nowrap; color: var(--app-text-muted); }
+.logbook--autopilot td:nth-child(3) { color: var(--app-accent); font-weight: 600; }
+.logbook--plants td:nth-child(3) { color: #4a7d2a; }
+.logbook--keeper td:nth-child(3) { color: #a35d00; }
+.autopilot { font-weight: 600; }

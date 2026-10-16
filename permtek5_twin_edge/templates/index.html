@@ -36,6 +36,7 @@
     <div class="app-rail__section">
       <h2 class="app-rail__sectionlabel">More</h2>
       <ul class="app-rail__items">
+        <li><a class="app-rail__item tab" href="#logbook" data-tab="logbook"><svg {{ ico|safe }}><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3Z"/><path d="M5 17a3 3 0 0 1 3-3h11"/><path d="M9 8h6M9 11h4"/></svg><span>Logbook</span></a></li>
         <li><a class="app-rail__item tab" href="#film" data-tab="film"><svg {{ ico|safe }}><rect x="3" y="5" width="18" height="14" rx="1.6"/><path d="m10 9 5 3-5 3z"/></svg><span>Film</span></a></li>
         <li><a class="app-rail__item tab" href="#connections" data-tab="connections"><svg {{ ico|safe }}><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg><span>PermTek-5 link</span><span class="app-rail__dot" id="dot-linked" hidden></span></a></li>
         <li><a class="app-rail__item tab" href="#chat" data-tab="chat"><svg {{ ico|safe }}><path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M8 10h8M8 13h5"/></svg><span>Chat</span></a></li>
@@ -170,6 +171,9 @@
 
           <section class="loop-card loop-card--control" id="stage-control" data-stage="control">
             <h2 class="loop-card__title"><span class="loop-card__n">4</span> Control</h2>
+            <label class="hero-check autopilot" title="In a rehearsal: does your part (hopper, bedding, tank, your care tasks, harvest, clearing, the next period) and confirms the robot's jobs one at a time, so the run needs nobody. Everything it does goes into the logbook.">
+              <input type="checkbox" id="chk-autopilot"> Autopilot</label>
+            <p class="note" id="autopilot-status"></p>
             <div class="loop-lanes">
               <div>
                 <h3>Maintenance</h3>
@@ -388,6 +392,30 @@
               <p class="note" id="truth-none">Start the twin to see what only the simulation knows.</p>
             </div>
           </aside>
+        </div>
+      </section>
+
+      <section id="tab-logbook" class="tabpane view" hidden>
+        <div class="app-panel">
+          <h2 class="app-panel__title">Logbook</h2>
+          <p class="app-panel__hint">Everything that happens in the guild, newest first: what you did, what the autopilot did,
+            how the robot's jobs ended, the plants coming up, ripening and lost, and the keeper's notices. With the simulation's
+            own date beside the clock time. It stays on this PC (logbook.jsonl in the guild's folder).</p>
+          <div class="hero-controls logbook-filter" role="group" aria-label="Show">
+            <label class="hero-check"><input type="checkbox" data-who="person" checked> you</label>
+            <label class="hero-check"><input type="checkbox" data-who="autopilot" checked> autopilot</label>
+            <label class="hero-check"><input type="checkbox" data-who="robot" checked> robot</label>
+            <label class="hero-check"><input type="checkbox" data-who="plants" checked> plants</label>
+            <label class="hero-check"><input type="checkbox" data-who="keeper" checked> keeper</label>
+            <label class="hero-check"><input type="checkbox" data-who="edge" checked> edge</label>
+          </div>
+          <div class="logbook-scroll">
+            <table class="logbook">
+              <thead><tr><th>When</th><th>Simulation</th><th>Who</th><th>What</th></tr></thead>
+              <tbody id="logbook-rows"></tbody>
+            </table>
+          </div>
+          <p class="note" id="logbook-empty">Nothing yet.</p>
         </div>
       </section>
 

@@ -1209,5 +1209,22 @@
  "growing period": "Anbau",
  "it dried out": "es ist vertrocknet",
  "too cold to come up": "zu kalt zum Aufgehen",
- "it did not come up": "es ist nicht aufgegangen"
+ "it did not come up": "es ist nicht aufgegangen",
+ "Autopilot": "Autopilot",
+ "Autopilot off: {why}": "Autopilot aus: {why}",
+ "Autopilot on: {n} act(s) so far": "Autopilot an: bisher {n} Handlung(en)",
+ "Everything that happens in the guild, newest first: what you did, what the autopilot did, how the robot's jobs ended, the plants coming up, ripening and lost, and the keeper's notices. With the simulation's own date beside the clock time. It stays on this PC (logbook.jsonl in the guild's folder).": "Alles, was in der Gilde geschieht, das Neueste zuerst: was Sie getan haben, was der Autopilot getan hat, wie die Aufträge des Roboters endeten, die Pflanzen, die aufgehen, reifen und ausfallen, und die Hinweise des Wächters. Mit dem Datum der Simulation neben der Uhrzeit. Es bleibt auf diesem PC (logbook.jsonl im Ordner der Gilde).",
+ "In a rehearsal: does your part (hopper, bedding, tank, your care tasks, harvest, clearing, the next period) and confirms the robot's jobs one at a time, so the run needs nobody. Everything it does goes into the logbook.": "In einer Probe: erledigt Ihren Teil (Trichter, Einstreu, Tank, Ihre Pflegeaufgaben, Ernte, Abräumen, den nächsten Abschnitt) und bestätigt die Aufträge des Roboters einen nach dem anderen, so dass der Lauf niemanden braucht. Alles, was er tut, kommt ins Logbuch.",
+ "Logbook": "Logbuch",
+ "Nothing yet.": "Noch nichts.",
+ "Show": "Zeigen",
+ "What": "Was",
+ "When": "Wann",
+ "Who": "Wer",
+ "autopilot": "Autopilot",
+ "edge": "Edge",
+ "keeper": "Wächter",
+ "plants": "Pflanzen",
+ "the autopilot runs only in a rehearsal": "der Autopilot läuft nur in einer Probe",
+ "The season, from a clean bed": "Die Saison, ab einem leeren Beet"
 }

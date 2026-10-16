@@ -29,6 +29,10 @@ and sync the habitat's A-Box. Without a link it runs the invented CityDemo.
 - `twin_confirm(proposal)`: send one proposed job (`plant-5_13`, `water`,
   `probe`, `photo`). In the chat panel this is a proposal the person confirms.
 - `twin_estop(on)`: hold the gantry now. Always allowed.
+- `twin_autopilot(on)`: in a rehearsal, the autopilot does a person's part and
+  confirms the robot's jobs one at a time, so a run goes on unattended.
+- `logbook(after, who, what, limit)`: who did what and when. To watch a run,
+  use the `permtek5-twin-logbook` skill.
 
 ## Without MCP
 
