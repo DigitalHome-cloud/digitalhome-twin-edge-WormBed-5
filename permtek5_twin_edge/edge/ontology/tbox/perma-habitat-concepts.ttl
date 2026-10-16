@@ -31,7 +31,7 @@ perma:Windy a skos:Concept ; skos:inScheme perma:Exposures ; skos:topConceptOf p
 
 perma:CellStatuses a skos:ConceptScheme ;
     skos:prefLabel "Cell status"@en , "Zellstand"@de , "État de la case"@fr ;
-    skos:hasTopConcept perma:CellPlanned , perma:CellSown , perma:CellGrowing , perma:CellHarvested .
+    skos:hasTopConcept perma:CellPlanned , perma:CellSown , perma:CellGrowing , perma:CellHarvested , perma:CellLost .
 perma:CellPlanned a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
     skos:prefLabel "Planned"@en , "Geplant"@de , "Prévu"@fr .
 perma:CellSown a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
@@ -40,6 +40,30 @@ perma:CellGrowing a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topCo
     skos:prefLabel "Growing"@en , "Wächst"@de , "En croissance"@fr .
 perma:CellHarvested a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
     skos:prefLabel "Harvested"@en , "Geerntet"@de , "Récolté"@fr .
+perma:CellLost a skos:Concept ; skos:inScheme perma:CellStatuses ; skos:topConceptOf perma:CellStatuses ;
+    skos:prefLabel "Lost"@en , "Ausgefallen"@de , "Perdu"@fr ;
+    skos:definition "Did not come up, froze or dried out: the cell is free to sow again (docs/adr/0029)."@en .
+
+perma:PeriodKinds a skos:ConceptScheme ;
+    skos:prefLabel "Kind of period"@en , "Art des Abschnitts"@de , "Type de période"@fr ;
+    skos:hasTopConcept perma:GrowingKind , perma:RestKind .
+perma:GrowingKind a skos:Concept ; skos:inScheme perma:PeriodKinds ; skos:topConceptOf perma:PeriodKinds ;
+    skos:prefLabel "Growing"@en , "Anbau"@de , "Culture"@fr ;
+    skos:definition "From sowing to harvest: the bed is planted with the period's plant sets."@en .
+perma:RestKind a skos:Concept ; skos:inScheme perma:PeriodKinds ; skos:topConceptOf perma:PeriodKinds ;
+    skos:prefLabel "Rest"@en , "Ruhe"@de , "Repos"@fr ;
+    skos:definition "Winter or maintenance: nothing is sown but a cover crop; the worm box goes on in its winter care."@en .
+
+perma:SurfaceCategories a skos:ConceptScheme ;
+    skos:prefLabel "Surface categories"@en , "Flächenarten"@de , "Catégories de surface"@fr ;
+    skos:hasTopConcept perma:RectangleBedSurface , perma:BedFarmSurface .
+perma:RectangleBedSurface a skos:Concept ; skos:inScheme perma:SurfaceCategories ; skos:topConceptOf perma:SurfaceCategories ;
+    skos:prefLabel "Rectangle bed"@en , "Rechteckbeet"@de , "Planche rectangulaire"@fr ;
+    skos:definition "One rectangular bed of square cells, up to 30 m long and 10 m wide; planted by cells (docs/adr/0027)."@en .
+perma:BedFarmSurface a skos:Concept ; skos:inScheme perma:SurfaceCategories ; skos:topConceptOf perma:SurfaceCategories ;
+    skos:prefLabel "Farm of beds"@en , "Beetfeld"@de , "Ensemble de planches"@fr ;
+    skos:definition "Rectangle beds of one size in rows, with paths between them, up to 50 beds; plant sets are shared out over the beds."@en .
+# Greenhouses and food forests come once beds and farms of beds are right (docs/adr/0028).
 
 perma:SubstrateKinds a skos:ConceptScheme ;
     skos:prefLabel "Substrates"@en , "Substrate"@de , "Substrats"@fr ;

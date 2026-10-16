@@ -308,3 +308,47 @@ perma:coverCrop a owl:DatatypeProperty ;
     rdfs:domain perma:Crop ; rdfs:range xsd:boolean ;
     rdfs:label "cover crop"@en , "Gründüngung"@de , "engrais vert"@fr ;
     rdfs:comment "Sown to cover bare soil between and after the crops, then cut and left as mulch. No bare soil: what is not planted is covered."@en .
+
+# ------------------------------------------------------------ plant sets: plants chosen together (docs/adr/0027)
+#
+# A plant set is a composition planned as one: "Kitchen herbs", "Salad bed",
+# "Tomato and friends". It names its crops and the share of the room each gets;
+# packages/core/src/planting.ts (planFromSets) turns one or more sets into a
+# mixed bed, the biggest plants first and the little ones last, and a person
+# fine-tunes it. Not "guild": in this app a guild is a Perma5Guild (bed and robot).
+
+perma:PlantSet a owl:Class ;
+    rdfs:label "Plant set"@en , "Pflanzenset"@de , "Ensemble de plantes"@fr ;
+    rdfs:comment "Crops planned together for a surface, each with its share of the room. Traditional guidance, to confirm by what the bed shows."@en .
+
+perma:SetMember a owl:Class ;
+    rdfs:label "Plant set member"@en , "Teil eines Pflanzensets"@de , "Membre d'un ensemble"@fr ;
+    rdfs:comment "One crop of a plant set and its share."@en .
+
+perma:member a owl:ObjectProperty ;
+    rdfs:domain perma:PlantSet ; rdfs:range perma:SetMember ;
+    rdfs:label "member"@en , "Teil"@de , "membre"@fr .
+
+perma:memberCrop a owl:ObjectProperty ;
+    rdfs:domain perma:SetMember ; rdfs:range perma:Crop ;
+    rdfs:label "crop"@en , "Kultur"@de , "culture"@fr .
+
+perma:share a owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "share"@en , "Anteil"@de , "part"@fr ;
+    rdfs:comment "A relative share of the room (not of the plant count): 2 is twice the area of 1. A set member's share of its set, or a set's share of a growing period (perma:setChoice)."@en .
+
+perma:setFor a owl:ObjectProperty ;
+    rdfs:domain perma:PlantSet ; rdfs:range skos:Concept ;
+    rdfs:label "for surface"@en , "für Fläche"@de , "pour surface"@fr ;
+    rdfs:comment "The surface categories the set is made for (perma:SurfaceCategories)."@en .
+
+perma:rationale a owl:DatatypeProperty ;
+    rdfs:domain perma:PlantSet ; rdfs:range rdfs:Literal ;
+    rdfs:label "rationale"@en , "Begründung"@de , "raisonnement"@fr ;
+    rdfs:comment "Why the set's crops go together and what to watch, in a few sentences: the set's explanation page shows it (docs/adr/0028)."@en .
+
+perma:draft a owl:DatatypeProperty ;
+    rdfs:domain perma:PlantSet ; rdfs:range xsd:boolean ;
+    rdfs:label "draft"@en , "Entwurf"@de , "brouillon"@fr ;
+    rdfs:comment "Proposed (by a person or the edge's agent) and not yet reviewed into the shared library."@en .

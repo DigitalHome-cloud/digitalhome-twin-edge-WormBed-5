@@ -48,6 +48,14 @@ perma:GrowingBed a owl:Class ;
     rdfs:label "Growing bed"@en , "Beet"@de , "Planche de culture"@fr ;
     rdfs:comment "A rectangular bed in a zone, split into square cells (row 0 and column 0 at one corner)."@en .
 
+perma:BedFarm a owl:Class ;
+    rdfs:label "Farm of beds"@en , "Beetfeld"@de , "Ensemble de planches"@fr ;
+    rdfs:comment "Rectangle beds of one size in rows, with paths between them: the surface category perma:BedFarmSurface. Its beds are ordinary growing beds that say perma:inFarm."@en .
+
+perma:GrowingPeriod a owl:Class ;
+    rdfs:label "Growing period"@en , "Anbauabschnitt"@de , "Période de culture"@fr ;
+    rdfs:comment "A stretch of a bed's year, by month: a growing period with its plant sets and its target (the cells that say perma:inPeriod), or a rest. A bed's periods do not overlap; the bed works through them year after year (docs/adr/0029)."@en .
+
 perma:PlantingCell a owl:Class ;
     rdfs:label "Planting cell"@en , "Pflanzzelle"@de , "Case de plantation"@fr ;
     rdfs:comment "Where one plant or sowing point of a bed stands, with its crop and how far it has got."@en .
@@ -149,6 +157,69 @@ perma:wormBinCm a owl:DatatypeProperty ;
     rdfs:label "worm box (cm)"@en , "Wurmkiste (cm)"@de , "lombricomposteur (cm)"@fr ;
     rdfs:comment "Length of the bed's far end (the highest columns) taken by a worm compost box: two bins, the upper one above the soil for the worms, the lower one a sump for the liquid, which a tap lets on to the tank pipes. No cells are planted there."@en .
 
+perma:surfaceCategory a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:label "surface category"@en , "Flächenart"@de , "catégorie de surface"@fr ;
+    rdfs:comment "What kind of surface a bed or farm is (perma:SurfaceCategories). Each category has its own limits and its own planner; a bed without one is a rectangle bed."@en .
+
+perma:inFarm a owl:ObjectProperty ;
+    rdfs:domain perma:GrowingBed ; rdfs:range perma:BedFarm ;
+    rdfs:label "in farm"@en , "im Beetfeld"@de , "dans l'ensemble"@fr .
+
+perma:bedRows a owl:DatatypeProperty ;
+    rdfs:domain perma:BedFarm ; rdfs:range xsd:integer ;
+    rdfs:label "rows of beds"@en , "Beetreihen"@de , "rangs de planches"@fr .
+
+perma:bedsPerRow a owl:DatatypeProperty ;
+    rdfs:domain perma:BedFarm ; rdfs:range xsd:integer ;
+    rdfs:label "beds per row"@en , "Beete je Reihe"@de , "planches par rang"@fr .
+
+perma:pathCm a owl:DatatypeProperty ;
+    rdfs:domain perma:BedFarm ; rdfs:range xsd:integer ;
+    rdfs:label "path (cm)"@en , "Weg (cm)"@de , "allée (cm)"@fr ;
+    rdfs:comment "Width of the paths between the beds."@en .
+
+perma:bedLengthCm a owl:DatatypeProperty ;
+    rdfs:domain perma:BedFarm ; rdfs:range xsd:integer ;
+    rdfs:label "bed length (cm)"@en , "Beetlänge (cm)"@de , "longueur des planches (cm)"@fr .
+
+perma:bedWidthCm a owl:DatatypeProperty ;
+    rdfs:domain perma:BedFarm ; rdfs:range xsd:integer ;
+    rdfs:label "bed width (cm)"@en , "Beetbreite (cm)"@de , "largeur des planches (cm)"@fr .
+
+perma:ofBed a owl:ObjectProperty ;
+    rdfs:domain perma:GrowingPeriod ; rdfs:range perma:GrowingBed ;
+    rdfs:label "of bed"@en , "des Beets"@de , "de la planche"@fr .
+
+perma:fromMonth a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingPeriod ; rdfs:range xsd:integer ;
+    rdfs:label "from month"@en , "ab Monat"@de , "du mois"@fr ;
+    rdfs:comment "The period's first month, 1..12."@en .
+
+perma:toMonth a owl:DatatypeProperty ;
+    rdfs:domain perma:GrowingPeriod ; rdfs:range xsd:integer ;
+    rdfs:label "to month"@en , "bis Monat"@de , "au mois"@fr ;
+    rdfs:comment "The period's last month, 1..12; below perma:fromMonth it lies in the next year (November to February)."@en .
+
+perma:periodKind a owl:ObjectProperty ;
+    rdfs:domain perma:GrowingPeriod ; rdfs:range skos:Concept ;
+    rdfs:label "kind"@en , "Art"@de , "type"@fr ;
+    rdfs:comment "One concept from perma:PeriodKinds: growing or rest."@en .
+
+perma:setChoice a owl:ObjectProperty ;
+    rdfs:domain perma:GrowingPeriod ;
+    rdfs:label "plant set chosen"@en , "gewähltes Pflanzenset"@de , "ensemble choisi"@fr ;
+    rdfs:comment "A plant set the period is planted from, with its share of the room (perma:plantSet, perma:share). A rest period's set is its cover crop."@en .
+
+perma:plantSet a owl:ObjectProperty ;
+    rdfs:range perma:PlantSet ;
+    rdfs:label "plant set"@en , "Pflanzenset"@de , "ensemble de plantes"@fr .
+
+perma:inPeriod a owl:ObjectProperty ;
+    rdfs:domain perma:PlantingCell ; rdfs:range perma:GrowingPeriod ;
+    rdfs:label "in period"@en , "im Abschnitt"@de , "dans la période"@fr ;
+    rdfs:comment "The growing period whose target this cell is. A cell without one belongs to the bed as it stands."@en .
+
 perma:inBed a owl:ObjectProperty ;
     rdfs:domain perma:PlantingCell ; rdfs:range perma:GrowingBed ;
     rdfs:label "in bed"@en , "im Beet"@de , "dans la planche"@fr .
@@ -169,7 +240,7 @@ perma:grows a owl:ObjectProperty ;
 perma:cellStatus a owl:ObjectProperty ;
     rdfs:domain perma:PlantingCell ; rdfs:range skos:Concept ;
     rdfs:label "status"@en , "Stand"@de , "état"@fr ;
-    rdfs:comment "One concept from perma:CellStatuses: planned, sown, growing, harvested."@en .
+    rdfs:comment "One concept from perma:CellStatuses: planned, sown, growing, harvested, lost."@en .
 
 perma:cellSowingDepthMm a owl:DatatypeProperty ;
     rdfs:domain perma:PlantingCell ; rdfs:range xsd:integer ;
