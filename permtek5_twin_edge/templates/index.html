@@ -98,14 +98,26 @@
 
           <section class="loop-card loop-card--prepare" id="stage-prepare" data-stage="prepare">
             <h2 class="loop-card__title"><span class="loop-card__n">1</span> Prepare</h2>
-            <p class="note">Which habitat, which scenario, from which month. Then everything starts in one go.</p>
+            <p class="note">Which habitat and which of its periods, how the bed starts, which scenario. Then everything starts in one go.</p>
             <div class="loop-form">
               <label>Habitat <select id="sel-source" title="The habitat the world is made from"><option value="">CityDemo (invented)</option></select></label>
+              <label id="lbl-period" hidden>Period <select id="sel-period" title="The growing period whose target the twin works towards"></select></label>
+              <label>Start <select id="sel-start" title="How the bed starts: empty, with the target to sow; or with what the habitat says stands in it">
+                <option value="clean">From a clean bed</option><option value="as-is">As the bed stands</option></select></label>
               <label>Scenario <select id="sel-scenario" title="What the run is: a normal year, or a guided walk through one thing"></select></label>
               <label id="lbl-month">Starting month <select id="sel-month" title="The generic year starts on the 1st of this month"></select></label>
               <label class="hero-check" title="Open the Webots 3D window too (otherwise it runs hidden and you watch through the cameras)">
                 <input type="checkbox" id="chk-window"> Webots window</label>
+              <label class="hero-check" id="lbl-sync" hidden title="Fetch the habitat's latest version from the cloud before the world is made">
+                <input type="checkbox" id="chk-sync" checked> Latest from the cloud first</label>
             </div>
+            <div class="target" id="target" hidden>
+              <p class="note target__title" id="target-title"></p>
+              <div class="target__months" id="target-months" aria-label="The bed's year"></div>
+              <div class="target__bed" id="target-bed" role="img" aria-label="The target"></div>
+              <p class="note" id="target-note"></p>
+            </div>
+            <p class="note rehearsal">Rehearsal: what the twin does is never written into your habitat.</p>
             <p class="note" id="scenario-about-pick"></p>
             <div class="hero-controls">
               <button id="btn-go" class="primary">Prepare and start</button>

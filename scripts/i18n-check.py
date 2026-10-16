@@ -35,7 +35,7 @@ sys.path.insert(0, str(ROOT))
 # words the robot and the jobs use that reach the page as they are (app.js: job_(), tr(x.state) ...)
 WORDS = ["feed", "water", "plant", "probe", "photo", "scan", "stamp", "care", "tap", "rest", "topdress", "home", "move",
          "running", "done", "failed", "cancelled", "aborted", "queued", "refused",
-         "ok", "watch", "alarm", "note", "planned", "sown", "growing", "robot", "you"]
+         "ok", "watch", "alarm", "note", "planned", "sown", "growing", "robot", "you", "harvest", "clear", "period", "lost", "harvested"]
 
 
 def from_python():

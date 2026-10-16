@@ -1,0 +1,99 @@
+{
+  "title": "A year of periods",
+  "group": "bed",
+  "about": "The bed's year as the map splits it: a growing period from its target, harvest, the next period with other plant sets, then the rest with its cover crop and the worm box wrapped for winter. A rehearsal: nothing is written into your habitat.",
+  "needs": [
+    "periods",
+    "wormBin"
+  ],
+  "run": {
+    "fresh": true,
+    "seasons": true,
+    "factor": 240,
+    "chaos": 0
+  },
+  "steps": [
+    {
+      "title": "Robot: sow the period's target",
+      "why": "The first period's cells, sown as the weather allows.",
+      "do": {
+        "type": "proposals",
+        "id": "plant-",
+        "label": "Confirm: sow the wave",
+        "max": 60
+      },
+      "expect": [
+        {
+          "read": "count.CellSown",
+          "is": ">=",
+          "value": 1,
+          "say": "sown: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The season grows",
+      "why": "Weeks pass in minutes. Keep confirming what the robot proposes: water, feed, look for weeds.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "ready",
+          "is": ">=",
+          "value": 1,
+          "say": "ready to harvest: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: harvest",
+      "why": "What is ready comes out; the cells are free.",
+      "do": {
+        "type": "proposal",
+        "id": "harvest",
+        "label": "Confirm: I have harvested"
+      },
+      "expect": [
+        {
+          "read": "count.CellHarvested",
+          "is": ">=",
+          "value": 1,
+          "say": "harvested: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The period ends",
+      "why": "When its last month is over, Control asks you to clear what still stands and to move on to the next period.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "proposals.period-",
+          "is": ">=",
+          "value": 1,
+          "say": "next period proposed: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: clear and move on",
+      "why": "What stands comes out, and the next period's target becomes the plan: other plant sets, or the winter rest.",
+      "do": {
+        "type": "proposal",
+        "id": "period-",
+        "label": "Confirm: move on"
+      },
+      "expect": [
+        {
+          "read": "count.CellHarvested",
+          "is": "==",
+          "value": 0,
+          "say": "old cells left: {v}"
+        }
+      ]
+    }
+  ]
+}

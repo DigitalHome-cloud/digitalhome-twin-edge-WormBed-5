@@ -152,6 +152,11 @@ class Environment:
         mean, swing = (self.mean_c, self.swing_c) if self.start is None else (self._year(0), self._year(1))
         return mean + swing * daily + self._drift() + self.effect("airOffsetC")
 
+    def day_mean_c(self):
+        """Today's mean air temperature, without the day's swing: what a plant's growth goes by."""
+        mean = self.mean_c if self.start is None else self._year(0)
+        return mean + self._drift() + self.effect("airOffsetC")
+
     def rain_mm_h(self):
         # a shower in about one hour of twenty, the same hours for the same seed
         slot = int(self.minutes // 60)
@@ -183,6 +188,6 @@ class Environment:
         seasons = {} if self.start is None else {"date": self.date.isoformat(), "month": self.date.month, "season": SEASONS[self.date.month]}
         return {"day": self.day, "hour": round(self.hour, 2), "clock": self.clock(), "factor": self.factor, **seasons,
                 "sunrise": round(rise, 2), "sunset": round(sets, 2), "night": not (rise < self.hour < sets),
-                "airC": round(self.air_c(), 1), "sun": round(self.sun(), 2), "rainMmH": round(self.rain_mm_h(), 1),
+                "airC": round(self.air_c(), 1), "meanC": round(self.day_mean_c(), 1), "sun": round(self.sun(), 2), "rainMmH": round(self.rain_mm_h(), 1),
                 "windMs": round(self.wind_ms(), 1), "chaosRate": self.chaos_rate,
                 "disturbances": [{"id": k, "title": a["title"], "leftMin": round(a["left"])} for k, a in self.active.items()]}

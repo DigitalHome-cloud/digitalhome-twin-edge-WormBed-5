@@ -20,7 +20,7 @@
           "world",
           "webots"
         ],
-        "note": "The habitat you map in PermTek-5 syncs to this PC. Its bed, cells and crops become a Webots world; nothing is drawn by hand."
+        "note": "The habitat you map in PermTek-5 syncs here. One period's target becomes a Webots world, from a clean bed or as it stands."
       },
       {
         "id": "confirm",
@@ -47,14 +47,14 @@
       },
       {
         "id": "back",
-        "label": "Back to the map",
+        "label": "A rehearsal",
         "focus": [
           "page",
+          "driver",
           "knowledge",
-          "abox",
           "map"
         ],
-        "note": "A sown cell is written into the habitat's copy, checked with the cloud's shapes, and the next sync shows it on the map."
+        "note": "Plants come up, grow or are lost; you harvest and move on. Nothing is written back: the map keeps what a person planned."
       },
       {
         "id": "films",
@@ -75,7 +75,7 @@
       "id": "map",
       "type": "frontend",
       "label": "PermTek-5 map",
-      "sublabel": "beds · cells · crops",
+      "sublabel": "beds · periods · targets",
       "pos": [
         60,
         60
@@ -216,7 +216,7 @@
       "id": "driver",
       "type": "backend",
       "label": "Gantry driver",
-      "sublabel": "axes · cameras · bed",
+      "sublabel": "axes · cameras · plants",
       "pos": [
         960,
         300
@@ -298,7 +298,7 @@
       "id": "cells",
       "from": "knowledge",
       "to": "world",
-      "label": "cells",
+      "label": "target",
       "variant": "emphasis"
     },
     {
@@ -356,18 +356,6 @@
       "label": "moves"
     },
     {
-      "id": "sown",
-      "from": "page",
-      "to": "knowledge",
-      "label": "sown cells",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "labelAt": [
-        440,
-        212
-      ]
-    },
-    {
       "id": "sameshapes",
       "from": "assets",
       "to": "film",
@@ -400,9 +388,9 @@
       "dot": "emerald",
       "title": "The loop",
       "items": [
-        "Map the bed in PermTek-5; it syncs here",
-        "Prepare, run, observe, control: the Loop screen",
-        "What was sown goes back to the map"
+        "Plan the bed's periods and targets in PermTek-5; it syncs here",
+        "Prepare from a target, run, observe, control: the Loop screen",
+        "A rehearsal: nothing the twin does goes back to the map"
       ]
     },
     {

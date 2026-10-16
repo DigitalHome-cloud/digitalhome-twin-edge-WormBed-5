@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from rdflib import Graph, Namespace, URIRef
+from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import RDF, RDFS
 
 PERMA = Namespace("https://permaculture.digitalhome.cloud/ontology#")
@@ -43,6 +43,11 @@ class Crop:
     seeds_per_point: Optional[int] = None
     germination_days: Optional[int] = None
     water_mm_per_week: Optional[float] = None
+    # how a plant lives in the twin (plants.py): ready after so many days, sown from this soil warmth, killed by frost
+    days_to_harvest: Optional[int] = None
+    sow_min_temp_c: Optional[float] = None
+    frost_tender: bool = False
+    perennial: bool = False
 
     def name(self, lang: str = "en") -> str:
         return self.names.get(lang) or self.names.get("en") or self.id
@@ -121,10 +126,34 @@ class Cell:
     row: int
     col: int
     crop_id: str
-    status: str                       # CellPlanned | CellSown | CellGrowing | CellHarvested
+    status: str                       # CellPlanned | CellSown | CellGrowing | CellHarvested | CellLost
     sown_on: Optional[str] = None
     depth_mm: Optional[int] = None
     seeds: Optional[int] = None
+    period_id: Optional[str] = None   # the growing period whose target it is (PermTek-5 ADR 0029); none: the bed as it stands
+
+
+@dataclass
+class Period:
+    """A stretch of a bed's year by month (PermTek-5 ADR 0029): growing, from its plant sets, or rest."""
+    id: str
+    bed_id: str
+    name: str
+    kind: str                         # GrowingKind | RestKind
+    from_month: int
+    to_month: int
+    sets: List[Dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def months(self) -> List[int]:
+        """Its months in order, over New Year when it ends before it starts."""
+        out, m = [], self.from_month
+        for _ in range(12):
+            out.append(m)
+            if m == self.to_month:
+                break
+            m = m % 12 + 1
+        return out
 
 
 @dataclass
@@ -181,6 +210,7 @@ class Habitat:
     catchments: List[RainCatchment] = field(default_factory=list)
     stores: List[WaterStore] = field(default_factory=list)
     valves: List[Valve] = field(default_factory=list)
+    periods: List[Period] = field(default_factory=list)
     #: what the habitat is learning (PermTek-5 ADR 0026), per guild: its cycles with their measures, as plain data
     learning: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
 
@@ -209,6 +239,10 @@ def load_library(path: Path = LIBRARY) -> Dict[str, Crop]:
             seeds_per_point=_num(g, c, "seedsPerPoint", int),
             germination_days=_num(g, c, "germinationDays", int),
             water_mm_per_week=_num(g, c, "waterMmPerWeek", float),
+            days_to_harvest=_num(g, c, "daysToHarvest", int),
+            sow_min_temp_c=_num(g, c, "sowMinTempC", float),
+            frost_tender=bool((g.value(c, PERMA.frostTender) or Literal(False)).toPython()),
+            perennial=any(_local(o) == "Perennial" for n in g.objects(c, PERMA.seedSaving) for o in g.objects(n, PERMA.lifeCycle)),
         )
     return out
 
@@ -239,7 +273,14 @@ def load(ttl: str) -> Habitat:
         h.cells.append(Cell(str(s), str(g.value(s, PERMA.inBed) or ""), _num(g, s, "row", int) or 0,
                             _num(g, s, "col", int) or 0, crop(s), _local(g.value(s, PERMA.cellStatus)) or "CellPlanned",
                             str(sown) if sown is not None else None,
-                            _num(g, s, "cellSowingDepthMm", int), _num(g, s, "cellSeedsPerPoint", int)))
+                            _num(g, s, "cellSowingDepthMm", int), _num(g, s, "cellSeedsPerPoint", int),
+                            str(g.value(s, PERMA.inPeriod)) if g.value(s, PERMA.inPeriod) is not None else None))
+    for s in sorted(g.subjects(RDF.type, PERMA.GrowingPeriod)):
+        choices = sorted(g.objects(s, PERMA.setChoice), key=lambda n: str(n))
+        h.periods.append(Period(str(s), str(g.value(s, PERMA.ofBed) or ""), label(s), _local(g.value(s, PERMA.periodKind)) or "GrowingKind",
+                                _num(g, s, "fromMonth", int) or 1, _num(g, s, "toMonth", int) or 12,
+                                [{"setId": str(g.value(n, PERMA.plantSet) or "").removeprefix(CROP_IRI), "share": _num(g, n, "share") or 1.0}
+                                 for n in choices]))
     for s in sorted(g.subjects(RDF.type, PERMA.GardenPlant)):
         h.plants.append(GardenPlant(str(s), label(s), str(g.value(s, PERMA.inZone) or ""), crop(s),
                                     _num(g, s, "xM"), _num(g, s, "yM")))
@@ -433,22 +474,58 @@ def as_wormbed5(h: Habitat, bed: Bed) -> List[str]:
     return assumed
 
 
-def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop]) -> Dict[str, Any]:
-    """Everything the ROS side needs about one bed, as plain data (it reads no Turtle)."""
-    cells = []
-    for c in h.cells:
-        if c.bed_id != bed.id:
-            continue
-        crop = library.get(c.crop_id)
-        cells.append({
-            "id": c.id, "row": c.row, "col": c.col, "crop": c.crop_id,
-            "cropName": crop.name() if crop else c.crop_id, "cropNames": dict(crop.names) if crop else {}, "status": c.status, "sownOn": c.sown_on,
-            "job": sowing_job(h, c, library),
-            "waterMlPerDay": water_ml_per_day(crop, bed) if crop else 0,
-            "rgb": [round(v, 3) for v in crop_rgb(c.crop_id)],
-        })
+def periods_of(h: Habitat, bed_id: str) -> List[Period]:
+    """A bed's periods, by their first month."""
+    return sorted((p for p in h.periods if p.bed_id == bed_id), key=lambda p: p.from_month)
+
+
+def period_at(h: Habitat, bed_id: str, month: int) -> Optional[Period]:
+    """The period a month (1..12) of the bed's year lies in."""
+    return next((p for p in periods_of(h, bed_id) if month in p.months), None)
+
+
+def _cell_config(h: Habitat, bed: Bed, c: Cell, library: Dict[str, Crop], clean: bool) -> Dict[str, Any]:
+    crop = library.get(c.crop_id)
+    return {
+        "id": c.id, "row": c.row, "col": c.col, "crop": c.crop_id,
+        "cropName": crop.name() if crop else c.crop_id, "cropNames": dict(crop.names) if crop else {},
+        # a clean start: the target, nothing sown yet (a rehearsal from an empty bed)
+        "status": "CellPlanned" if clean else c.status, "sownOn": None if clean else c.sown_on,
+        "job": sowing_job(h, c, library),
+        "waterMlPerDay": water_ml_per_day(crop, bed) if crop else 0,
+        "rgb": [round(v, 3) for v in crop_rgb(c.crop_id)],
+    }
+
+
+def bed_config(h: Habitat, bed: Bed, library: Dict[str, Crop], period: Optional[str] = None, start: str = "as-is",
+               month: Optional[int] = None) -> Dict[str, Any]:
+    """Everything the ROS side needs about one bed, as plain data (it reads no Turtle).
+
+    `period` is the growing period whose target the twin works towards (PermTek-5 ADR 0029): its id, "" for the
+    bed as it stands (cells of no period), or None for the one `month` lies in (else as it stands). `start` is
+    "clean" (every target cell planned, nothing sown: the twin rehearses getting there) or "as-is" (the statuses
+    the habitat says). Every period's target goes along, so the twin can move on to the next period."""
+    periods = periods_of(h, bed.id)
+    chosen = next((p for p in periods if p.id == period), None) if period else (
+        period_at(h, bed.id, month) if period is None and month else None)
+    clean = start == "clean"
+    cells = [_cell_config(h, bed, c, library, clean) for c in h.cells
+             if c.bed_id == bed.id and (c.period_id or "") == (chosen.id if chosen else "")]
+    targets = {p.id: [_cell_config(h, bed, c, library, True) for c in h.cells if c.bed_id == bed.id and c.period_id == p.id]
+               for p in periods}
+    used = {c["crop"] for c in cells} | {c["crop"] for t in targets.values() for c in t}
+    crops = {cid: {"germinationDays": library[cid].germination_days, "daysToHarvest": library[cid].days_to_harvest,
+                   "sowMinTempC": library[cid].sow_min_temp_c, "frostTender": library[cid].frost_tender,
+                   "perennial": library[cid].perennial}
+             for cid in sorted(used) if cid in library}
+    plain = lambda p: {"id": p.id, "name": p.name, "kind": p.kind, "fromMonth": p.from_month, "toMonth": p.to_month,  # noqa: E731
+                       "months": p.months, "sets": p.sets}
     guild = next((g for g in h.guilds if g.id == bed.guild_id), None)
     return {"bed": {**asdict(bed), "rows": bed.rows, "cols": bed.cols}, "cells": cells,
+            "periods": [plain(p) for p in periods], "period": plain(chosen) if chosen else None, "targets": targets,
+            "start": "clean" if clean else "as-is", "crops": crops,
+            # a rehearsal: what the twin does is never written into the habitat (PermTek-5 ADR 0029)
+            "rehearsal": True,
             "guild": ({"id": guild.id, "name": guild.name, "type": guild.type, "robot": guild.robot,
                        "robotName": guild.robot_name, "wormsMayLeave": guild.worms_may_leave} if guild else None),
             "tank": {"pipes": bed.tank_pipes, "pipeMm": bed.tank_pipe_mm, "litres": bed.tank_litres},

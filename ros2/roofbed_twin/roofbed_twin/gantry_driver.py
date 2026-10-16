@@ -32,8 +32,13 @@ and the bed itself, which the simulation has to play (a real bed just is):
                                          gets a day's eating (counted as the robot's feeding, so the feeder sees it), bedding
                                          or water when it needs them, and the finished compost goes out when it is full
                                        what a person did at the worm box
+                                     {"op": "harvest", "ready": true | "cells": [[row, col], ...]}  a person harvested and cleared
+                                     {"op": "clear"}  everything standing comes out (a period ends)
+                                     {"op": "plan", "cells": [{"row", "col", "crop"}, ...]}  the next period's target
+                                       (PermTek-5 ADR 0029): harvested and lost cells make way, live plants stay
 
-A sown cell gets a seedling in the world. Soil moisture is a simple number per
+A sown cell gets a seedling in the world; it comes up, grows and ripens, or is lost
+(plants.py), and the seedling grows with it. Soil moisture is a simple number per
 cell (percent): watering and rain raise it; sun, warmth and wind lower it
 (environment.py: a clock that runs faster than the wall, a day and a night,
 weather, and disturbances laid over it). With tank pipes under the
@@ -64,6 +69,7 @@ from .spin import Drain
 from .water import WaterSystem
 from .wormbox import FULL_G, Sensors, WormBox
 from .soil import SoilLife
+from .plants import Plants
 
 CAMERAS = ("tool_camera", "overview_camera")
 CAMERA_EVERY_MS = 200
@@ -120,6 +126,21 @@ class GantryDriver:
         self.cells = {f'{c["row"]}_{c["col"]}': {"status": c["status"], "crop": c["crop"], "moisture": MOISTURE_START}
                       for c in self.cfg["cells"]}
         self.rgb = {c["crop"]: c.get("rgb", [0.3, 0.6, 0.3]) for c in self.cfg["cells"]}
+        for target in (self.cfg.get("targets") or {}).values():
+            self.rgb.update({c["crop"]: c.get("rgb", [0.3, 0.6, 0.3]) for c in target})
+        # the plants grow (plants.py): what stands when the run begins counts as up, a sowing as just sown
+        self.plants = Plants(self.cfg.get("crops"), int(os.environ.get("PERMTEK5_TWIN_SEED", "5")))
+        for c in self.cfg["cells"]:
+            key = f'{c["row"]}_{c["col"]}'
+            if c["status"] == "CellGrowing":
+                self.plants.grown(key, c["crop"])
+            elif c["status"] == "CellSown":
+                self.plants.sow(key, c["crop"])
+        self.growth_shown = {}
+        # how wide each cell's plant grows (its spacing); a plant the world was built with keeps its mesh
+        self.spacing_m = {f'{c["row"]}_{c["col"]}': (c.get("job") or {}).get("spacingMm", 100) / 1000.0
+                          for t in [self.cfg["cells"], *(self.cfg.get("targets") or {}).values()] for c in t}
+        self.built = {f'{c["row"]}_{c["col"]}' for c in self.cfg["cells"] if c["status"] in ("CellSown", "CellGrowing")}
         self.elapsed_ms = 0
         tank = self.cfg.get("tank") or {}
         self.tank_cap = float(tank.get("litres") or 0)
@@ -255,6 +276,32 @@ class GantryDriver:
                 self.env.chaos_pool = [(p["id"], p.get("title"), dict(p.get("effect") or {}), float(p.get("minutes", 60)))
                                        for p in e.get("pool") or []]
                 return
+            if op in ("harvest", "clear"):                    # a person harvested (what is ready, or the cells named) or cleared all
+                if op == "clear":
+                    keys = [k for k, c in self.cells.items() if c["status"] in ("CellSown", "CellGrowing", "CellLost")]
+                elif e.get("ready"):
+                    keys = [k for k in self.cells if self.plants.state(k).get("ready")]
+                else:
+                    keys = [f"{int(r)}_{int(c)}" for r, c in e.get("cells") or []]
+                for k in keys:
+                    if k in self.cells and self.cells[k]["status"] != "CellPlanned":
+                        self.cells[k]["status"] = "CellHarvested"
+                        self.plants.drop(k)
+                        self.unplant(k)
+                return
+            if op == "plan":                                  # the next period's target: what has gone makes way
+                for k in [k for k, c in self.cells.items() if c["status"] in ("CellHarvested", "CellLost", "CellPlanned")]:
+                    self.unplant(k)
+                    del self.cells[k]
+                for t in e.get("cells") or []:
+                    k = f'{int(t["row"])}_{int(t["col"])}'
+                    if k not in self.cells:
+                        self.cells[k] = {"status": "CellPlanned", "crop": str(t.get("crop", "")), "moisture": MOISTURE_START}
+                        if t.get("rgb"):
+                            self.rgb[str(t.get("crop", ""))] = t["rgb"]
+                        if t.get("spacingMm"):
+                            self.spacing_m[k] = float(t["spacingMm"]) / 1000.0
+                return
             if op == "dry":                                   # a scenario's hot, dry days in one go
                 for c in self.cells.values():             # by so many percent, or down to a level whatever it was
                     c["moisture"] = max(5.0, c["moisture"] - float(e.get("percent", 0)))
@@ -377,7 +424,33 @@ class GantryDriver:
         elif e.get("op") == "sow":
             c["crop"] = e.get("crop") or c["crop"]
             c["status"] = "CellSown"
+            self.plants.sow(f"{row}_{col}", c["crop"])
+            self.growth_shown.pop(f"{row}_{col}", None)
+            self.built.discard(f"{row}_{col}")
             self.seedling(row, col, c["crop"])
+
+    def unplant(self, key):
+        """The plant at a cell leaves the world (harvested, cleared or lost)."""
+        node = self.robot.getFromDef(f"CELL_{key}")
+        if node is not None:
+            node.remove()
+        self.growth_shown.pop(key, None)
+        self.built.discard(key)
+
+    def show_growth(self, key):
+        """The seedling's mesh grows with the plant: about 2.5 cm across when it comes up, some 10 cm when ready."""
+        if key in self.built:
+            return
+        g = min(1.0, self.plants.state(key).get("growth", 0.0))
+        if abs(g - self.growth_shown.get(key, -1.0)) < 0.05:
+            return
+        node = self.robot.getFromDef(f"CELL_{key}")
+        if node is None or not self.cfg["world"].get("seedlingMesh"):
+            return
+        full = max(0.2, self.spacing_m.get(key, 0.1) * 0.38) / 0.1      # the meshes are modelled 0.2 m across
+        scale = 0.12 + (full - 0.12) * g
+        node.getField("children").getMFNode(0).getField("scale").setSFVec3f([scale, scale, scale])
+        self.growth_shown[key] = g
 
     def seedling(self, row, col, crop):
         old = self.robot.getFromDef(f"CELL_{row}_{col}")
@@ -621,6 +694,12 @@ class GantryDriver:
                 if wicking and c["status"] != "CellPlanned" and c["moisture"] < WICK_TO:
                     c["moisture"] = min(WICK_TO, c["moisture"] + WICK_GAIN_PER_MIN * dmin)
                     self.tank_l = max(0.0, self.tank_l - WICK_L_PER_CELL_MIN * dmin)
+            for key in self.plants.step(self.cells, dmin, env.day_mean_c(), env.air_c()):
+                if self.cells[key]["status"] == "CellLost":
+                    self.unplant(key)
+            for key, c in self.cells.items():
+                if c["status"] == "CellGrowing":
+                    self.show_growth(key)
             if self.tank_cap > 0:
                 self.tank_l -= env.effect("tankLeakLPerMin") * dmin
                 self.tank_l += rain_mm * self.bed_m2 * RAIN_TO_TANK              # 1 mm on 1 m² is a litre
@@ -661,5 +740,5 @@ class GantryDriver:
                 "hopper": {"grams": round(self.hopper_g), "jammed": env.flag("hopperJam"), "brownsGrams": round(self.hopper_browns_g),
                            "mix": {k: round(g) for k, g in self.hopper_mix.items() if g >= 0.5}},
                 "cells": {k: {"status": c["status"], "crop": c["crop"], "moisture": round(c["moisture"], 1),
-                              "compostG": round(c.get("compostG", 0.0))}
+                              "compostG": round(c.get("compostG", 0.0)), **self.plants.state(k)}
                           for k, c in self.cells.items()}})))

@@ -139,8 +139,9 @@ def test_only_the_two_cameras_exist(client, monkeypatch):
     assert client.get("/api/twin/camera/tool.jpg").status_code == 503      # no simulation: no pictures
 
 
-def test_a_synced_habitat_is_the_source_and_gets_the_sowing_written_back(client, twin):
-    """Prepared from an area this edge holds: a finished sowing lands in that area's A-Box."""
+def test_a_synced_habitat_is_the_source_and_a_rehearsal_writes_nothing_back(client, twin):
+    """Prepared from an area this edge holds, from a clean bed: a finished sowing stays in the twin; the area's
+    A-Box is not changed (PermTek-5 ADR 0029: the Map holds the target, the twin rehearses)."""
     from rdflib.namespace import RDF
     from permtek5_twin_edge import habitat as hb
     from permtek5_twin_edge.edge import knowledge as kn
@@ -151,14 +152,18 @@ def test_a_synced_habitat_is_the_source_and_gets_the_sowing_written_back(client,
     assert client.post("/api/twin/prepare", json={"graph": "shared"}).status_code == 200
     t = client.get("/api/twin").get_json()
     assert t["source"] == "shared" and t["habitats"] == [{"graph": "shared", "beds": 1, "cells": 28}] and t["recorded"] == []
+    assert t["rehearsal"] is True and {c["status"] for c in t["config"]["cells"]} == {"CellPlanned"}, "a clean start: the whole target to sow"
+    before = kn.KnowledgeBase().load("shared").serialize(format="nt")
     state["twin"]["history"] = [{"id": "j9", "kind": "plant", "state": "done", "result": {"sown": True},
                                  "spec": {"row": 5, "col": 13, "crop": "crop-rocket"}}]
-    assert len(client.get("/api/twin").get_json()["recorded"]) == 1
-    assert client.get("/api/twin").get_json()["recorded"] == []            # once
-    g = kn.KnowledgeBase().load("shared")
-    sown = [c for c in g.subjects(RDF.type, hb.PERMA.PlantingCell)
-            if int(g.value(c, hb.PERMA.row)) == 5 and int(g.value(c, hb.PERMA.col)) == 13]
-    assert g.value(sown[0], hb.PERMA.cellStatus) == hb.PERMA.CellSown and g.value(sown[0], hb.PERMA.sownOn) is not None
+    assert client.get("/api/twin").get_json()["recorded"] == []
+    after = kn.KnowledgeBase().load("shared")
+    assert sorted(before.splitlines()) == sorted(after.serialize(format="nt").splitlines()), "nothing written into the habitat"
+    sown = [c for c in after.subjects(RDF.type, hb.PERMA.PlantingCell)
+            if int(after.value(c, hb.PERMA.row)) == 5 and int(after.value(c, hb.PERMA.col)) == 13]
+    assert after.value(sown[0], hb.PERMA.cellStatus) == hb.PERMA.CellPlanned
+    target = client.get("/api/twin/target?graph=shared").get_json()
+    assert target["bed"]["name"] and len(target["cells"]) == 28 and target["periods"] == []
 
 
 def test_how_it_works_is_served_and_the_shell_links_it(client):

@@ -1,0 +1,131 @@
+{
+  "title": "The bed: from clean to target",
+  "group": "bed",
+  "about": "A rehearsal of one growing period, from an empty bed to its target on the map: the robot sows what the period plans, the seeds come up or do not, the gaps are sown again, the plants grow with the season, and you harvest what is ready. Nothing is written into your habitat.",
+  "needs": [
+    "target"
+  ],
+  "run": {
+    "fresh": true,
+    "seasons": true,
+    "factor": 120,
+    "chaos": 0
+  },
+  "steps": [
+    {
+      "title": "A clean bed",
+      "why": "Every cell of the period's target is planned and nothing stands yet. The clock starts at the period's first month. A crop that needs warmer soil than the day gives waits: the page says so under Notices.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "count.CellPlanned",
+          "is": ">=",
+          "value": 1,
+          "say": "cells to sow: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: the first sowing wave",
+      "why": "The gantry sows every cell it can sow today, one after another: each is still a job you started. Cells whose crop waits for warmer days stay planned.",
+      "do": {
+        "type": "proposals",
+        "id": "plant-",
+        "label": "Confirm: sow the wave",
+        "max": 60
+      },
+      "expect": [
+        {
+          "read": "count.CellSown",
+          "is": ">=",
+          "value": 1,
+          "say": "sown: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The seeds come up",
+      "why": "Each crop needs its days, counted only on days warm and moist enough. Some sowings never come up: they are lost, and the cell is free to sow again.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "count.CellGrowing",
+          "is": ">=",
+          "value": 1,
+          "say": "come up: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: a picture of what came up",
+      "why": "The tool camera looks at every planted cell. What did not come up shows as an empty cell.",
+      "do": {
+        "type": "proposal",
+        "id": "photo",
+        "label": "Confirm: photograph the bed"
+      },
+      "expect": [
+        {
+          "read": "last.photo.state",
+          "is": "==",
+          "value": "done",
+          "say": "photos: {v}"
+        }
+      ]
+    },
+    {
+      "title": "Robot: sow the gaps again",
+      "why": "A lost cell is proposed again while its crop can still be sown. If none was lost, there is nothing to do here.",
+      "do": {
+        "type": "proposals",
+        "id": "plant-",
+        "label": "Confirm: sow the gaps",
+        "max": 60
+      },
+      "expect": [
+        {
+          "read": "count.CellPlanned",
+          "is": "==",
+          "value": 0,
+          "say": "still planned: {v}"
+        }
+      ]
+    },
+    {
+      "title": "The plants grow",
+      "why": "The clock runs fast: a month in a few minutes. The plants grow faster when it is warm; each crop is ready after its days to harvest. Watering, feeding the worms and looking for weeds go on as in any week.",
+      "do": {
+        "type": "none"
+      },
+      "expect": [
+        {
+          "read": "ready",
+          "is": ">=",
+          "value": 1,
+          "say": "ready to harvest: {v}"
+        }
+      ]
+    },
+    {
+      "title": "You: harvest what is ready",
+      "why": "The gantry cannot pick. When its photos show plants grown, it asks you; confirm once you have harvested, and the cells are free.",
+      "do": {
+        "type": "proposal",
+        "id": "harvest",
+        "label": "Confirm: I have harvested"
+      },
+      "expect": [
+        {
+          "read": "count.CellHarvested",
+          "is": ">=",
+          "value": 1,
+          "say": "harvested: {v}"
+        }
+      ]
+    }
+  ]
+}

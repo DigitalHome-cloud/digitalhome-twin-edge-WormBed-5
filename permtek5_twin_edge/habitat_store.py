@@ -82,7 +82,8 @@ def mark_sown(graph: str, bed_id: str, row: int, col: int, crop_id: str,
 
 def plan_cells(graph: str, plans: List[Dict[str, Any]], kb: Optional[kn.KnowledgeBase] = None) -> int:
     """Write a planting the cloud's planner proposed and a person confirmed (docs/adr/0027 in PermTek-5): each
-    plan's cells, "planned", into its bed. A cell where one already stands is skipped. Returns the cells written.
+    plan's cells, "planned", into its bed, and into its growing period when the plan names one (ADR 0029). A cell
+    where the same crop already stands in that period is skipped. Returns the cells written.
     Raises knowledge.Invalid if the shapes refuse it."""
     kb = kb or kn.KnowledgeBase()
     P = hb.PERMA
@@ -93,8 +94,12 @@ def plan_cells(graph: str, plans: List[Dict[str, Any]], kb: Optional[kn.Knowledg
             bed = URIRef(str(plan["bedId"]))
             if (bed, RDF.type, P.GrowingBed) not in g:
                 raise ValueError(f"no bed {bed} in '{graph}'")
+            period = URIRef(str(plan["periodId"])) if plan.get("periodId") else None
+            if period is not None and (period, P.ofBed, bed) not in g:
+                raise ValueError(f"no period {period} of bed {bed} in '{graph}'")
             taken = {(int(g.value(c, P.row)), int(g.value(c, P.col)), str(g.value(c, P.grows)))
-                     for c in g.subjects(P.inBed, bed) if g.value(c, P.row) is not None and g.value(c, P.col) is not None}
+                     for c in g.subjects(P.inBed, bed) if g.value(c, P.row) is not None and g.value(c, P.col) is not None
+                     and g.value(c, P.inPeriod) == period}
             for c in plan.get("cells") or []:
                 row, col, crop = int(c["row"]), int(c["col"]), str(c["cropId"])
                 if (row, col, hb.CROP_IRI + crop) in taken:
@@ -103,6 +108,8 @@ def plan_cells(graph: str, plans: List[Dict[str, Any]], kb: Optional[kn.Knowledg
                 for t in ((RDF.type, P.PlantingCell), (P.inBed, bed), (P.row, Literal(row)), (P.col, Literal(col)),
                           (P.grows, URIRef(hb.CROP_IRI + crop)), (P.cellStatus, P.CellPlanned)):
                     g.add((cell, *t))
+                if period is not None:
+                    g.add((cell, P.inPeriod, period))
                 n += 1
         return n
 

@@ -187,6 +187,26 @@ goes straight to the app, e.g. `./run.sh --no-update-check`.
   world, Webots, the gantry connected, the cameras. If the start fails or
   hangs, it says why from the simulation's log, and offers to start without
   the Webots window.
+  - **The target first** (PermTek-5 ADR 0029): the PermTek-5 Map holds what
+    the bed should become, in **periods** (growing periods, each with its plant
+    sets, and a rest for winter).
+    - Prepare shows the bed's year and the chosen period's cells before the
+      world is made.
+    - **Latest from the cloud first** syncs before the world is made.
+    - **Start** is *From a clean bed* (the whole target to sow, the clock at
+      the period's first month) or *As the bed stands*.
+  - **A rehearsal:** what the twin does is never written back into the
+    habitat. The space shows only what a person planned.
+  - **Plants live** (`ros2/roofbed_twin/roofbed_twin/plants.py`):
+    - they come up after their days on warm, moist days, or are lost;
+    - they grow with the warmth, and are ready after their days to harvest;
+    - frost and drought kill them.
+  - **What the robot proposes:** it sows only what the period plans, when it
+    is warm enough, and resows what was lost.
+  - **What you do:** you harvest what is ready, and at the period's end you
+    clear the bed and move on to the next period.
+  - **Scenarios come in two groups:** the bed, from clean to target, or a year
+    of periods; and the guild's care and its worm box.
 - **Run.** The simulated day and night, the date and season, and the weather.
   The clock runs at 1 to 120 minutes a second, or stands paused.
   **A normal year** (`scenarios/normal-year.json`) runs through a generic

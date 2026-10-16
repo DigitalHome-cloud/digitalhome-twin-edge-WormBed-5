@@ -258,6 +258,9 @@ h4 { margin: var(--app-space-3) 0 0; font-size: 0.875rem; }
 .cell { display: inline-block; width: 1.15rem; height: 1.15rem; background: var(--app-bg-sunken); box-sizing: border-box; }
 .cell.planned { background: repeating-linear-gradient(45deg, var(--app-bg-sunken) 0 3px, var(--app-text-muted) 3px 4px); }
 .cell.sown { box-shadow: inset 0 0 0 5px var(--app-bg-sunken); }
+.cell.lost { background: repeating-linear-gradient(-45deg, var(--app-bg-sunken) 0 3px, #b4553c 3px 4px); }
+.cell.harvested { opacity: 0.35; }
+.cell.ready { outline: 2px solid #d9a300; outline-offset: -2px; }
 .cell.harvested { opacity: .35; }
 .cell.head { outline: 2px solid var(--app-text); outline-offset: -2px; }
 .legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--app-space-3); }
@@ -491,3 +494,16 @@ button.op-tile:focus-visible { outline: 2px solid var(--app-accent); outline-off
   .loop-card--chaos .loop-form label { justify-items: start; }
 }
 @media (prefers-reduced-motion: reduce) { .ready-steps li.ready-step--now::before { animation: none; } }
+
+/* The target a world would be made for (PermTek-5 ADR 0029): the bed's year and the period's cells */
+.target { display: grid; gap: 0.4rem; margin: 0.5rem 0; }
+.target__title { margin: 0; font-weight: 600; }
+.target__months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; font-size: 0.7rem; }
+.target__month { text-align: center; padding: 0.15rem 0; border-radius: 3px; background: var(--app-bg-sunken); color: var(--app-text-muted); overflow: hidden; }
+.target__month--GrowingKind { background: color-mix(in srgb, var(--app-accent) 30%, transparent); color: var(--app-text); }
+.target__month--RestKind { background: color-mix(in srgb, var(--app-text-muted) 25%, transparent); color: var(--app-text); }
+.target__month--on { outline: 2px solid var(--app-accent); outline-offset: -2px; font-weight: 600; }
+.target__bed { display: grid; gap: 1px; overflow-x: auto; max-width: 100%; }
+.target__cell { width: 0.55rem; height: 0.55rem; background: var(--app-bg-sunken); border-radius: 1px; }
+.target__cell--bin { background: color-mix(in srgb, #8a6a4a 45%, transparent); }
+.rehearsal { font-style: italic; }

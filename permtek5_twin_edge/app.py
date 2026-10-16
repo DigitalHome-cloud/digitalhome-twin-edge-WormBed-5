@@ -25,6 +25,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from typing import Dict, Optional
 
 from flask import Response, abort, jsonify, render_template, request, send_file
 
@@ -323,17 +324,29 @@ def _twin_state() -> dict:
         _follow_care(cfg, bed, twin, out, kept)
         _follow_window(bed, out)
     recorded = []
-    if cfg and src.get("graph") and twin.get("history"):
-        # What the gantry sowed goes into the habitat it was prepared from; the next sync takes it to the cloud.
+    # A rehearsal (PermTek-5 ADR 0029) writes nothing into the habitat: what the twin does stays in the twin.
+    # Only a run of the real bed (not yet) would record what the gantry sowed, for the next sync to take to the cloud.
+    live_bed = bool(cfg) and not cfg.get("rehearsal", True)
+    if live_bed and src.get("graph") and twin.get("history"):
         recorded = store.record_results(out, cfg["bed"]["id"], twin["history"])
         _offline["queued"] += len(recorded) if offline else 0
-    if cfg and src.get("graph") and not offline and (recorded or _offline["queued"]) and edge_cloud.linked_profiles():
+    if live_bed and src.get("graph") and not offline and (recorded or _offline["queued"]) and edge_cloud.linked_profiles():
         try:
             edge_routes.JOBS.submit("knowledge-sync", {"graph": src["graph"]})
             _offline["queued"] = 0
         except Exception:                         # busy: the person syncs from Connections
             pass
-    return {**status, **engine.summary(cfg), "config": cfg, "source": src.get("graph") or "citydemo",
+    period = engine.period_of(cfg, _run_period["id"]) if cfg else None
+    summary = engine.summary(cfg)
+    if cfg and bed and bed.get("cells"):             # the counts as the twin has them now, not as the world was prepared
+        summary["byStatus"] = {}
+        for c in bed["cells"].values():
+            summary["byStatus"][c["status"]] = summary["byStatus"].get(c["status"], 0) + 1
+        summary["cells"] = len(bed["cells"])
+        summary["ready"] = sum(1 for c in bed["cells"].values() if c.get("ready") and c["status"] == "CellGrowing")
+    return {**status, **summary, "config": cfg, "source": src.get("graph") or "citydemo",
+            "runPeriod": period, "rehearsal": bool(cfg) and cfg.get("rehearsal", True),
+            "waits": engine.sowing_waits(cfg, bed, period) if cfg and bed else [],
             "instance": instance.describe(),
             "keeper": {**kept, "queued": _offline["queued"]}, "notices": [n["text"] for n in kept["notices"]],
             "feeder": kept.get("feeder"), "worms": kept.get("worms"), "guide": kept.get("guide"), "weeds": kept.get("weeds"),
@@ -343,7 +356,7 @@ def _twin_state() -> dict:
             "learning": _learning(cfg, bed),
             "habitats": store.habitats(), "recorded": recorded,
             "proposals": (engine.proposals(cfg, bed, kept["holds"], kept.get("feeder"), kept.get("guide"), kept["active"], kept.get("weeds"),
-                                           [t["id"] for t in (kept.get("care") or {}).get("tasks") or [] if t.get("due")])
+                                           [t["id"] for t in (kept.get("care") or {}).get("tasks") or [] if t.get("due")], period)
                           if not kept["lockout"] else [])}
 
 
@@ -367,18 +380,64 @@ def twin_status():
 
 @app.post("/api/twin/prepare")
 def twin_prepare():
-    """Write the world for a habitat: CityDemo, or Turtle sent in the body."""
+    """Write the world for a habitat: CityDemo, or Turtle sent in the body, or a space's graph
+    ({"graph", "sync", "period", "start", "month"}): with "sync" the latest is fetched from the cloud first."""
     if sim.running():
         return jsonify({"errors": [_("stop the simulation before preparing another world")]}), 409
     data = body()
     graph = data.get("graph") or None
     try:
+        synced = _sync_first(graph) if graph and data.get("sync") else None
         ttl = store.ttl_of(graph) if graph else (data.get("ttl") or engine.habitat_ttl(None))
-        out = engine.prepare(ttl)           # the guild this instance is for; ValueError names the guilds there are
+        out = _prepare(ttl, data)
     except ValueError as exc:
         return jsonify({"errors": str(exc).split("; ")}), 400
     store.remember_source(engine.workspace(), graph)
-    return jsonify(out)
+    return jsonify({**out, "synced": synced})
+
+
+@app.get("/api/twin/target")
+def twin_target():
+    """What a world would be made for: ?graph=&period=&month= (no graph: CityDemo). Reads only."""
+    graph = request.args.get("graph") or None
+    period = request.args.get("period")
+    month = request.args.get("month", type=int) or dt.date.today().month
+    try:
+        ttl = store.ttl_of(graph) if graph else engine.habitat_ttl(None)
+        return jsonify({**engine.preview(ttl, period=period if period is not None else None, month=month), "graph": graph or "citydemo",
+                        "linked": bool(edge_cloud.linked_profiles())})
+    except (ValueError, KeyError) as exc:
+        return jsonify({"errors": str(exc).split("; ")}), 400
+
+
+def _prepare(ttl: str, data: dict) -> dict:
+    """engine.prepare with the target chosen: the period ("" as the bed stands, none: the one the month lies in),
+    and how the bed starts ("clean" by default: a rehearsal from an empty bed)."""
+    month = data.get("month")
+    out = engine.prepare(ttl, period=data.get("period"), start=str(data.get("start") or "clean"),
+                         month=int(month) if month else dt.date.today().month)
+    _run_period["id"] = None
+    return out
+
+
+def _sync_first(graph: str, wait: float = 90.0) -> Optional[dict]:
+    """Fetch the latest of a space's graph from the linked cloud before a world is made from it. None when the edge
+    is not linked; raises ValueError when the sync fails (the world is not made from an old copy unasked)."""
+    if not edge_cloud.linked_profiles():
+        return None
+    try:
+        jid = edge_routes.JOBS.submit("knowledge-sync", {"graph": graph})["id"]
+    except Exception:                               # the same sync is already running: wait for that one
+        jid = next((j["id"] for j in edge_routes.JOBS.list() if j["kind"] == "knowledge-sync" and j["state"] in ("queued", "running")), None)
+    until = time.time() + wait
+    while time.time() < until:
+        j = next((x for x in edge_routes.JOBS.list() if x["id"] == jid), None)
+        if j and j["state"] in ("done", "failed", "cancelled"):
+            if j["state"] != "done":
+                raise ValueError(_("the sync with the cloud failed: {why}", why=j.get("error") or j["state"]))
+            return ((j.get("result") or {}).get(graph) or {})
+        time.sleep(0.5)
+    raise ValueError(_("the sync with the cloud took too long"))
 
 
 @app.post("/api/twin/start")
@@ -445,10 +504,34 @@ def _run(spec: dict) -> dict:
         return out
     if spec.get("kind") == "rest":
         return {**_event({"op": "box", "do": "rest", "side": spec.get("side")}), "done": "one half of the box now rests"}
+    # a person's part of the bed's season (PermTek-5 ADR 0029): harvested, cleared, or on to the next period
+    if spec.get("kind") == "harvest":
+        return {**_event({"op": "harvest", **({"ready": True} if spec.get("ready") else {"cells": spec.get("cells") or []})}),
+                "done": "the cells are harvested and free"}
+    if spec.get("kind") == "clear":
+        return {**_event({"op": "clear"}), "done": "the bed is cleared"}
+    if spec.get("kind") == "period":
+        return _move_on(str(spec.get("id") or ""))
     out = sim.gateway("/job", spec)
     if task and isinstance(out, dict) and out.get("id"):
         _care_jobs[out["id"]] = task
     return out
+
+
+_run_period: Dict[str, Optional[str]] = {"id": None}     # the period the run moved on to; None: the one prepared
+
+
+def _move_on(period_id: str) -> dict:
+    """The run moves on to another period of the bed's year: its target becomes the twin's plan."""
+    cfg = engine.config() or {}
+    p = next((x for x in cfg.get("periods") or [] if x["id"] == period_id), None)
+    if p is None:
+        raise RuntimeError("no such period in the prepared bed")
+    cells = [{"row": c["row"], "col": c["col"], "crop": c["crop"], "rgb": c.get("rgb"), "spacingMm": (c.get("job") or {}).get("spacingMm")}
+             for c in (cfg.get("targets") or {}).get(period_id, [])]
+    out = _event({"op": "plan", "cells": cells})
+    _run_period["id"] = period_id
+    return {**out, "done": "the next period's target is the plan"}
 
 
 def _care_today() -> Optional[str]:
@@ -698,15 +781,23 @@ def twin_estop():
 _go: dict = {"state": "idle", "phase": "", "error": None, "started": None}
 
 
-def _go_run(graph, gui: bool, scenario_id: str, month) -> None:
+def _go_run(graph, gui: bool, scenario_id: str, month, choice: Optional[dict] = None) -> None:
     def phase(p):
         _go.update(phase=p)
+    choice = choice or {}
     try:
         if not sim.running():
+            if graph and choice.get("sync"):
+                phase("sync")
+                _sync_first(graph)
             phase("world")
             ttl = store.ttl_of(graph) if graph else engine.habitat_ttl(None)
-            engine.prepare(ttl)
+            _prepare(ttl, {**choice, "month": month})
             store.remember_source(engine.workspace(), graph)
+            # a clean start of a period begins in its first month
+            cfg = engine.config() or {}
+            if not month and cfg.get("period") and cfg.get("start") == "clean":
+                month = cfg["period"]["fromMonth"]
             phase("webots")
             sim.start(engine.workspace(), gui=gui)
         phase("gantry")
@@ -723,14 +814,15 @@ def _go_run(graph, gui: bool, scenario_id: str, month) -> None:
 
 @app.post("/api/twin/go")
 def twin_go():
-    """Prepare and start: {"graph", "gui", "scenario", "month"}; follow it on /api/twin/loop."""
+    """Prepare and start: {"graph", "gui", "scenario", "month", "sync", "period", "start"}; follow it on /api/twin/loop."""
     if _go["state"] == "running":
         return jsonify({"errors": [_("the twin is already starting")]}), 409
     data = body()
     _go.update(state="running", phase="", error=None, started=time.time(),
                scenario=str(data.get("scenario") or ""), month=data.get("month"))
+    choice = {k: data[k] for k in ("sync", "period", "start") if k in data}
     threading.Thread(target=_go_run, args=(data.get("graph") or None, bool(data.get("gui")), str(data.get("scenario") or ""),
-                                           data.get("month")), name="go", daemon=True).start()
+                                           data.get("month"), choice), name="go", daemon=True).start()
     return jsonify(_go), 202
 
 
@@ -775,7 +867,7 @@ def plan_ask():
     graph = str(body.get("graph") or "")
     try:
         space = _plan_space(graph)
-        ask = {k: body[k] for k in ("bedId", "farmId", "sets", "seed", "same") if k in body}
+        ask = {k: body[k] for k in ("bedId", "farmId", "sets", "seed", "same", "periodId", "month") if k in body}
         return jsonify(edge_cloud.call("plan", {"name": space["id"], **ask}))
     except (ValueError, edge_cloud.CloudError) as exc:
         return jsonify({"errors": [str(exc)]}), 400
@@ -811,7 +903,7 @@ def _scenario_view() -> dict:
     cfg = t.get("config")
     twin = t.get("twin") or {}
     return {"running": bool(t["running"] and twin.get("gantry")),
-            "scenarios": [{"id": k, "title": _(s["title"]), "about": _(s["about"]), "steps": len(s["steps"]),
+            "scenarios": [{"id": k, "title": _(s["title"]), "about": _(s["about"]), "steps": len(s["steps"]), "group": s.get("group", "guild"),
                            "seasons": bool((s.get("run") or {}).get("seasons")), "startMonth": (s.get("run") or {}).get("startMonth"),
                            "unavailable": _(scenarios.available(s, cfg) or "") or None} for k, s in scenarios.load_all().items()],
             "run": scenarios.state(twin, t["proposals"], t.get("notices") or [], t.get("keeper")),
@@ -891,12 +983,48 @@ def scenario_do():
             sim.gateway("/estop", {"on": act["estop"]})
         if "job" in act:
             _run(act["job"])
+        if "batch" in act:
+            _batch_start(act["batch"], act["max"])
     except ValueError as exc:
         return jsonify({"errors": [_(str(exc))]}), 400
     except RuntimeError as exc:
         return jsonify({"errors": [_(str(exc))]}), 409
     scenarios.mark_done()
     return jsonify(_scenario_view())
+
+
+_batch: Dict[str, object] = {"running": False, "done": 0}
+
+
+def _batch_start(prefix: str, most: int) -> None:
+    """Confirm every job proposed with this prefix, one after another (a scenario's sowing wave). Each waits for the
+    one before; it stops when none is proposed any more, after `most`, or when the twin stops."""
+    if _batch["running"]:
+        raise RuntimeError("a run of jobs is already going")
+    _batch.update(running=True, done=0)
+
+    def go() -> None:
+        try:
+            for _i in range(most):
+                if not sim.running():
+                    return
+                p = next((p for p in _twin_state()["proposals"] if p["id"].startswith(prefix)), None)
+                if p is None:
+                    return
+                try:
+                    out = _run(dict(p["spec"]))
+                except RuntimeError:
+                    return
+                jid = out.get("id") if isinstance(out, dict) else None
+                for _w in range(600):                  # wait for the gantry to finish this one
+                    job = (sim.status().get("twin") or {}).get("job") or {}
+                    if not jid or (job.get("id") == jid and job.get("state") not in ("running", "queued")):
+                        break
+                    time.sleep(0.5)
+                _batch["done"] = int(_batch["done"]) + 1
+        finally:
+            _batch["running"] = False
+    threading.Thread(target=go, name="batch", daemon=True).start()
 
 
 @app.post("/api/twin/scenario/next")

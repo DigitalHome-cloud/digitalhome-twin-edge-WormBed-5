@@ -287,8 +287,10 @@ def _tree(name: str, x: float, y: float, rgb, assets: Optional[Path]) -> str:
 
 
 def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: Optional[str] = None,
-             assets: Optional[Path] = None) -> Dict[str, str]:
-    """Write roofbed.wbt and bed.json for one Perma5Guild's bed: the guild named, or the habitat's first."""
+             assets: Optional[Path] = None, period: Optional[str] = None, start: str = "as-is",
+             month: Optional[int] = None) -> Dict[str, str]:
+    """Write roofbed.wbt and bed.json for one Perma5Guild's bed: the guild named, or the habitat's first.
+    `period`, `start` and `month` choose the target and how the bed starts (habitat.bed_config)."""
     bad = hb.problems(h, library)
     if bad:
         raise ValueError("; ".join(bad))
@@ -296,7 +298,7 @@ def generate(h: hb.Habitat, library: Dict[str, hb.Crop], out_dir: Path, guild: O
     if bed is None:
         raise ValueError("the habitat has no growing bed to simulate")
     assumed = hb.as_wormbed5(h, bed)                        # a WormBed5 guild always has its box and its tank
-    cfg = hb.bed_config(h, bed, library)
+    cfg = hb.bed_config(h, bed, library, period=period, start=start, month=month)
     cfg["assumed"] = assumed
     cfg["feedingKinds"] = feeding_guide.kinds_for_twin(feeding_guide.load())    # how wet, heating and sour each kind of food is
     length, width, cell_m = bed.length_cm / 100.0, bed.width_cm / 100.0, bed.cell_cm / 100.0

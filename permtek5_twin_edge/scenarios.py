@@ -11,6 +11,8 @@ names the readings to watch with what they should become:
      "do": {"type": "event",    "event": {"op": "hopper", "grams": 1000}, "label": "..."}   a person's act at the bed
          | {"type": "events",   "events": [...], "label": "..."}
          | {"type": "proposal", "id": "feed", "label": "...", "limit": 3}    a robot job, as proposed (id or its prefix)
+         | {"type": "proposals", "id": "plant-", "label": "...", "max": 40}  every job proposed with that prefix, one after
+                                                                            another (a sowing wave), each still a confirmed one
          | {"type": "estop",    "on": true, "label": "..."}
          | {"type": "disturb",  "id": "cold-snap", "calmFirst": true, "label": "..."}   a chaos monkey (disturbances.py)
          | {"type": "calm",     "label": "..."}                             end every disturbance
@@ -19,7 +21,7 @@ names the readings to watch with what they should become:
      "expect": [{"read": "bed.hopper.grams", "is": ">=", "value": 1000, "say": "hopper: {v} g"}],
      "noWait": true}                       the step is complete while its job still runs
 
-Readings: bed.<path> (the twin's /bed/state), job.state, last.<kind>.state
+Readings: bed.<path> (the twin's /bed/state), job.state, ready (plants ready to harvest), last.<kind>.state
 (the latest job of that kind since the step began), proposals.<id prefix>
 (how many), count.<cell status>, driest (planted cells' lowest moisture, %),
 notices (how many), keeper.<rule> (true while that reaction is in force),
@@ -57,7 +59,7 @@ from typing import Any, Dict, List, Optional
 
 FOLDER = Path(__file__).resolve().parent / "scenarios"
 OPS = {">=": operator.ge, "<=": operator.le, ">": operator.gt, "<": operator.lt, "==": operator.eq, "!=": operator.ne}
-DO_TYPES = ("event", "events", "proposal", "estop", "disturb", "calm", "time", "none")
+DO_TYPES = ("event", "events", "proposal", "proposals", "estop", "disturb", "calm", "time", "none")
 
 _run: Dict[str, Any] = {}
 _score: Dict[str, Any] = {}
@@ -105,6 +107,10 @@ def available(s: Dict[str, Any], cfg: Optional[Dict[str, Any]]) -> Optional[str]
             return "this bed has no worm box"
         if need == "tank" and not (cfg.get("tank") or {}).get("litres"):
             return "this bed has no tank pipes"
+        if need == "target" and not cfg.get("cells"):
+            return "the bed has nothing planned: plan a period on the PermTek-5 map"
+        if need == "periods" and len(cfg.get("periods") or []) < 2:
+            return "the bed has no periods: set up its year on the PermTek-5 map"
     return None
 
 
@@ -155,6 +161,8 @@ def read(path: str, twin: Dict[str, Any], proposals: List[Dict[str, Any]], notic
         return sum(1 for p in proposals if p["id"].startswith(path.split(".", 1)[1]))
     if path.startswith("count."):
         return sum(1 for c in cells if c.get("status") == path.split(".", 1)[1])
+    if path == "ready":                              # grown plants ready to harvest (plants.py)
+        return sum(1 for c in cells if c.get("ready") and c.get("status") == "CellGrowing")
     if path == "composted":
         return sum(1 for c in cells if (c.get("compostG") or 0) > 0)
     if path == "driest":
@@ -229,6 +237,10 @@ def action(proposals: List[Dict[str, Any]]) -> Dict[str, Any]:
         return {"calm": True}
     if do["type"] == "time":
         return {"factor": float(do.get("factor", 1))}
+    if do["type"] == "proposals":
+        if not any(p["id"].startswith(do["id"]) for p in proposals):
+            raise ValueError("the twin does not propose that job now")
+        return {"batch": do["id"], "max": int(do.get("max", 50))}
     if do["type"] == "proposal":
         p = next((p for p in proposals if p["id"] == do["id"] or (do["id"].endswith("-") and p["id"].startswith(do["id"]))), None)
         if p is None:

@@ -138,4 +138,5 @@ def test_the_routes_walk_a_scenario_against_a_stood_in_twin(client, monkeypatch)
     assert calls[-1] == ("/job", {"kind": "feed", "grams": 300, "spot": 0})
     assert client.post("/api/twin/scenario/stop", json={}).get_json()["run"] is None
     listed = client.get("/api/twin/scenarios").get_json()["scenarios"]
-    assert all(s["unavailable"] is None for s in listed), "CityDemo has a tank and a worm box"
+    assert all(s["unavailable"] is None for s in listed if s["id"] != "year-of-periods"), "CityDemo has a tank and a worm box"
+    assert next(s for s in listed if s["id"] == "year-of-periods")["unavailable"], "but no periods"

@@ -97,7 +97,9 @@ function drawBed(t) {
     el.innerHTML = Array.from({ length: b.rows * b.cols }, (_, i) =>
       `<span class="cell" data-k="${Math.floor(i / b.cols)}_${i % b.cols}"></span>`).join("");
   }
-  const planned = Object.fromEntries(cfg.cells.map((c) => [`${c.row}_${c.col}`, c]));
+  // the run's target: the period it moved on to, or the one the world was made for
+  const moved = t.runPeriod && cfg.targets && (!cfg.period || t.runPeriod.id !== cfg.period.id);
+  const planned = Object.fromEntries((moved ? cfg.targets[t.runPeriod.id] || [] : cfg.cells).map((c) => [`${c.row}_${c.col}`, c]));
   const live = (t.twin && t.twin.bed && t.twin.bed.cells) || {};
   const g = t.twin && t.twin.gantry, cell = cfg.world.cellM;
   const binFrom = cfg.wormBin && cfg.wormBin.cols ? cfg.wormBin.fromCol : b.cols;
@@ -115,13 +117,15 @@ function drawBed(t) {
     const status = (l && l.status) || (c && c.status) || "";
     const inBin = Number(k.split("_")[1]) >= binFrom;
     n.className = "cell" + (inBin ? " bin" : status ? " " + status.replace("Cell", "").toLowerCase() : "") + (k === headKey ? " head" : "")
-      + (weeds[k] ? " weed" : "");
+      + (weeds[k] ? " weed" : "") + (l && l.ready && status === "CellGrowing" ? " ready" : "");
     if (inBin) { n.style.background = ""; n.title = tr("worm box"); return; }
     n.style.background = status === "CellGrowing" || status === "CellSown" ? rgb(c && c.rgb) || "var(--accent)" : "";
     const [r, col] = k.split("_").map(Number);
     n.title = tr("row {row}, column {col}", { row: r + 1, col: col + 1 }) + (c ? ` · ${(c.cropNames && c.cropNames[I18N.lang]) || c.cropName}` : "")
       + (status ? ` · ${tr(status.replace("Cell", "").toLowerCase())}` : "")
       + (l && l.moisture !== undefined ? " · " + tr("soil {pct} %", { pct: l.moisture }) : "")
+      + (l && l.up && !l.ready ? " · " + tr("grown {pct} %", { pct: Math.round(100 * Math.min(1, l.growth || 0)) }) : "")
+      + (l && l.ready && status === "CellGrowing" ? " · " + tr("ready to harvest") : "")
       + (weeds[k] ? " · " + tr("weed") + " " + weeds[k].map((w) => `${w.sizeMm} mm, ${w.do === "stamp" ? tr("to stamp") : tr("by hand")}`).join("; ") : "");
   });
 }
@@ -173,6 +177,8 @@ function stats(t) {
     [by.CellPlanned || 0, tr("planned")],
     [by.CellSown || 0, tr("sown")],
     [by.CellGrowing || 0, tr("growing")],
+    ...(by.CellLost ? [[by.CellLost, tr("lost")]] : []),
+    ...(by.CellHarvested ? [[by.CellHarvested, tr("harvested")]] : []),
     [driest === null || !isFinite(driest) ? "–" : `${driest.toFixed(0)} %`, tr("driest soil")],
     [g ? `${(g.x * 1000).toFixed(0)} · ${(g.y * 1000).toFixed(0)}` : "–", tr("tool x · y, mm")],
   ];
@@ -252,7 +258,9 @@ function draw(t) {
     sel.dataset.have = want;
     sel.innerHTML = `<option value="">${core.esc(tr("CityDemo (invented)"))}</option>` + (t.habitats || []).map((h) =>
       `<option value="${core.esc(h.graph)}">${core.esc(h.graph)} · ${core.esc(tr("{n} cells", { n: h.cells }))}</option>`).join("");
-    sel.value = t.source === "citydemo" ? "" : t.source;
+    // the edge's own habitat comes first; the invented CityDemo stays one choice away
+    sel.value = t.source === "citydemo" ? ((t.habitats || [])[0] || {}).graph || "" : t.source;
+    drawTarget();
   }
   sel.disabled = t.running;
   if ((t.recorded || []).length) core.toast(tr("{n} sown cell(s) written to the habitat", { n: t.recorded.length }));
@@ -271,10 +279,64 @@ async function refresh() {
 }
 
 $("#btn-prepare").addEventListener("click", async () => {
-  const graph = $("#sel-source").value;
-  if (await post("/api/twin/prepare", graph ? { graph } : {})) core.toast(tr("World written from the habitat"));
+  if (await post("/api/twin/prepare", choice())) core.toast(tr("World written from the habitat"));
   refresh();
 });
+
+// The target (PermTek-5 ADR 0029): the bed and the period a world would be made for, shown before it is made.
+// The Map holds the target; the twin rehearses getting there.
+const TG = { key: "", picked: false, linked: false };
+function choice() {
+  const graph = $("#sel-source").value;
+  return {
+    ...(graph && { graph, sync: TG.linked && $("#chk-sync").checked }),
+    ...(TG.picked && { period: $("#sel-period").value }),
+    start: $("#sel-start").value,
+    ...(!$("#lbl-month").hidden && { month: Number($("#sel-month").value) }),
+  };
+}
+async function drawTarget() {
+  const graph = $("#sel-source").value, month = $("#lbl-month").hidden ? new Date().getMonth() + 1 : Number($("#sel-month").value);
+  const q = { month, ...(graph && { graph }), ...(TG.picked && { period: $("#sel-period").value }) };
+  const key = JSON.stringify(q);
+  if (TG.key === key) return;
+  TG.key = key;
+  let t;
+  try { t = await core.api("GET", `/api/twin/target?${new URLSearchParams(q)}`); }
+  catch (err) { $("#target").hidden = true; $("#lbl-period").hidden = true; return; }
+  TG.linked = !!t.linked && !!graph;
+  $("#lbl-sync").hidden = !TG.linked;
+  const ps = t.periods || [];
+  const span = (p) => `${MONTHS()[p.fromMonth - 1].slice(0, 3)}–${MONTHS()[p.toMonth - 1].slice(0, 3)}`;
+  const sel = $("#sel-period");
+  sel.innerHTML = ((t.loose || !ps.length) ? `<option value="">${core.esc(tr("As the bed stands"))}</option>` : "")
+    + ps.map((p) => `<option value="${core.esc(p.id)}">${core.esc(p.name)} · ${core.esc(span(p))} · ${core.esc(p.kind === "RestKind" ? tr("rest period") : tr("growing period"))}</option>`).join("");
+  sel.value = t.period ? t.period.id : "";
+  $("#lbl-period").hidden = !ps.length;
+  const on = t.period ? new Set(t.period.months) : new Set();
+  const kind = {};
+  for (const p of ps) for (const m of p.months) kind[m] = p.kind;
+  $("#target-months").innerHTML = MONTHS().map((m, i) =>
+    `<span class="target__month${kind[i + 1] ? " target__month--" + kind[i + 1] : ""}${on.has(i + 1) ? " target__month--on" : ""}">${core.esc(m.slice(0, 3))}</span>`).join("");
+  $("#target-months").hidden = !ps.length;
+  const b = t.bed, at = Object.fromEntries((t.cells || []).map((c) => [`${c.row}_${c.col}`, c]));
+  const bed = $("#target-bed");
+  bed.style.gridTemplateColumns = `repeat(${b.cols}, 0.55rem)`;
+  bed.innerHTML = Array.from({ length: b.rows * b.cols }, (_, i) => {
+    const r = Math.floor(i / b.cols), c = i % b.cols, x = at[`${r}_${c}`];
+    if (c >= b.binFrom) return `<span class="target__cell target__cell--bin"></span>`;
+    return x ? `<span class="target__cell" style="background:${rgb(x.rgb)}" title="${core.esc((x.cropNames && x.cropNames[I18N.lang]) || x.cropName)}"></span>` : `<span class="target__cell"></span>`;
+  }).join("");
+  const crops = [...new Set((t.cells || []).map((c) => (c.cropNames && c.cropNames[I18N.lang]) || c.cropName))].sort();
+  $("#target-title").textContent = tr("The target: {bed}{period}", { bed: b.name, period: t.period ? ` · ${t.period.name} (${span(t.period)})` : "" });
+  $("#target-note").textContent = t.period && t.period.kind === "RestKind"
+    ? tr("A rest: nothing is sown but its cover crop; the worm box goes on in its winter care.")
+    : (t.cells || []).length ? tr("{n} cell(s) to sow: {crops}", { n: t.cells.length, crops: crops.join(", ") }) : tr("Nothing planned for this period yet: plan it on the PermTek-5 map.");
+  $("#target").hidden = false;
+}
+$("#sel-source").addEventListener("change", () => { TG.picked = false; drawTarget(); });
+$("#sel-period").addEventListener("change", () => { TG.picked = true; drawTarget(); });
+$("#sel-month").addEventListener("change", () => { if (!TG.picked) drawTarget(); });
 $("#btn-start").addEventListener("click", async () => {
   const gui = $("#chk-window").checked;
   try { localStorage.setItem("permtek5-twin-edge-window", gui ? "1" : ""); } catch (_) { /* private window */ }
@@ -344,8 +406,11 @@ function drawLoop(v) {
     L.scenarios = want;
     const sel = $("#sel-scenario"), had = sel.value;
     const list = (v.scenarios || []).slice().sort((a, b) => (b.seasons - a.seasons) || a.title.localeCompare(b.title));
-    sel.innerHTML = `<option value="">${core.esc(tr("No scenario: just run"))}</option>` + list.map((x) =>
-      `<option value="${core.esc(x.id)}" ${x.unavailable ? "disabled" : ""}>${core.esc(x.title)}${x.unavailable ? " · " + core.esc(x.unavailable) : ""}</option>`).join("");
+    // two kinds of run (PermTek-5 ADR 0029): the bed from clean to its target, and the guild's care and worm box
+    const opt = (x) => `<option value="${core.esc(x.id)}" ${x.unavailable ? "disabled" : ""}>${core.esc(x.title)}${x.unavailable ? " · " + core.esc(x.unavailable) : ""}</option>`;
+    const group = (g, label) => { const xs = list.filter((x) => (x.group || "guild") === g); return xs.length ? `<optgroup label="${core.esc(tr(label))}">${xs.map(opt).join("")}</optgroup>` : ""; };
+    sel.innerHTML = `<option value="">${core.esc(tr("No scenario: just run"))}</option>`
+      + group("bed", "The bed: from clean to target") + group("guild", "The guild: care and the worm box");
     sel.value = had || (list.find((x) => x.seasons && !x.unavailable) || {}).id || "";
     pickScenario(v);
   }
@@ -365,7 +430,7 @@ function drawLoop(v) {
   $("#ready-rendering").hidden = !(v.rendering && (starting || !r.running));
   $("#btn-go").disabled = starting;
   $("#btn-go").textContent = tr(starting ? "Starting…" : r.running ? "Begin this scenario" : "Prepare and start");
-  $("#sel-source").disabled = $("#chk-window").disabled = r.running || starting;
+  $("#sel-source").disabled = $("#chk-window").disabled = $("#sel-period").disabled = $("#sel-start").disabled = $("#chk-sync").disabled = r.running || starting;
 
   // Run: the clock, day or night, the season, the weather
   const run = v.run || {};
@@ -460,10 +525,9 @@ window.addEventListener("resize", ringLoop);
 new ResizeObserver(() => ringLoop()).observe($("#loop"));
 
 async function go(gui) {
-  const month = $("#lbl-month").hidden ? undefined : Number($("#sel-month").value);
-  const graph = $("#sel-source").value || undefined, scenario = $("#sel-scenario").value;
+  const scenario = $("#sel-scenario").value;
   try { localStorage.setItem("permtek5-twin-edge-window", gui ? "1" : ""); } catch (_) { /* private window */ }
-  if (await post("/api/twin/go", { graph, gui, scenario, month })) core.toast(tr("Starting: the checklist shows how far it is"));
+  if (await post("/api/twin/go", { ...choice(), gui, scenario })) core.toast(tr("Starting: the checklist shows how far it is"));
   refreshLoop();
 }
 $("#btn-go").addEventListener("click", () => go($("#chk-window").checked));

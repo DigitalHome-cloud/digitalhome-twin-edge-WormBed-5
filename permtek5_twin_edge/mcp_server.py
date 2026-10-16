@@ -71,9 +71,14 @@ def twin() -> dict:
 
 
 @server.tool()
-def twin_prepare() -> Any:
-    """Write the Webots world from the habitat (CityDemo unless a habitat was synced)."""
-    return act("Twin: prepare the world from the habitat", "POST", "/api/twin/prepare", {})
+def twin_prepare(graph: str = "", period: str = "", start: str = "clean", sync: bool = True, month: int = 0) -> Any:
+    """Write the Webots world for a rehearsal (nothing is written back to the habitat): from an area's A-Box
+    (graph, as knowledge() lists them; empty: the invented CityDemo). period: the growing period whose target the
+    twin works towards (its id; empty: the one month 1..12 lies in, else today's). start: "clean" from an empty bed,
+    or "as-is" from what the habitat says. sync: fetch the latest from the cloud first."""
+    ask = {**({"graph": graph, "sync": sync} if graph else {}), "start": start,
+           **({"period": period} if period else {}), **({"month": month} if month else {})}
+    return act(f"Twin: prepare a rehearsal from {graph or 'CityDemo'}", "POST", "/api/twin/prepare", ask)
 
 
 @server.tool()
@@ -104,24 +109,28 @@ def twin_estop(on: bool = True) -> Any:
 @server.tool()
 def plan_options(graph: str) -> Any:
     """What the cloud's bed planner can plan in an area's A-Box (graph: its name, as knowledge() lists them):
-    the beds and farms of beds, and the plant sets (e.g. set-kitchen-herbs) with their crops."""
+    the beds with their growing periods (months, kind, sets), the farms of beds, and the plant sets
+    (e.g. set-kitchen-herbs) with their crops."""
     web.ensure_server()
     return web.call("POST", "/api/plan", {"graph": graph})
 
 
 @server.tool()
 def plan_bed(graph: str, sets: list[str], bed: str = "", farm: str = "", shares: list[int] | None = None, seed: int = 5,
-             same: bool = False) -> Any:
+             same: bool = False, period: str = "", month: int = 0) -> Any:
     """Plan a bed (or a farm of beds) from plant sets with the cloud's planner: the biggest plants first, the
     little ones last, low ground covers under tall plants. sets are ids from plan_options(); shares (1..5, one per
     set) say how much room each gets. For a farm, same=True plants every bed from all the sets; otherwise each set
-    gets beds by its share. Returns the plan and PROPOSES writing it: the person confirms before any
-    cell is planted. Another seed gives another plan."""
+    gets beds by its share. A bed with growing periods plans one of them: period (its id) or the one month (1..12)
+    lies in; without either, the bed as it stands. Returns the plan and PROPOSES writing it: the person confirms
+    before any cell is planted. Another seed gives another plan."""
     web.ensure_server()
     ask = {"graph": graph, "sets": [{"setId": s, "share": (shares or [])[i] if i < len(shares or []) else 1} for i, s in enumerate(sets)],
-           "seed": seed, **({"farmId": farm, "same": same} if farm else {"bedId": bed})}
+           "seed": seed, **({"farmId": farm, "same": same} if farm else {"bedId": bed}),
+           **({"periodId": period} if period else {}), **({"month": month} if month else {})}
     plan = web.call("POST", "/api/plan", ask)
-    plans = [{"bedId": p["bedId"], "cells": p["cells"]} for p in plan.get("plans") or []]
+    plans = [{"bedId": p["bedId"], "cells": p["cells"], **({"periodId": p["periodId"]} if p.get("periodId") else {})}
+             for p in plan.get("plans") or []]
     n = sum(len(p["cells"]) for p in plans)
     beds = ", ".join(p.get("bed") or "" for p in plan.get("plans") or [])
     proposed = act(f"Plant {n} cells in {beds} from {', '.join(sets)}", "POST", "/api/plan/apply", {"graph": graph, "plans": plans}) if n else None

@@ -68,9 +68,12 @@ def check(ttl: str) -> List[str]:
     return errors
 
 
-def prepare(ttl: str, out: Optional[Path] = None, assets: Optional[Path] = None, guild: Optional[str] = None) -> Dict[str, Any]:
+def prepare(ttl: str, out: Optional[Path] = None, assets: Optional[Path] = None, guild: Optional[str] = None,
+            period: Optional[str] = None, start: str = "as-is", month: Optional[int] = None) -> Dict[str, Any]:
     """Write the world and bed.json for one Perma5Guild of the habitat: the one this edge instance is for,
-    or the habitat's first. Raises ValueError with what is wrong."""
+    or the habitat's first. `period` is the growing period to work towards ("" the bed as it stands, None the one
+    `month` lies in); `start` "clean" begins from an empty bed, "as-is" from what the habitat says (PermTek-5
+    ADR 0029). Raises ValueError with what is wrong."""
     from . import habitat as hb
     from . import world
     errors = check(ttl)
@@ -80,8 +83,29 @@ def prepare(ttl: str, out: Optional[Path] = None, assets: Optional[Path] = None,
     out = Path(out) if out else workspace()
     if assets is None:
         assets = next((d for d in (out / "assets", shared_assets()) if d.is_dir()), None)
-    paths = world.generate(hb.load(ttl), hb.load_library(), out, guild=guild or instance.guild(), assets=assets)
+    paths = world.generate(hb.load(ttl), hb.load_library(), out, guild=guild or instance.guild(), assets=assets,
+                           period=period, start="clean" if start == "clean" else "as-is", month=month)
     return {**paths, **summary(config(out))}
+
+
+def preview(ttl: str, period: Optional[str] = None, month: Optional[int] = None, guild: Optional[str] = None) -> Dict[str, Any]:
+    """The target a world would be made for, without making it: the bed, its periods and the chosen period's cells
+    (PermTek-5 ADR 0029). For the preparation screen. Raises ValueError with what is wrong."""
+    from . import habitat as hb
+    from . import instance
+    errors = check(ttl)
+    if errors:
+        raise ValueError("; ".join(errors))
+    h, library = hb.load(ttl), hb.load_library()
+    _, bed = hb.pick_guild(h, guild or instance.guild())
+    if bed is None:
+        raise ValueError("the habitat has no growing bed to simulate")
+    cfg = hb.bed_config(h, bed, library, period=period, start="as-is", month=month)
+    b = cfg["bed"]
+    return {"bed": {"name": b["name"], "rows": b["rows"], "cols": b["cols"], "binFrom": b["cols"] - cfg["wormBin"]["cols"]},
+            "periods": cfg["periods"], "period": cfg["period"],
+            "cells": [{k: c[k] for k in ("row", "col", "crop", "cropName", "cropNames", "status", "rgb")} for c in cfg["cells"]],
+            "loose": sum(1 for c in h.cells if c.bed_id == bed.id and not c.period_id)}
 
 
 def config(out: Optional[Path] = None) -> Optional[Dict[str, Any]]:
@@ -105,6 +129,8 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
                                       "depthCm": b.get("depth_cm"), "tankLitres": (cfg.get("tank") or {}).get("litres", 0),
                                       "wormBinCm": b.get("worm_bin_cm", 0)},
             "assumed": cfg.get("assumed") or [],
+            "periods": cfg.get("periods") or [], "period": cfg.get("period"), "start": cfg.get("start", "as-is"),
+            "rehearsal": cfg.get("rehearsal", True),
             "guild": cfg.get("guild"),
             "cells": len(cfg["cells"]), "byStatus": by, "meshes": cfg["world"].get("meshes", False)}
 
@@ -112,7 +138,8 @@ def summary(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]] = None,
               holds: Optional[List[str]] = None, advice: Optional[Dict[str, Any]] = None,
               guide: Optional[Dict[str, Any]] = None, active: Optional[List[str]] = None,
-              weeds: Optional[Dict[str, Any]] = None, care_due: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+              weeds: Optional[Dict[str, Any]] = None, care_due: Optional[List[str]] = None,
+              period: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """The jobs the gantry (and the edge's valves) could do now. Proposals only: a person confirms each before anything moves.
 
     Sowing: every planned cell not sown yet. Watering: planted cells whose soil
@@ -126,11 +153,15 @@ def proposals(cfg: Optional[Dict[str, Any]], bed_state: Optional[Dict[str, Any]]
     `care_due` are the care calendar's tasks due today (maintenance.py): the mist line's routine.
     A proposal may name the hold it falls under ("hold"), when that is not its kind: watering the
     worm box is "moisten", whether by the mist line (a valve) or the gantry (a care job).
-    Whether this is the right MONTH to sow is PermTek-5's calendar, not decided here.
+    Whether this is the right MONTH to sow is PermTek-5's calendar (the periods on its map); here a sowing waits
+    only until the day's mean is warm enough for its crop (sowing_waits).
+    `period` is the run's period (period_of): its target is what is sown, a rest period sows nothing, and when its
+    months are over a person clears the bed and moves on to the next (PermTek-5 ADR 0029).
     """
     if not cfg:
         return []
-    found = _box_care(cfg, bed_state or {}, guide or {}, active or [], care_due or []) + _proposals(cfg, bed_state, advice)
+    found = (_box_care(cfg, bed_state or {}, guide or {}, active or [], care_due or []) + _proposals(cfg, bed_state, advice, period)
+             + _season(cfg, bed_state or {}, period))
     if bed_state and "sim" in bed_state:           # a twin that grows weeds: look for them, and press the small ones under
         stampable = [w for w in (weeds or {}).get("found", []) if w["do"] == "stamp"]
         if stampable:
@@ -288,10 +319,80 @@ def kinds_of(water: Dict[str, Any], store_id: str) -> Optional[str]:
     return next((s["kind"] for s in water.get("stores") or [] if s["id"] == store_id), None)
 
 
+def target(cfg: Dict[str, Any], period: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """The cells the run works towards: the target of the run's period, or what the world was prepared with."""
+    if period and period.get("id") != ((cfg.get("period") or {}).get("id")):
+        return (cfg.get("targets") or {}).get(period["id"], [])
+    return cfg["cells"]
+
+
+def period_of(cfg: Dict[str, Any], run_period: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The run's period: the one moved on to, or the one the world was prepared for."""
+    return next((p for p in cfg.get("periods") or [] if p["id"] == run_period), None) or cfg.get("period")
+
+
+def next_period(cfg: Dict[str, Any], period: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The period after this one in the bed's year (round the year)."""
+    ps = sorted(cfg.get("periods") or [], key=lambda p: p["fromMonth"])
+    if not period or len(ps) < 2:
+        return None
+    i = next((k for k, p in enumerate(ps) if p["id"] == period["id"]), -1)
+    return ps[(i + 1) % len(ps)] if i >= 0 else None
+
+
+def sowing_waits(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]], period: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Planned crops too cold to sow today: the day's mean is under what the crop needs (crops.ttl sowMinTempC)."""
+    mean = ((bed_state or {}).get("env") or {}).get("meanC")
+    live = (bed_state or {}).get("cells", {})
+    if mean is None:
+        return []
+    out: Dict[str, Dict[str, Any]] = {}
+    for c in target(cfg, period):
+        need = ((cfg.get("crops") or {}).get(c["crop"]) or {}).get("sowMinTempC")
+        status = live.get(f'{c["row"]}_{c["col"]}', {}).get("status", c["status"])
+        if status in ("CellPlanned", "CellLost") and need is not None and mean < need - 1.0:
+            w = out.setdefault(c["crop"], {"crop": c["crop"], "name": (c.get("cropNames") or {}).get(current()) or c["cropName"], "needC": need, "cells": 0})
+            w["cells"] += 1
+    return sorted(out.values(), key=lambda w: w["name"])
+
+
+def _season(cfg: Dict[str, Any], state: Dict[str, Any], period: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """A person's part of the bed's season: harvest what is ready; when the period is over, clear and move on."""
+    live = state.get("cells", {})
+    out: List[Dict[str, Any]] = []
+    names = {c["crop"]: (c.get("cropNames") or {}).get(current()) or c["cropName"] for t in [cfg["cells"], *(cfg.get("targets") or {}).values()] for c in t}
+    ready = sorted(k for k, c in live.items() if c.get("ready") and c.get("status") == "CellGrowing")
+    if ready:
+        crops = sorted({names.get(live[k]["crop"], live[k]["crop"]) for k in ready})
+        out.append({"id": "harvest", "kind": "harvest", "who": "person",
+                    "title": _("You: harvest and clear {n} ready cell(s)", n=len(ready)),
+                    "detail": _("{crops}; the robot's photos show them grown. Confirm when you have harvested: the cells are free again", crops=", ".join(crops)),
+                    "spec": {"kind": "harvest", "ready": True}})
+    month = (state.get("env") or {}).get("month")
+    if period and month and month not in period.get("months", []):
+        standing = [k for k, c in live.items() if c.get("status") in ("CellSown", "CellGrowing", "CellLost")]
+        if standing:
+            out.append({"id": "clear", "kind": "clear", "who": "person",
+                        "title": _("You: clear what still stands ({n} cell(s))", n=len(standing)),
+                        "detail": _("“{name}” is over; what stands comes out for the next period", name=period["name"]),
+                        "spec": {"kind": "clear"}})
+        nxt = next_period(cfg, period)
+        if nxt and month in nxt.get("months", []):
+            out.append({"id": f"period-{nxt['id'].rsplit('/', 1)[-1]}", "kind": "period", "who": "person",
+                        "title": _("Move on to “{name}”", name=nxt["name"]),
+                        "detail": _("its target becomes the bed's plan: {n} cell(s) to sow", n=len((cfg.get("targets") or {}).get(nxt["id"], [])))
+                                  if nxt["kind"] == "GrowingKind" else _("a rest: nothing is sown but its cover crop; the worm box goes on in its winter care"),
+                        "spec": {"kind": "period", "id": nxt["id"]}})
+    return out
+
+
 def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],
-               advice: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+               advice: Optional[Dict[str, Any]] = None, period: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     state = bed_state or {}
     live = state.get("cells", {})
+    # a rest period sows nothing; nor is a crop sown on a day too cold for it
+    resting = bool(period) and period.get("kind") == "RestKind"
+    cold = {w["crop"] for w in sowing_waits(cfg, bed_state, period)}
     out: List[Dict[str, Any]] = []
     planted = []
     dry = []
@@ -308,14 +409,19 @@ def _proposals(cfg: Dict[str, Any], bed_state: Optional[Dict[str, Any]],
                                 spot=spot + 1, spots=box.get("spots", 1), g=int(hopper))
                               + (_(". Why this much: {why}", why=advice["why"]) if advice else ""),
                     "spec": {"kind": "feed", "grams": grams, "spot": spot}})
-    for c in cfg["cells"]:
+    for c in target(cfg, period):
         key = f'{c["row"]}_{c["col"]}'
         status = live.get(key, {}).get("status", c["status"])
         where = _("row {row}, column {col}", row=c["row"] + 1, col=c["col"] + 1)
-        if status == "CellPlanned" and c.get("job"):
+        if status in ("CellPlanned", "CellLost") and c.get("job") and not resting and c["crop"] not in cold:
             j = c["job"]
-            out.append({"id": f"plant-{key}", "kind": "plant", "title": _("Sow {crop} at {where}", crop=(c.get("cropNames") or {}).get(current()) or c["cropName"], where=where),
-                        "detail": _("{depth} mm deep, {seeds} seeds, keep {spacing} mm clear", depth=j["depthMm"], seeds=j["seeds"], spacing=j["spacingMm"]),
+            why = live.get(key, {}).get("why")
+            out.append({"id": f"plant-{key}", "kind": "plant",
+                        "title": (_("Resow {crop} at {where}", crop=(c.get("cropNames") or {}).get(current()) or c["cropName"], where=where) if status == "CellLost"
+                                  else _("Sow {crop} at {where}", crop=(c.get("cropNames") or {}).get(current()) or c["cropName"], where=where)),
+                        "detail": _("{depth} mm deep, {seeds} seeds, keep {spacing} mm clear", depth=j["depthMm"], seeds=j["seeds"], spacing=j["spacingMm"])
+                                  + (_("; the last sowing was lost ({why})", why={"frost": _("frost"), "dry": _("it dried out"), "cold": _("too cold to come up"),
+                                                                                    "notUp": _("it did not come up")}.get(why, why or "?")) if status == "CellLost" else ""),
                         "spec": {"kind": "plant", "row": c["row"], "col": c["col"], "crop": c["crop"],
                                  "depthMm": j["depthMm"], "seeds": j["seeds"]}})
         elif status in ("CellSown", "CellGrowing"):
