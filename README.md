@@ -331,6 +331,28 @@ If you copied the skill with `--install`, refresh it afterwards:
   new and flags what needs a person. With `/loop` it keeps watching, e.g.
   `/loop 10m use the permtek5-twin-logbook skill to look at the twin`.
 
+## Runs as OpenUSD stages
+
+Every run is recorded as it goes (`permtek5_twin_edge/track.py`, `run-track.jsonl` in the
+guild's folder):
+- a sample each simulated hour, more while the gantry works;
+- every change of a plant.
+
+The Film tab offers the last run as **OpenUSD** (`GET /api/twin/run.usda`, written by
+`usd_stage.py`). It is one self-contained text file, z up, in metres:
+- the bed, the worm box and the gantry;
+- every plant coming up, growing and harvested over the run;
+- a time code is a simulated hour, so it plays a day a second.
+
+Open it in `usdview` (`pip install usd-core`) or Blender (File › Import ›
+Universal Scene Description) and scrub through the season. `?frames=720` spreads it over
+30 seconds.
+
+The stage is a view, like the Webots world: the habitat's A-Box stays the truth, and
+nothing is written back. Webots itself does not read USD. The season film renders the
+recorded run: Blender imports the stage's plants and the gantry's travel. The shapes come
+from `assets/build.py`, which writes each mesh as `.obj` (Webots) and `.usda` (stages).
+
 ## For agents
 
 **As a Claude Code plugin** you get the skill and the MCP server in one step:

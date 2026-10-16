@@ -57,16 +57,16 @@
         "note": "Plants come up, grow or are lost; you harvest and move on. Nothing is written back: the map keeps what a person planned."
       },
       {
-        "id": "films",
-        "label": "Webots world and Blender film",
+        "id": "replay",
+        "label": "A run, replayed",
         "focus": [
           "world",
-          "webots",
-          "driver",
           "assets",
+          "driver",
+          "track",
           "film"
         ],
-        "note": "Both read bed.json and one set of Blender shapes. Webots runs it live; the film renders it slowly and lifelike, with the box's worms."
+        "note": "The run is recorded as it goes and written as an OpenUSD stage: replay it in usdview or Blender. The films render it with the same shapes."
       }
     ]
   },
@@ -240,6 +240,34 @@
         64
       ],
       "tag": "rendered offline"
+    },
+    {
+      "id": "logbook",
+      "type": "database",
+      "label": "Logbook",
+      "sublabel": "who did what",
+      "pos": [
+        500,
+        180
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "track",
+      "type": "database",
+      "label": "Run track · USD",
+      "sublabel": "track.py · run.usda",
+      "pos": [
+        960,
+        520
+      ],
+      "size": [
+        150,
+        64
+      ]
     }
   ],
   "boundaries": [
@@ -260,7 +288,8 @@
         "knowledge",
         "world",
         "assets",
-        "film"
+        "film",
+        "logbook"
       ]
     },
     {
@@ -271,6 +300,13 @@
         "actions",
         "webots",
         "driver"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "This PC · the run's record",
+      "wraps": [
+        "track"
       ]
     }
   ],
@@ -374,12 +410,32 @@
       "labelDx": 22
     },
     {
-      "id": "wormcount",
-      "from": "driver",
-      "to": "film",
-      "label": "worm count",
-      "variant": "dashed",
+      "id": "acts",
+      "from": "page",
+      "to": "logbook",
+      "label": "acts",
       "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        570,
+        152
+      ]
+    },
+    {
+      "id": "states",
+      "from": "driver",
+      "to": "track",
+      "label": "states",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "replay",
+      "from": "track",
+      "to": "film",
+      "label": "run · USD",
+      "variant": "emphasis",
+      "fromSide": "left",
       "toSide": "right"
     }
   ],
@@ -398,8 +454,8 @@
       "title": "You decide, it stays here",
       "items": [
         "Jobs run only when you press Confirm; the chat only proposes",
-        "You fill the hopper and the tank; e-stop holds the gantry",
-        "Habitat, worlds, pictures and logs stay on this PC"
+        "In a rehearsal the autopilot can do your part; the logbook keeps every act",
+        "Habitat, worlds, pictures, logbook and runs stay on this PC"
       ]
     },
     {
@@ -407,7 +463,7 @@
       "title": "Webots world and Blender film",
       "items": [
         "Both read bed.json and the same Blender shapes: one bed",
-        "Webots runs live; the film renders slowly, path-traced",
+        "The season film renders the recorded run, as an OpenUSD stage",
         "The film shows as many worms as the simulated box holds"
       ]
     }

@@ -1035,7 +1035,20 @@ setInterval(refreshScenarios, 1000);
 
 const F = { shown: "", job: null };
 
+// The recorded run (track.py): the season film renders it, and it can be taken away as an OpenUSD stage.
+async function drawRun() {
+  let r;
+  try { r = await core.api("GET", "/api/twin/track"); } catch (_) { return; }
+  const el = $("#film-run");
+  el.hidden = !r.recorded;
+  if (!r.recorded) return;
+  el.innerHTML = core.esc(tr("The last run: {from} – {to}, {days} simulated days, {n} samples. The season film renders it.",
+    { from: r.from || "–", to: r.to || "–", days: r.days, n: r.samples }))
+    + ` <a href="/api/twin/run.usda" download>${core.esc(tr("Download it as OpenUSD (.usda)"))}</a>`;
+}
+
 async function refreshFilm() {
+  drawRun();
   let f;
   try { f = await core.api("GET", "/api/twin/film"); } catch (_) { return; }
   const job = f.job && ["queued", "running"].includes(f.job.state) ? f.job : null;

@@ -55,8 +55,10 @@ def missing() -> List[str]:
 
 
 def command(bed: Path, out: Path, shot: str = "bed", quality: str = "good", adults: Optional[int] = None,
-            frames: Optional[int] = None) -> List[str]:
+            frames: Optional[int] = None, track: Optional[Path] = None) -> List[str]:
     cmd = [str(PYTHON), str(SCRIPT), "--bed", str(bed), "--out", str(out), "--shot", shot, "--quality", quality]
+    if track is not None and shot == "season":         # the season renders the recorded run (track.py, usd_stage.py)
+        cmd += ["--track", str(track)]
     if adults is not None:
         cmd += ["--adults", str(int(adults))]
     if frames:
@@ -109,7 +111,8 @@ def stitch(out: Path) -> Optional[Path]:
 
 
 def render(bed: Path, out: Path, shot: str, quality: str, progress: Callable[[str, float], None],
-           cancelled: Callable[[], bool], adults: Optional[int] = None, cmd: Optional[List[str]] = None) -> Dict[str, Any]:
+           cancelled: Callable[[], bool], adults: Optional[int] = None, cmd: Optional[List[str]] = None,
+           track: Optional[Path] = None) -> Dict[str, Any]:
     """Run the renderer to the end. Raises Stopped on Cancel, RuntimeError with the log's tail on failure."""
     bad = missing() if cmd is None else []
     if bad:
@@ -124,7 +127,7 @@ def render(bed: Path, out: Path, shot: str, quality: str, progress: Callable[[st
     started = time.time()
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "VIRTUAL_ENV", "PYTHONHOME")}
     with open(log, "wb") as fh:
-        proc = subprocess.Popen(cmd or command(Path(bed), out, shot, quality, adults), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT,
+        proc = subprocess.Popen(cmd or command(Path(bed), out, shot, quality, adults, track=track), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT,
                                 stdin=subprocess.DEVNULL, env=env, start_new_session=True,
                                 preexec_fn=lambda: os.nice(10))       # the simulation comes first
     progress("the still", 0.0)

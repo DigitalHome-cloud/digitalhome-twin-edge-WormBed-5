@@ -1226,5 +1226,7 @@
  "keeper": "Wächter",
  "plants": "Pflanzen",
  "the autopilot runs only in a rehearsal": "der Autopilot läuft nur in einer Probe",
- "The season, from a clean bed": "Die Saison, ab einem leeren Beet"
+ "The season, from a clean bed": "Die Saison, ab einem leeren Beet",
+ "The last run: {from} – {to}, {days} simulated days, {n} samples. The season film renders it.": "Der letzte Lauf: {from} – {to}, {days} simulierte Tage, {n} Proben. Der Saisonfilm zeigt ihn.",
+ "Download it as OpenUSD (.usda)": "Als OpenUSD (.usda) herunterladen"
 }

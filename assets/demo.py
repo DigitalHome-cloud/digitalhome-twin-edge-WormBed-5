@@ -23,11 +23,13 @@ The shots:
     flight  from the whole bed, along it, down into the open worm box, and a
             while with the worms (18 s)
     season  the prepared period from a clean bed, as a time-lapse (30 s): the
-            gantry sows what may be sown, the plants come up, grow and ripen,
-            some are lost and sown again, the ripe ones are harvested. The days
-            are the twin's own: its generic year and its plants (plants.py),
-            so the film shows what a rehearsal of the period would (PermTek-5
-            ADR 0029). The month runs in the corner.
+            gantry sows, the plants come up, grow and ripen, some are lost and
+            sown again, the ripe ones are harvested. With --track (a recorded
+            run, run-track.jsonl) the film renders THAT run: the edge writes it
+            as an OpenUSD stage (usd_stage.py) and Blender imports the plants
+            and the gantry from it. Without one, the period is rehearsed here
+            with the twin's own year and plants (plants.py). The month runs in
+            the corner.
 
 Writes poster-<shot>.png (one still) and film-<shot>.mp4 (needs ffmpeg on the
 PATH, otherwise the frames stay in frames-<shot>/). Rendered with Cycles on the
@@ -52,9 +54,19 @@ import bpy  # first: it puts mathutils on the path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build  # noqa: E402  the same shapes the simulation uses
 import wormlife  # noqa: E402  the inside of the worm box
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ros2" / "roofbed_twin"))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "ros2" / "roofbed_twin"))
 from roofbed_twin.environment import YEAR  # noqa: E402  the twin's generic year: plain Python
 from roofbed_twin.plants import Plants  # noqa: E402  and its plants
+
+
+def _edge(name):
+    """One of the edge's standard-library modules (track.py, usd_stage.py), without the app around it."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name, ROOT / "permtek5_twin_edge" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 FPS = 24
 SHOTS = ("bed", "box", "flight", "season")
@@ -137,7 +149,7 @@ def empty(name, location):
 # -------------------------------------------------------------------- scene --
 
 
-def scene_from(cfg, frames, shot, worms):
+def scene_from(cfg, frames, shot, worms, stage=None, run=None):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     bed, w, g, garden = cfg["bed"], cfg["world"], cfg.get("gantry", {}), cfg.get("garden", {})
@@ -169,13 +181,19 @@ def scene_from(cfg, frames, shot, worms):
     # every planted cell, in its crop's colour
     grown, seedling = build.plant_grown(), build.plant_seedling()
     crop_mats = {}
-    season = season_timeline(cfg, frames) if shot == "season" else None
+    season = (run_from_stage(stage, run, frames) if stage else season_timeline(cfg, frames)) if shot == "season" else None
     for c in cfg["cells"]:
         if c["status"] not in ("CellSown", "CellGrowing") and not season:
             continue
         rgb = [v * 0.8 for v in c.get("rgb", (0.3, 0.6, 0.3))]
         mat = crop_mats.setdefault(c["crop"], textured(c["crop"], [v * 0.7 for v in rgb], rgb, 60.0, 0.55, 0.2))
         wormlife._set(mat.node_tree.nodes["Principled BSDF"], Subsurface_Weight=0.25, Subsurface_Radius=(0.01, 0.01, 0.005))
+        if season and season.get("imported"):     # the run's own plants, imported from its stage: give them their crop's look
+            o = season["imported"].get(f'{c["row"]}_{c["col"]}')
+            if o is not None:
+                o.data.materials.clear()
+                o.data.materials.append(mat)
+            continue
         if season:                                # the plant comes and goes with the season: its size by frame
             spacing = (c.get("job") or {}).get("spacingMm", cell * 1000) / 1000.0
             k = max(0.02, spacing * 0.38) / 0.1
@@ -238,6 +256,47 @@ def scene_from(cfg, frames, shot, worms):
     scene.frame_start, scene.frame_end = 1, frames
     MARKS[:] = season["months"] if season else []
     return scene
+
+
+def _ancestors(o):
+    while o.parent is not None:
+        o = o.parent
+        yield o
+
+
+def run_from_stage(stage, run, frames):
+    """A recorded run in the film: its stage's plants imported as they are (each its own object, moved by the stage's
+    time samples), the gantry's travel read from the stage's bridge frame by frame, and the months from the run's dates."""
+    before = set(bpy.data.objects)
+    bpy.ops.wm.usd_import(filepath=str(stage), prim_path_mask="/Guild/Plants;/Guild/Gantry/Bridge", import_lights=False,
+                          import_cameras=False, import_materials=False, set_frame_range=False, merge_parent_xform=False,
+                          create_collection=True)
+    new = [o for o in bpy.data.objects if o not in before]
+    # each plant is its cell's prim (an empty, moved by the stage) with the plant's mesh under it
+    plants = {o.parent.name[len("cell_"):].split(".")[0]: o for o in new
+              if o.type == "MESH" and o.parent is not None and o.parent.name.startswith("cell_")}
+    bridge = next((o for o in new if o.name.split(".")[0] == "Bridge"), None)
+    gantry = [(1, 0.25)]
+    if bridge is not None:
+        scene = bpy.context.scene
+        gantry = []
+        for f in range(1, frames + 1, 3):
+            scene.frame_set(f)
+            gantry.append((f, round(bridge.matrix_world.translation.x, 4)))
+        keep = set(plants.values()) | {o.parent for o in plants.values()}
+        keep |= {p for o in list(keep) for p in _ancestors(o)}
+        for o in [o for o in new if o not in keep]:           # the film has its own gantry; only the travel is kept
+            bpy.data.objects.remove(o)
+    samples = run["samples"]
+    t0, t1 = samples[0]["t"], samples[-1]["t"]
+    marks, seen = [], None
+    for x in samples:
+        month = (x.get("date") or "")[5:7]
+        if month and month != seen:
+            seen = month
+            marks.append((1 + round((x["t"] - t0) / max(1e-6, t1 - t0) * (frames - 1)), MONTHS[int(month) - 1]))
+    print(f"season: the recorded run, {len(samples)} samples over {(t1 - t0) / 1440:.0f} days, {len(plants)} plants from {stage}", flush=True)
+    return {"imported": plants, "gantry": gantry, "months": marks, "cells": {}}
 
 
 def season_timeline(cfg, frames):
@@ -507,6 +566,7 @@ def main():
     ap.add_argument("--height", type=int, default=None)
     ap.add_argument("--samples", type=int, default=None)
     ap.add_argument("--still-only", action="store_true")
+    ap.add_argument("--track", default=None, help="season: a recorded run (run-track.jsonl) to render instead of rehearsing one")
     args = ap.parse_args()
     cfg = json.loads(Path(args.bed).read_text(encoding="utf-8"))
     qw, qh, qs, step = QUALITY[args.quality]
@@ -522,7 +582,16 @@ def main():
     frames_dir.mkdir(parents=True)
 
     started, parent = time.time(), os.getppid()
-    scene = scene_from(cfg, args.frames, args.shot, worms)
+    stage, run = None, None
+    if args.shot == "season" and args.track:
+        run = _edge("track").read(Path(args.track).parent) if Path(args.track).name == "run-track.jsonl" else None
+        if run and len(run["samples"]) > 1:
+            stage = _edge("usd_stage").write(cfg, run, out / "season-run.usda", frames=args.frames)
+        else:
+            print("no recorded run in " + str(args.track) + ": the season is rehearsed in the film", flush=True)
+    elif args.shot == "season":
+        print("no recorded run: the season is rehearsed in the film", flush=True)
+    scene = scene_from(cfg, args.frames, args.shot, worms, stage, run)
     setup_render(scene, args.width, args.height, args.samples)
     print(f"scene {time.time() - started:.1f}s, {worms} worms", flush=True)
 

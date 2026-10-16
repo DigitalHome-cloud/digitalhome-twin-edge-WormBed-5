@@ -43,6 +43,8 @@ from .i18n import _
 from . import instance
 from . import keeper
 from . import logbook
+from . import track
+from . import usd_stage
 from . import loop_view
 from . import scenarios
 from . import sim
@@ -522,6 +524,7 @@ def twin_start():
         sim.start(engine.workspace(), gui=bool(body().get("gui")))
     except RuntimeError as exc:
         return jsonify({"errors": str(exc).split("; ")}), 400
+    _record()
     return jsonify(_twin_state())
 
 
@@ -529,6 +532,8 @@ def twin_start():
 def twin_stop():
     scenarios.stop()
     _auto_off("the simulation stopped")
+    if _recorder["r"]:
+        _recorder["r"].stop()
     sim.stop()
     return jsonify(_twin_state())
 
@@ -596,6 +601,14 @@ def _run(spec: dict) -> dict:
 
 
 _follower = logbook.Follower()
+_recorder: Dict[str, Optional[track.Recorder]] = {"r": None}
+
+
+def _record() -> None:
+    """A new run, a new track (track.py): it follows the twin until it stops."""
+    if _recorder["r"] is None:
+        _recorder["r"] = track.Recorder(engine.workspace(), sim.status, engine.config)
+    _recorder["r"].start()
 _run_period: Dict[str, Optional[str]] = {"id": None}     # the period the run moved on to; None: the one prepared
 
 
@@ -879,6 +892,7 @@ def _go_run(graph, gui: bool, scenario_id: str, month, choice: Optional[dict] = 
                 month = cfg["period"]["fromMonth"]
             phase("webots")
             sim.start(engine.workspace(), gui=gui)
+            _record()
         phase("gantry")
         if not sim.wait_ready(180.0):
             ready = loop_view.readiness(_twin_state(), sim.log_tail(40), time.time())
@@ -1188,6 +1202,26 @@ def twin_autopilot():
     return jsonify({k: v for k, v in _auto.items() if k != "seen"})
 
 
+@app.get("/api/twin/track")
+def twin_track():
+    """The recorded run (track.py): how many samples, the simulated span, the cells by status at its end."""
+    return jsonify(track.summary(engine.workspace()))
+
+
+@app.get("/api/twin/run.usda")
+def twin_run_usda():
+    """The last run as an OpenUSD stage (usd_stage.py), to replay in usdview or Blender. ?frames=720 spreads it over
+    that many time codes (a 30 s film); otherwise a time code is a simulated hour."""
+    cfg = engine.config()
+    if not cfg:
+        return jsonify({"errors": [_("prepare a world first")]}), 400
+    frames = request.args.get("frames", type=int)
+    out = usd_stage.write(cfg, track.read(engine.workspace()), engine.workspace() / "run.usda",
+                          frames=max(2, min(frames, 100000)) if frames else None)
+    return send_file(out, mimetype="model/vnd.usda", as_attachment=True,
+                     download_name=f"{(cfg.get('bed') or {}).get('name', 'run').replace(' ', '-')}-run.usda")
+
+
 @app.get("/api/logbook")
 def logbook_read():
     """?after=<n>&who=person,autopilot&what=...&limit=200: the guild's logbook, oldest first."""
@@ -1272,8 +1306,12 @@ def _film_out():
 
 
 def _film_job(spec, progress, cancelled):
+    # the season renders the run recorded for this world, when there is one (track.py)
+    recorded = track.summary(engine.workspace())
+    bed_id = ((engine.config() or {}).get("bed") or {}).get("id")
+    run = engine.workspace() / track.FILE if recorded["samples"] > 1 and (recorded["head"] or {}).get("bed") == bed_id else None
     return film.render(engine.workspace() / "bed.json", _film_out(), spec.get("shot", "bed"), spec.get("quality", "good"),
-                       progress, cancelled, adults=spec.get("adults"))
+                       progress, cancelled, adults=spec.get("adults"), track=run)
 
 
 def _adults():

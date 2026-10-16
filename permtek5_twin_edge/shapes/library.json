@@ -1,80 +1,93 @@
 {
-  "about": "The twin's shape library. Made once with Blender (assets/build.py); Webots loads these files, Blender is not needed to run the twin.",
+  "about": "The twin's shape library. Made once with Blender (assets/build.py); Webots loads the .obj files, a run's USD stage references the .usda files; Blender is not needed to run the twin.",
   "shapes": {
     "plant_grown": {
       "file": "plant_grown.obj",
+      "usd": "plant_grown.usda",
       "what": "A grown leafy plant: a rosette of leaves about 0.2 m across, standing on z = 0.",
       "vertices": 520,
       "builtBy": "assets/build.py:plant_grown"
     },
     "plant_seedling": {
       "file": "plant_seedling.obj",
+      "usd": "plant_seedling.usda",
       "what": "A seedling: a short stem with two seed leaves, modelled 0.2 m across (scaled down in the world).",
       "vertices": 96,
       "builtBy": "assets/build.py:plant_seedling"
     },
     "bed_soil": {
       "file": "bed_soil.obj",
+      "usd": "bed_soil.usda",
       "what": "A unit square of raked soil: low ridges along the length and fine clods, flat at the edges.",
       "vertices": 1281,
       "builtBy": "assets/build.py:bed_soil"
     },
     "gantry_bridge": {
       "file": "gantry_bridge.obj",
+      "usd": "gantry_bridge.usda",
       "what": "A slotted aluminium profile, 60 x 40 mm, 1 m long along y.",
       "vertices": 40,
       "builtBy": "assets/build.py:gantry_bridge"
     },
     "tree_trunk": {
       "file": "tree_trunk.obj",
+      "usd": "tree_trunk.usda",
       "what": "The trunk of a tree 1 m tall, standing on z = 0.",
       "vertices": 72,
       "builtBy": "assets/build.py:tree_trunk"
     },
     "tree_canopy": {
       "file": "tree_canopy.obj",
+      "usd": "tree_canopy.usda",
       "what": "A lumpy crown: an icosphere pushed in and out by noise, flatter underneath.",
       "vertices": 162,
       "builtBy": "assets/build.py:tree_canopy"
     },
     "worm_box": {
       "file": "worm_box.obj",
+      "usd": "worm_box.usda",
       "what": "The worm box's two bins in a unit cube (x and y 0..1, standing on z = 0): the lower half is the sump with a solid bottom, the upper half the slatted working bin, open at the top.",
       "vertices": 120,
       "builtBy": "assets/build.py:worm_box"
     },
     "worm_box_lid": {
       "file": "worm_box_lid.obj",
+      "usd": "worm_box_lid.usda",
       "what": "The lid in two parts, either side of the feed hatch, overhanging against rain. Its hinge is the y axis at x = 0, z = 0: it lies from x = -1.06 to 0, so turning it about y opens it.",
       "vertices": 24,
       "builtBy": "assets/build.py:worm_box_lid"
     },
     "worm_box_hatch": {
       "file": "worm_box_hatch.obj",
+      "usd": "worm_box_hatch.usda",
       "what": "The feed hatch in the lid: a flap across the box that the robot's tool opens. Hinged like the lid, about the y axis at x = 0, z = 0; it lies from x = -0.24 to 0.",
       "vertices": 8,
       "builtBy": "assets/build.py:worm_box_hatch"
     },
     "worm_box_holes": {
       "file": "worm_box_holes.obj",
+      "usd": "worm_box_holes.usda",
       "what": "What is drilled into the bins, as dark dots to lay over them: air holes high on bin 1's two short sides, and the tap low on the sump. Same unit cube as worm_box.",
       "vertices": 188,
       "builtBy": "assets/build.py:worm_box_holes"
     },
     "worm_box_lid_holes": {
       "file": "worm_box_lid_holes.obj",
+      "usd": "worm_box_lid_holes.usda",
       "what": "The vent holes drilled in the lid, as dark dots to lay over it. Same coordinates as worm_box_lid, so they turn with it.",
       "vertices": 576,
       "builtBy": "assets/build.py:worm_box_lid_holes"
     },
     "worm": {
       "file": "worm.obj",
+      "usd": "worm.usda",
       "what": "A red wiggler lying on the bedding: 1 m long along x (the world scales it to about 8 cm), a gentle S, ringed segments, the swollen band (clitellum) a third of the way back, resting on z = 0.",
       "vertices": 156,
       "builtBy": "assets/build.py:worm"
     },
     "cocoon": {
       "file": "cocoon.obj",
+      "usd": "cocoon.usda",
       "what": "A worm cocoon: a small lemon, 1 m long along x (the world scales it to about 3 mm), resting on z = 0.",
       "vertices": 64,
       "builtBy": "assets/build.py:cocoon"

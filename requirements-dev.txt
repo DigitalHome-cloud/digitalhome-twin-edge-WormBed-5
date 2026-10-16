@@ -1,1 +1,2 @@
 pytest>=8.0
+usd-core>=25.0      # tests only: check that a run's USD stage opens and reads right (usd_stage.py writes it without)

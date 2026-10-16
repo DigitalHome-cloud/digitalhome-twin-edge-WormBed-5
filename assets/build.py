@@ -8,7 +8,8 @@ build.py — the twin's meshes, made with Blender as a Python module (bpy).
 Runs ONLY in the bpy environment (scripts/setup-bpy.sh): bpy needs its own
 Python version, and neither the app nor the simulation imports it. It writes
 plain OBJ files (no materials, nothing downloaded) that world.py uses for
-looks when they exist; collisions and motion never depend on them.
+looks when they exist; collisions and motion never depend on them. The
+same shapes go out as OpenUSD (.usda) too, for a run's stage (usd_stage.py).
 
 Every mesh is modelled at a unit size and scaled by the world:
 
@@ -292,6 +293,11 @@ def export(obj, out: Path):
     bpy.ops.wm.obj_export(filepath=str(out / f"{obj.name}.obj"), export_selected_objects=True, export_materials=False,
                           export_uv=False, export_normals=True, export_triangulated_mesh=True,
                           forward_axis="Y", up_axis="Z")
+    # and as OpenUSD, for the run stages (usd_stage.py): one mesh under a root prim of the shape's name, z up, metres
+    bpy.ops.wm.usd_export(filepath=str(out / f"{obj.name}.usda"), selected_objects_only=True, export_materials=False,
+                          export_uvmaps=False, export_normals=True, export_animation=False, triangulate_meshes=True,
+                          convert_orientation=False, root_prim_path=f"/{obj.name}", merge_parent_xform=True,
+                          author_blender_name=False, relative_paths=True, export_lights=False, export_cameras=False)
 
 
 def main():
@@ -304,7 +310,7 @@ def main():
     digest = hashlib.sha256(Path(__file__).read_bytes() + bpy.app.version_string.encode()).hexdigest()[:16]
     stamp = out / ".built"
     names = [b.__name__ for b in BUILDERS]
-    if not args.force and stamp.exists() and stamp.read_text() == digest and all((out / f"{n}.obj").exists() for n in names):
+    if not args.force and stamp.exists() and stamp.read_text() == digest and all((out / f"{n}.{x}").exists() for n in names for x in ("obj", "usda")):
         print(f"  meshes are up to date in {out}")
         return 0
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -312,11 +318,11 @@ def main():
     for build in BUILDERS:
         obj = build()
         export(obj, out)
-        library[obj.name] = {"file": f"{obj.name}.obj", "what": " ".join((build.__doc__ or "").split()),
+        library[obj.name] = {"file": f"{obj.name}.obj", "usd": f"{obj.name}.usda", "what": " ".join((build.__doc__ or "").split()),
                              "vertices": len(obj.data.vertices), "builtBy": f"assets/build.py:{build.__name__}"}
         print(f"  {obj.name}.obj  {len(obj.data.vertices)} vertices")
     (out / "library.json").write_text(json.dumps({"about": "The twin's shape library. Made once with Blender (assets/build.py); "
-                                                  "Webots loads these files, Blender is not needed to run the twin.",
+                                                  "Webots loads the .obj files, a run's USD stage references the .usda files; Blender is not needed to run the twin.",
                                                   "shapes": library}, indent=2) + "\n", encoding="utf-8")
     stamp.write_text(digest)
     print(f"  -> {out}")
