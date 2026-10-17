@@ -317,7 +317,14 @@ If you copied the skill with `--install`, refresh it afterwards:
   - walks a running scenario's steps.
 
   It never runs on a real bed, and it switches itself off when the twin stops, a
-  world is prepared, or the gantry is locked out.
+  world is prepared, or the gantry is locked out. What it does, in which order and at
+  which levels is the care guide's `autopilot` block (PermTek-5 ADR 0031), the same
+  rules the cloud reads.
+- **Care in the cloud** (PermTek-5 ADR 0031): a run of the real bed, linked to a cloud,
+  reports its care record and the keeper's reactions on `/edge/v1/care` when they change
+  and at least hourly (`care_report.py`); the site's Now view shows what is due. A Done
+  pressed there comes back with the answer, is done here and logged as `person`
+  "done (from the site)". Robot jobs are still confirmed here. A rehearsal reports nothing.
 - **Logbook** (a menu item, `logbook()` over MCP, `GET /api/logbook`): who did what and
   when, with the simulation's own date. It holds:
   - your acts, and the autopilot's;

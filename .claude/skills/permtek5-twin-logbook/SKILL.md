@@ -10,7 +10,7 @@ guild to a logbook, one numbered entry each, oldest first:
 
 | who | what it writes |
 |---|---|
-| `person` | what a person did through the page or an agent's confirmed proposal: hopper, tank, taps, the worm box, care tasks, confirmed jobs, prepare/start/stop, scenarios, chaos |
+| `person` | what a person did through the page or an agent's confirmed proposal: hopper, tank, taps, the worm box, care tasks, confirmed jobs, prepare/start/stop, scenarios, chaos; and a care task done in the cloud's site ("done (from the site): …", what `care.done`) |
 | `autopilot` | the same acts, done by the autopilot in an unattended rehearsal; `off` when it stops and why; `error` when a look failed |
 | `robot` | how each gantry job ended: `job.done`, `job.failed`, `job.aborted`, `job.cancelled`, `job.refused` |
 | `plants` | `plant.up` (came up), `plant.ready` (ready to harvest), `plant.lost` (frost, dry, cold, did not come up), `plant.harvested` |

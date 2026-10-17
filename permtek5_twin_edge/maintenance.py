@@ -14,6 +14,7 @@ care.json in the guild's folder, and says what is due:
     due(guide, record, today, active)     every task with "due" and why
     done(folder, task_id, today)          a person did it (or the robot's job finished)
     task_for_job(guide, spec)             which task a robot job does
+    autopilot_policy(guide)               what the autopilot does in a rehearsal, and in which order
 
 The dates are the simulation's: day 1 of the twin is the day the record was
 started (`start`), so a fast clock runs through the year. The same rules as
@@ -119,6 +120,26 @@ def task_for_job(guide: Dict[str, Any], spec: Dict[str, Any]) -> Optional[str]:
     kind = str(spec.get("kind") or "")
     names = {kind, f'{kind}:{spec.get("what")}'} if spec.get("what") else {kind}
     return next((t["id"] for t in guide["tasks"] if t.get("job") in names), None)
+
+
+AUTOPILOT_DEFAULTS: Dict[str, Any] = {
+    "order": ["harvest", "clear", "period", "water", "valve", "feed", "care", "rest", "tap", "topdress", "plant",
+              "stamp", "scan", "probe", "photo"],
+    "daily": ["scan", "probe", "photo"],
+    "refills": {"hopperGrams": 300, "brownsGrams": 200, "tankShare": 0.2},
+    "fills": {"hopper": {"vegetable": 600, "fruit": 300, "coffee": 100}, "brownsGrams": 1000},
+}
+
+
+def autopilot_policy(guide: Dict[str, Any]) -> Dict[str, Any]:
+    """The guide's "autopilot" block (PermTek-5 docs/adr/0031), each part falling back to the defaults:
+    order (proposal kinds, most needed first), daily (looking jobs, once a simulated day), refills (the levels
+    under which the hopper, the bedding and the tank are refilled) and fills (what goes in). As autopilotPolicy
+    in maintenance.ts."""
+    a = guide.get("autopilot") or {}
+    d = AUTOPILOT_DEFAULTS
+    return {"order": list(a.get("order") or d["order"]), "daily": list(a.get("daily") or d["daily"]),
+            "refills": {**d["refills"], **(a.get("refills") or {})}, "fills": {**d["fills"], **(a.get("fills") or {})}}
 
 
 def _write(folder: Path, record: Dict[str, Any]) -> None:

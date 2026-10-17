@@ -30,6 +30,7 @@ from typing import Dict, Optional
 from flask import Response, abort, g as flask_g, jsonify, render_template, request, send_file
 
 from . import engine as engine
+from . import care_report
 from . import cloudsite
 from . import disturbances
 from . import feeder
@@ -403,6 +404,10 @@ def _twin_state() -> dict:
             _offline["queued"] = 0
         except Exception:                         # busy: the person syncs from Connections
             pass
+    # the care, told to the cloud so the site shows what is due (PermTek-5 ADR 0031): a run of the real bed only
+    if live_bed and src.get("graph") and not offline and kept.get("care") and (cfg.get("guild") or {}).get("id") \
+            and edge_cloud.linked_profiles():
+        _report_care(src["graph"], cfg["guild"]["id"], out, kept)
     if cfg and bed:
         names = {c["crop"]: c.get("cropName") or c["crop"] for t in [cfg["cells"], *(cfg.get("targets") or {}).values()] for c in t}
         try:
@@ -669,6 +674,44 @@ def _follow_care(cfg, bed, twin, out, kept: dict) -> None:
     kept["care"] = {"today": today.isoformat(), "tasks": tasks,
                     "due": {"robot": sum(1 for t in tasks if t["due"] and t["who"] == "robot"),
                             "person": sum(1 for t in tasks if t["due"] and t["who"] == "person")}}
+
+
+_care_reporter = care_report.Reporter()
+_care_reporting = threading.Lock()          # one report at a time; the state is looked at every couple of seconds
+
+
+def _care_done_from_site(task_id: str) -> bool:
+    """A Done a person pressed in the site: a person's task only (the robot's are done by its jobs)."""
+    task = next((t for t in _care_guide["tasks"] if t["id"] == task_id), None)
+    if not task or task.get("who") != "person":
+        return False
+    _care_done(task_id)
+    label = (task.get("label") or {}).get("en") or task_id
+    logbook.write(engine.workspace(), "person", "care.done", f"done (from the site): {label}", _sim_now())
+    return True
+
+
+def _report_care(graph: str, guild_id: str, out, kept: dict) -> None:
+    """Send the care record to the cloud when it changed or an hour went by; in the background, never blocking."""
+    if not _care_reporting.acquire(blocking=False):
+        return
+    record = maintenance.read(out)
+    today, active = kept["care"]["today"], kept.get("active")
+
+    def run() -> None:
+        try:
+            space = edge_cloud.space_by_slug(graph)
+            if space is None:
+                return
+            rep = care_report.report(space["id"], guild_id, today, record, active)
+            if _care_reporter.wanted(rep, time.time()):
+                _care_reporter.send(edge_cloud.call, rep, _care_done_from_site, time.time())
+        except Exception:                         # offline or refused: tried again in a few minutes
+            pass
+        finally:
+            _care_reporting.release()
+
+    threading.Thread(target=run, name="care-report", daemon=True).start()
 
 
 @app.get("/api/twin/care/guide")
@@ -1099,10 +1142,11 @@ def _scenario_act(t: dict) -> None:
 # prepared, or the gantry is locked out.
 
 AUTO_EVERY_S = 2.0
-AUTO_ORDER = ("harvest", "clear", "period", "water", "valve", "feed", "care", "rest", "tap", "topdress", "plant", "stamp",
-              "scan", "probe", "photo")
-AUTO_DAILY = ("scan", "probe", "photo")         # looking, not doing: once a simulated day each
-HOPPER_LOW_G, BROWNS_LOW_G, TANK_LOW = 300, 200, 0.2
+# what it does and in which order is the care guide's (PermTek-5 docs/adr/0031): the cloud reads the same rules
+AUTO = maintenance.autopilot_policy(_care_guide)
+AUTO_ORDER = tuple(AUTO["order"])
+AUTO_DAILY = tuple(AUTO["daily"])              # looking, not doing: once a simulated day each
+HOPPER_LOW_G, BROWNS_LOW_G, TANK_LOW = (AUTO["refills"][k] for k in ("hopperGrams", "brownsGrams", "tankShare"))
 _auto: Dict[str, object] = {"on": False, "since": None, "acts": 0, "last": None, "why": None, "seen": {}}
 
 
@@ -1132,11 +1176,13 @@ def _auto_tick() -> None:
     # a person's part at the bed
     hopper = bed.get("hopper") or {}
     if cfg.get("wormBin", {}).get("cols") and hopper.get("grams", HOPPER_LOW_G) < HOPPER_LOW_G:
-        sim.gateway("/event", {"op": "hopper", "mix": {"vegetable": 600, "fruit": 300, "coffee": 100}, "grams": 1000})
-        return _auto_log("filled the hopper: vegetable 600 g, fruit 300 g, coffee 100 g")
+        mix = AUTO["fills"]["hopper"]
+        sim.gateway("/event", {"op": "hopper", "mix": dict(mix), "grams": sum(mix.values())})
+        return _auto_log("filled the hopper: " + ", ".join(f"{k} {v:g} g" for k, v in mix.items()))
     if cfg.get("wormBin", {}).get("cols") and hopper.get("brownsGrams", BROWNS_LOW_G) < BROWNS_LOW_G:
-        sim.gateway("/event", {"op": "hopper", "browns": 1000})
-        return _auto_log("filled the bedding compartment: 1000 g")
+        browns = AUTO["fills"]["brownsGrams"]
+        sim.gateway("/event", {"op": "hopper", "browns": browns})
+        return _auto_log(f"filled the bedding compartment: {browns:g} g")
     tank = bed.get("tank") or {}
     if tank.get("capacity") and tank.get("litres", 0) < TANK_LOW * tank["capacity"]:
         sim.gateway("/event", {"op": "tank", "litres": float(tank["capacity"])})

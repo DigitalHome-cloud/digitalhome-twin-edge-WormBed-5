@@ -1,6 +1,6 @@
 {
   "id": "wormbed5-care",
-  "version": 1,
+  "version": 2,
   "guildType": "WormBed5",
   "about": {
     "en": "What keeps a WormBed5 working, and who does it: the robot or you. Rhythms in days, seasonal tasks by month; a reaction of the keeper brings a task forward. Rules of thumb; correct them against your own bed.",
@@ -418,5 +418,47 @@
   ],
   "jobs": {
     "en": "The robot's tasks name the twin edge's job that does them (feed, probe, care:bedding, tap, valve:mist, scan, photo, topdress): when that job is done, so is the task."
+  },
+  "autopilot": {
+    "about": {
+      "en": "What the edge's autopilot does in a rehearsal, in place of a person: it refills what runs low, does the person's tasks that are due, then confirms the robot's proposals in this order. The \"daily\" jobs only look; they run once a simulated day. The cloud reads the same rules to show the care that is due.",
+      "de": "Was der Autopilot der Edge in einer Probe an Stelle einer Person tut: Er füllt nach, was knapp wird, erledigt die fälligen Aufgaben der Person und bestätigt dann die Vorschläge des Roboters in dieser Reihenfolge. Die „täglichen“ Aufträge schauen nur; sie laufen einmal pro simuliertem Tag. Die Cloud liest dieselben Regeln, um die fällige Pflege zu zeigen.",
+      "fr": "Ce que le pilote automatique de l'edge fait lors d'une répétition, à la place d'une personne : il remplit ce qui manque, fait les tâches dues de la personne, puis confirme les propositions du robot dans cet ordre. Les travaux « quotidiens » ne font que regarder ; ils tournent une fois par jour simulé. Le cloud lit les mêmes règles pour montrer les soins dus."
+    },
+    "order": [
+      "harvest",
+      "clear",
+      "period",
+      "water",
+      "valve",
+      "feed",
+      "care",
+      "rest",
+      "tap",
+      "topdress",
+      "plant",
+      "stamp",
+      "scan",
+      "probe",
+      "photo"
+    ],
+    "daily": [
+      "scan",
+      "probe",
+      "photo"
+    ],
+    "refills": {
+      "hopperGrams": 300,
+      "brownsGrams": 200,
+      "tankShare": 0.2
+    },
+    "fills": {
+      "hopper": {
+        "vegetable": 600,
+        "fruit": 300,
+        "coffee": 100
+      },
+      "brownsGrams": 1000
+    }
   }
 }

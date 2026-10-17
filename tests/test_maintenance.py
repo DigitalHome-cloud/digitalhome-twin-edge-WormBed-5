@@ -46,3 +46,19 @@ def test_which_task_a_robot_job_does():
     assert m.task_for_job(G, {"kind": "care", "what": "moisten"}) is None
     assert m.task_for_job(G, {"kind": "scan"}) == "weeds"
     assert m.task_for_job(G, {"kind": "plant", "row": 1, "col": 1}) is None
+
+
+def test_the_autopilot_follows_the_care_guides_policy():
+    """PermTek-5 docs/adr/0031: the order, the daily looks and the refill levels are the guide's data, the same the
+    cloud reads; they are what the autopilot always did."""
+    from permtek5_twin_edge import app as web
+    guide = m.load()
+    assert guide["version"] >= 2 and "autopilot" in guide
+    assert web.AUTO_ORDER == ("harvest", "clear", "period", "water", "valve", "feed", "care", "rest", "tap", "topdress",
+                              "plant", "stamp", "scan", "probe", "photo")
+    assert web.AUTO_DAILY == ("scan", "probe", "photo")
+    assert (web.HOPPER_LOW_G, web.BROWNS_LOW_G, web.TANK_LOW) == (300, 200, 0.2)
+    assert web.AUTO["fills"] == {"hopper": {"vegetable": 600, "fruit": 300, "coffee": 100}, "brownsGrams": 1000}
+    own = m.autopilot_policy({"tasks": [], "autopilot": {"refills": {"tankShare": 0.5}}})
+    assert own["refills"] == {"hopperGrams": 300, "brownsGrams": 200, "tankShare": 0.5}, "an unset level keeps its default"
+    assert m.autopilot_policy({"tasks": []}) == m.AUTOPILOT_DEFAULTS
